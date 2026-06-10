@@ -447,9 +447,20 @@ function makeResizable(handle) {
     e.preventDefault(); e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
     const startW = container.offsetWidth, startH = container.offsetHeight;
+    // ドラッグ開始時点のright/bottomを取得（ドラッグ移動後も変わっている可能性あり）
+    const origRight  = parseFloat(container.style.right)  || 20;
+    const origBottom = parseFloat(container.style.bottom) || 20;
     const onMove = e => {
-      container.style.width  = Math.max(220, startW + (e.clientX - startX)) + 'px';
-      container.style.height = Math.max(200, startH - (e.clientY - startY)) + 'px';
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      // 幅・高さのクランプ後の実際の変化量でright/bottomも動かす
+      // → 右端・下端がマウスに追従し、上端・左端は固定される
+      const newW = Math.max(220, startW + deltaX);
+      const newH = Math.max(200, startH + deltaY);
+      container.style.width  = newW + 'px';
+      container.style.height = newH + 'px';
+      container.style.right  = Math.max(0, origRight  - (newW - startW)) + 'px';
+      container.style.bottom = Math.max(0, origBottom - (newH - startH)) + 'px';
     };
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
