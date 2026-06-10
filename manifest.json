@@ -7,8 +7,7 @@
   "permissions": [
     "storage",
     "contextMenus",
-    "tabs",
-    "offscreen"
+    "tabs"
   ],
 
   "host_permissions": [
@@ -28,7 +27,8 @@
   },
 
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
 
   "action": {

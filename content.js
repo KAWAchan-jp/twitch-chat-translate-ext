@@ -855,12 +855,36 @@ async function handleFinalTranscript(text) {
   }
 }
 
-// 音声チャンクを background.js 経由で Groq Whisper API に送信して文字起こし
-async function transcribeViaBackground(blob, mimeType, language) {
+// WebM/Opus blob を 16kHz モノラル Float32 PCM にデコード
+async function decodeAudioToPCM(blob) {
   const arrayBuffer = await blob.arrayBuffer();
-  const base64      = arrayBufferToBase64(arrayBuffer);
+  const audioCtx = new AudioContext();
+  let audioBuffer;
+  try {
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+  } finally {
+    audioCtx.close();
+  }
+  if (audioBuffer.sampleRate === 16000) {
+    return audioBuffer.getChannelData(0);
+  }
+  // 16kHz にリサンプリング
+  const length     = Math.ceil(audioBuffer.duration * 16000);
+  const offlineCtx = new OfflineAudioContext({ numberOfChannels: 1, length, sampleRate: 16000 });
+  const src        = offlineCtx.createBufferSource();
+  src.buffer       = audioBuffer;
+  src.connect(offlineCtx.destination);
+  src.start();
+  const resampled = await offlineCtx.startRendering();
+  return resampled.getChannelData(0);
+}
+
+// 音声チャンクを PCM にデコードして background.js (Whisper SW) へ送信
+async function transcribeViaBackground(blob, _mimeType, language) {
+  const float32 = await decodeAudioToPCM(blob);
+  const pcmBase64 = arrayBufferToBase64(float32.buffer);
   const res = await Promise.race([
-    chrome.runtime.sendMessage({ type: 'transcribe', audioBase64: base64, mimeType, language }),
+    chrome.runtime.sendMessage({ type: 'transcribe', pcmBase64, language }),
     new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）')), 180000)),
   ]);
   if (!res?.ok) throw new Error(res?.error || 'transcribe failed');

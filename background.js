@@ -180,19 +180,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'transcribe') {
-    // ローカル Whisper (Transformers.js) で音声を文字起こし
-    const tabId = sender.tab?.id;
+    // Service Worker 内で Transformers.js + Whisper 推論
     (async () => {
       try {
-        await ensureOffscreenDocument();
-        const res = await chrome.runtime.sendMessage({
-          target: 'offscreen-whisper',
-          type:   'transcribe',
-          audioBase64: message.audioBase64,
-          mimeType:    message.mimeType,
-          language:    message.language,
-        });
-        sendResponse(res);
+        const t = await getWhisper();
+        const bytes   = Uint8Array.from(atob(message.pcmBase64), c => c.charCodeAt(0));
+        const float32 = new Float32Array(bytes.buffer);
+        const opts = { task: 'transcribe', return_timestamps: false };
+        if (message.language && message.language !== 'auto') opts.language = message.language;
+        const result = await t(float32, opts);
+        sendResponse({ ok: true, result: result.text?.trim() || '' });
       } catch (err) {
         sendResponse({ ok: false, error: err.message });
       }
@@ -200,22 +197,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === 'whisper_status') {
-    // offscreen → 全 Twitch タブの content.js へ中継
-    chrome.tabs.query({ url: '*://www.twitch.tv/*' }).then(tabs => {
-      for (const tab of tabs) {
-        chrome.tabs.sendMessage(tab.id, { type: 'whisper_status', text: message.text }).catch(() => {});
-      }
-    });
-    return;
-  }
-
   if (message.type === 'warmup_whisper') {
-    // 設定ページのウォームアップボタン用
     (async () => {
       try {
-        await ensureOffscreenDocument();
-        await chrome.runtime.sendMessage({ target: 'offscreen-whisper', type: 'warmup' });
+        await getWhisper();
         sendResponse({ ok: true });
       } catch (err) {
         sendResponse({ ok: false, error: err.message });
@@ -276,18 +261,51 @@ async function translateText(text, from, to) {
   }
 }
 
-// ===== Offscreen Document 管理 =====
-async function ensureOffscreenDocument() {
-  const url = chrome.runtime.getURL('offscreen-whisper.html');
-  const existing = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT'],
-    documentUrls: [url],
-  });
-  if (existing.length > 0) return;
+// ===== Whisper (Transformers.js) — Service Worker 内で実行 =====
+let _whisper      = null;
+let _whisperLoad  = null;
 
-  await chrome.offscreen.create({
-    url,
-    reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
-    justification: 'Whisper ローカル音声認識の実行（オーディオデコード＋ML推論）',
-  });
+async function getWhisper() {
+  if (_whisper) return _whisper;
+  if (_whisperLoad) return _whisperLoad;
+
+  _whisperLoad = (async () => {
+    await notifyWhisperStatus('Whisper モデルをロード中... (初回は数十秒かかります)');
+
+    const { pipeline, env } = await import('./lib/transformers.web.min.js');
+    env.useBrowserCache  = true;
+    env.allowLocalModels = false;
+
+    _whisper = await pipeline(
+      'automatic-speech-recognition',
+      'onnx-community/whisper-tiny',
+      {
+        device: 'wasm',
+        dtype:  'q4',
+        progress_callback: ({ status, name, progress }) => {
+          if (status === 'downloading') {
+            const pct = progress != null ? Math.round(progress) : '...';
+            notifyWhisperStatus(`ダウンロード中: ${name ?? ''} (${pct}%)`);
+          } else if (status === 'ready') {
+            notifyWhisperStatus('Whisper 準備完了 ✓');
+          }
+        },
+      },
+    );
+
+    _whisperLoad = null;
+    await notifyWhisperStatus('Whisper 準備完了 ✓');
+    return _whisper;
+  })();
+
+  return _whisperLoad;
+}
+
+async function notifyWhisperStatus(text) {
+  try {
+    const tabs = await chrome.tabs.query({ url: '*://www.twitch.tv/*' });
+    for (const tab of tabs) {
+      chrome.tabs.sendMessage(tab.id, { type: 'whisper_status', text }).catch(() => {});
+    }
+  } catch {}
 }
