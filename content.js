@@ -26,6 +26,12 @@ let translateQueue  = Promise.resolve();
 let messageCount    = 0;
 let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true };
 
+// 音声認識関連
+let recognition       = null;
+let isVoiceActive     = false;
+let subtitleContainer = null;
+let subtitleFadeTimer = null;
+
 // ===== Shadow DOM 内のDOM参照 =====
 let container, shadowRoot, panel, messagesEl, statusDotEl, channelNameEl, msgCountEl;
 let authBarEl, loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
@@ -90,6 +96,18 @@ const PANEL_CSS = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .msg-count { font-size: 11px; color: #adadb8; flex-shrink: 0; }
+
+  .voice-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0 2px; flex-shrink: 0;
+    opacity: 0.4; transition: opacity 0.2s;
+  }
+  .voice-btn:hover    { opacity: 0.8; }
+  .voice-btn.active   { opacity: 1; animation: mic-pulse 1.2s infinite; }
+
+  @keyframes mic-pulse {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
+  }
 
   .close-btn {
     background: none; border: none; color: #adadb8; cursor: pointer;
@@ -287,6 +305,7 @@ function createPanel() {
         <div class="status-dot connecting" id="statusDot"></div>
         <span class="channel-name" id="channelName">接続待ち</span>
         <span class="msg-count" id="msgCount">0 msgs</span>
+        <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
         <button class="close-btn" id="closeBtn" title="閉じる">×</button>
       </div>
       <div class="auth-bar" id="authBar">
@@ -321,6 +340,7 @@ function createPanel() {
   sendBtnEl      = shadowRoot.getElementById('sendBtn');
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
+  shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
   loginBtnEl.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'twitch_login' }));
   logoutBtnEl.addEventListener('click', handleLogout);
 
@@ -672,6 +692,145 @@ function escapeHtml(str) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ===== 音声認識・字幕オーバーレイ =====
+
+function toggleVoice() {
+  if (isVoiceActive) {
+    stopVoice();
+  } else {
+    startVoice();
+  }
+}
+
+function startVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert('このブラウザは Web Speech API に対応していません。');
+    return;
+  }
+
+  ensureSubtitleContainer();
+
+  recognition = new SR();
+  recognition.continuous    = true;
+  recognition.interimResults = true;
+  // 認識言語は翻訳先言語を使用（VB-Cableに流れている音声の言語）
+  recognition.lang = settings.tgt_lang === 'ja' ? 'ja-JP'
+                   : settings.tgt_lang === 'ko' ? 'ko-KR'
+                   : settings.tgt_lang === 'zh-CN' ? 'zh-CN'
+                   : settings.tgt_lang === 'zh-TW' ? 'zh-TW'
+                   : settings.tgt_lang + '-' + settings.tgt_lang.toUpperCase();
+
+  recognition.onstart = () => {
+    isVoiceActive = true;
+    updateVoiceBtn();
+  };
+
+  recognition.onresult = e => {
+    let interim = '';
+    let final   = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
+    }
+    if (interim) showSubtitle(interim, false);
+    if (final)   handleFinalTranscript(final);
+  };
+
+  recognition.onerror = ev => {
+    // not-allowed: マイク権限なし、no-speech: 無音は無視
+    if (ev.error !== 'no-speech') {
+      showSubtitle(`音声認識エラー: ${ev.error}`, false);
+    }
+  };
+
+  recognition.onend = () => {
+    // continuous=true でも接続が切れることがあるので自動再起動
+    if (isVoiceActive) recognition.start();
+  };
+
+  recognition.start();
+}
+
+function stopVoice() {
+  isVoiceActive = false;
+  if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
+  clearSubtitle();
+  updateVoiceBtn();
+}
+
+async function handleFinalTranscript(text) {
+  const from = settings.tgt_lang;
+  const to   = settings.src_lang === 'auto' ? 'ja' : settings.src_lang;
+  try {
+    const translated = await translateViaBackground(text, from, to);
+    showSubtitle(translated, true);
+  } catch {
+    showSubtitle(text, true);
+  }
+}
+
+// 字幕コンテナを document.body 直下に作成（Shadow DOM外）
+function ensureSubtitleContainer() {
+  if (subtitleContainer) return;
+  subtitleContainer = document.createElement('div');
+  subtitleContainer.id = 'tct-subtitle';
+  subtitleContainer.style.cssText = [
+    'position:fixed',
+    'bottom:60px',
+    'left:50%',
+    'transform:translateX(-50%)',
+    'z-index:2147483646',
+    'max-width:80vw',
+    'min-width:200px',
+    'text-align:center',
+    'pointer-events:none',
+  ].join(';');
+  document.body.appendChild(subtitleContainer);
+}
+
+function showSubtitle(text, isFinal) {
+  if (!subtitleContainer) return;
+  clearTimeout(subtitleFadeTimer);
+  subtitleContainer.style.opacity   = '1';
+  subtitleContainer.style.transition = 'none';
+  subtitleContainer.innerHTML = `
+    <span style="
+      display:inline-block;
+      background:rgba(0,0,0,0.75);
+      color:${isFinal ? '#ffffff' : '#aaaaaa'};
+      font-size:22px;
+      font-weight:${isFinal ? '700' : '400'};
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+      padding:8px 18px;
+      border-radius:6px;
+      line-height:1.4;
+      font-style:${isFinal ? 'normal' : 'italic'};
+    ">${escapeHtml(text)}</span>
+  `;
+  if (isFinal) {
+    // 確定テキストは4秒後にフェードアウト
+    subtitleFadeTimer = setTimeout(() => {
+      subtitleContainer.style.transition = 'opacity 0.8s';
+      subtitleContainer.style.opacity = '0';
+    }, 4000);
+  }
+}
+
+function clearSubtitle() {
+  if (!subtitleContainer) return;
+  clearTimeout(subtitleFadeTimer);
+  subtitleContainer.innerHTML = '';
+}
+
+function updateVoiceBtn() {
+  const btn = shadowRoot?.getElementById('voiceBtn');
+  if (!btn) return;
+  btn.classList.toggle('active', isVoiceActive);
+  btn.title = isVoiceActive ? '音声字幕 ON（クリックで停止）' : '音声字幕 OFF（クリックで開始）';
+}
 
 // ===== 起動 =====
 init();
