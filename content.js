@@ -434,7 +434,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'voice_stopped') {
     isVoiceActive = false;
     updateVoiceBtn();
-    clearSubtitle();
+    // エラーで停止した場合はメッセージを残す（clearSubtitle は手動停止時のみ）
   }
 });
 
@@ -729,7 +729,7 @@ function stopVoice() {
   isVoiceActive = false;
   updateVoiceBtn();
   chrome.runtime.sendMessage({ type: 'voice_stop' });
-  clearSubtitle();
+  clearSubtitle(); // 手動停止時のみクリア
 }
 
 // 字幕コンテナを document.body 直下に作成（Shadow DOM外）
