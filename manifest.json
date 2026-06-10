@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Twitch Chat Translator",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Twitchチャットをリアルタイム日本語翻訳",
 
   "permissions": [
     "storage",
-    "contextMenus"
+    "contextMenus",
+    "tabs"
   ],
 
   "host_permissions": [
@@ -33,6 +34,11 @@
       "matches": ["*://www.twitch.tv/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://kawachan-jp.github.io/twitch-chat-translate/*"],
+      "js": ["auth-callback.js"],
+      "run_at": "document_start"
     }
   ],
 
