@@ -12,16 +12,17 @@ const TRANSLATE_SKIP_PATTERNS = [
 // チャンネルページでないTwitchのパス
 const EXCLUDED_PATHS = new Set([
   'directory', 'settings', 'subscriptions', 'inventory',
-  'wallet', 'friends', 'messages', 'videos', 'clips',
-  'following', 'browse', 'prime', 'drops', 'search',
-  'u', 'downloads', 'turbo', 'jobs', 'store',
+  'wallet', 'friends', 'messages', 'following', 'browse',
+  'prime', 'drops', 'search', 'u', 'downloads', 'turbo',
+  'jobs', 'store', 'popout',
 ]);
 
 // ===== 状態 =====
-let ws = null;
+let ws           = null;
 let currentChannel = '';
+let isActive     = true;  // アイコンクリックでON/OFF
 let translateQueue = Promise.resolve();
-let messageCount   = 0;
+let messageCount = 0;
 let settings = {
   src_lang:      'auto',
   tgt_lang:      'ja',
@@ -135,7 +136,7 @@ const PANEL_CSS = `
     font-weight: 700;
   }
 
-  /* 原文（show_originalがfalseのとき非表示） */
+  /* 原文（show_original=false のとき非表示） */
   .msg-orig {
     color: #7d7d8f;
     font-size: 11px;
@@ -178,12 +179,8 @@ async function init() {
   // 設定変更をリアルタイムに反映
   chrome.storage.onChanged.addListener(onSettingsChanged);
 
-  // アイコンクリックでパネルを切り替え
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'toggle_panel') {
-      container.style.display = container.style.display === 'none' ? '' : 'none';
-    }
-  });
+  // 起動時のバッジをONに設定
+  notifyBadge(isActive);
 }
 
 // ===== URLからチャンネル名を取得 =====
@@ -202,7 +199,12 @@ function detectAndConnect() {
     disconnect();
     currentChannel = ch;
     resetMessages();
-    connect();
+    if (isActive) connect();
+    else {
+      // OFFのままチャンネルだけ更新
+      if (channelNameEl) channelNameEl.textContent = `#${ch} (停止中)`;
+      setStatus('error');
+    }
   } else if (!ch && currentChannel) {
     disconnect();
     currentChannel = '';
@@ -237,6 +239,11 @@ function onSettingsChanged(changes) {
   }
 }
 
+// ===== background.jsへバッジ更新を通知 =====
+function notifyBadge(active) {
+  chrome.runtime.sendMessage({ type: 'badge_update', active }).catch(() => {});
+}
+
 // ===== フローティングパネル作成（Shadow DOM） =====
 function createPanel() {
   container = document.createElement('div');
@@ -250,7 +257,7 @@ function createPanel() {
         <div class="status-dot connecting" id="statusDot"></div>
         <span class="channel-name" id="channelName">接続待ち</span>
         <span class="msg-count" id="msgCount">0 msgs</span>
-        <button class="close-btn" id="closeBtn" title="閉じる">×</button>
+        <button class="close-btn" id="closeBtn" title="閉じる（アイコンクリックで再表示）">×</button>
       </div>
       <div class="messages" id="messages"></div>
     </div>
@@ -264,12 +271,34 @@ function createPanel() {
   msgCountEl    = shadowRoot.getElementById('msgCount');
   messagesEl    = shadowRoot.getElementById('messages');
 
+  // ×ボタン: OFFに切り替え（アイコンクリックで復帰可能）
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => {
-    container.style.display = 'none';
+    setActive(false);
   });
 
   makeDraggable(shadowRoot.getElementById('header'));
 }
+
+// ===== ON/OFFを切り替える共通関数 =====
+function setActive(active) {
+  isActive = active;
+  if (active) {
+    container.style.display = '';
+    if (currentChannel && !ws) connect();
+  } else {
+    container.style.display = 'none';
+    disconnect();
+  }
+  notifyBadge(active);
+}
+
+// ===== background.jsからのメッセージ =====
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'toggle') {
+    setActive(!isActive);
+    sendResponse({ active: isActive });
+  }
+});
 
 // ===== ヘッダーをドラッグしてパネルを移動 =====
 function makeDraggable(handle) {
@@ -277,24 +306,21 @@ function makeDraggable(handle) {
     if (e.target.closest('.close-btn')) return;
     e.preventDefault();
 
-    const rect    = container.getBoundingClientRect();
-    const startX  = e.clientX;
-    const startY  = e.clientY;
+    const rect     = container.getBoundingClientRect();
+    const startX   = e.clientX;
+    const startY   = e.clientY;
     const origRight  = window.innerWidth  - rect.right;
     const origBottom = window.innerHeight - rect.bottom;
 
     const onMove = e => {
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      // 右・下のオフセットで位置を管理（画面外に出ないようクランプ）
-      container.style.right  = Math.max(0, origRight  - dx) + 'px';
-      container.style.bottom = Math.max(0, origBottom - dy) + 'px';
+      // 右・下のオフセットで位置管理（画面外に出ないようクランプ）
+      container.style.right  = Math.max(0, origRight  - (e.clientX - startX)) + 'px';
+      container.style.bottom = Math.max(0, origBottom - (e.clientY - startY)) + 'px';
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
@@ -336,7 +362,7 @@ function connect() {
 
 function disconnect() {
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
-  currentChannel = '';
+  // currentChannelは保持（再接続時に使用）
 }
 
 function resetMessages() {
@@ -352,9 +378,7 @@ function handleIRCLine(line) {
     ws?.send('PONG :tmi.twitch.tv');
     return;
   }
-  // JOINで接続完了
-  const joinTarget = `JOIN #${currentChannel}`;
-  if (line.includes(joinTarget)) {
+  if (line.includes(`JOIN #${currentChannel}`)) {
     setStatus('connected');
     addSystemMessage(`#${currentChannel} に接続しました！`);
     return;
@@ -370,11 +394,7 @@ function parseIRCMessage(line) {
     const withTags = line.match(/^@([^ ]+) :(\w+)!\w+@\S+ PRIVMSG #\w+ :(.+)$/);
     if (withTags) {
       const tags = parseTags(withTags[1]);
-      return {
-        username: tags['display-name'] || withTags[2],
-        text:     withTags[3],
-        color:    tags['color'] || null,
-      };
+      return { username: tags['display-name'] || withTags[2], text: withTags[3], color: tags['color'] || null };
     }
     // タグなしメッセージ
     const plain = line.match(/:(\w+)!\w+@\S+ PRIVMSG #\w+ :(.+)$/);
@@ -459,17 +479,23 @@ function scrollToBottom() {
 }
 
 // ===== 翻訳リクエスト（background.js経由） =====
-function translateViaBackground(text, from, to) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: 'translate', text, from, to }, res => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (res?.ok) resolve(res.result);
-      else reject(new Error(res?.error || 'translate failed'));
-    });
-  });
+// サービスワーカーが落ちている場合に備えてリトライする
+async function translateViaBackground(text, from, to) {
+  const MAX_RETRIES = 2;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await Promise.race([
+        chrome.runtime.sendMessage({ type: 'translate', text, from, to }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト')), 10000)),
+      ]);
+      if (!res?.ok) throw new Error(res?.error || 'translate failed');
+      return res.result;
+    } catch (e) {
+      if (attempt === MAX_RETRIES) throw e;
+      // Service Workerが起動中の可能性があるため少し待ってリトライ
+      await sleep(300 * (attempt + 1));
+    }
+  }
 }
 
 // ===== ユーティリティ =====

@@ -20,7 +20,6 @@ const SRC_LANGS = [
 ];
 const TGT_LANGS = SRC_LANGS.filter(([v]) => v !== 'auto');
 
-// ===== デフォルト設定 =====
 const DEFAULT_SETTINGS = {
   src_lang: 'auto',
   tgt_lang: 'ja',
@@ -35,8 +34,18 @@ chrome.runtime.onStartup.addListener(buildContextMenus);
 async function buildContextMenus() {
   const stored = await chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS));
   const s = { ...DEFAULT_SETTINGS, ...stored };
+  const { version } = chrome.runtime.getManifest();
 
   chrome.contextMenus.removeAll(() => {
+    // バージョン表示（クリック不可）
+    chrome.contextMenus.create({
+      id: 'version',
+      title: `Twitch Chat Translator  v${version}`,
+      enabled: false,
+      contexts: ['action'],
+    });
+    chrome.contextMenus.create({ id: 'sep0', type: 'separator', contexts: ['action'] });
+
     // 翻訳元言語のサブメニュー
     chrome.contextMenus.create({ id: 'src_parent', title: '翻訳元言語', contexts: ['action'] });
     SRC_LANGS.forEach(([val, label]) => {
@@ -88,7 +97,6 @@ async function buildContextMenus() {
 // ===== コンテキストメニュークリック: 設定を保存 =====
 chrome.contextMenus.onClicked.addListener((info) => {
   const { menuItemId, checked } = info;
-
   if (menuItemId.startsWith('src_')) {
     chrome.storage.local.set({ src_lang: menuItemId.replace('src_', '') });
   } else if (menuItemId.startsWith('tgt_')) {
@@ -100,13 +108,32 @@ chrome.contextMenus.onClicked.addListener((info) => {
   }
 });
 
-// ===== アイコンクリック: コンテンツスクリプトにパネル切り替えを通知 =====
-chrome.action.onClicked.addListener((tab) => {
-  chrome.tabs.sendMessage(tab.id, { type: 'toggle_panel' });
+// ===== アイコン左クリック: コンテンツスクリプトにトグルを依頼してバッジを更新 =====
+chrome.action.onClicked.addListener(async (tab) => {
+  try {
+    const res = await chrome.tabs.sendMessage(tab.id, { type: 'toggle' });
+    setBadge(tab.id, res.active);
+  } catch {
+    // Twitchページ以外（コンテンツスクリプト未注入）は何もしない
+  }
 });
 
-// ===== メッセージ処理: 翻訳・Twitch APIのプロキシ =====
+// ===== バッジ更新（ON=紫 / OFF=グレー） =====
+function setBadge(tabId, active) {
+  const opts = tabId ? { tabId } : {};
+  chrome.action.setBadgeText({ text: active ? 'ON' : 'OFF', ...opts });
+  chrome.action.setBadgeBackgroundColor({ color: active ? '#9147ff' : '#555555', ...opts });
+}
+
+// ===== メッセージ処理 =====
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // コンテンツスクリプトからのバッジ更新通知
+  if (message.type === 'badge_update') {
+    if (sender.tab?.id) setBadge(sender.tab.id, message.active);
+    return;
+  }
+
+  // 翻訳リクエスト（CORSを回避するためService Worker経由でfetch）
   if (message.type === 'translate') {
     const { text, from, to } = message;
     translateText(text, from, to)
@@ -115,14 +142,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // 非同期レスポンスのため必須
   }
 
+  // Twitch APIリクエスト（CORSを回避するためService Worker経由でfetch）
   if (message.type === 'twitch_api') {
     const { url, token, clientId } = message;
-    fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Client-Id': clientId,
-      },
-    })
+    fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': clientId } })
       .then(r => r.json())
       .then(data => sendResponse({ ok: true, data }))
       .catch(err  => sendResponse({ ok: false, error: err.message }));
