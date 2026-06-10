@@ -1,6 +1,6 @@
 'use strict';
 
-const TWITCH_CLIENT_ID   = '1vbld5ti60dwqzmxrpfkcnk1oph5jd';
+const TWITCH_CLIENT_ID    = '1vbld5ti60dwqzmxrpfkcnk1oph5jd';
 const TWITCH_REDIRECT_URI = 'https://kawachan-jp.github.io/twitch-chat-translate/';
 
 // ===== 言語リスト =====
@@ -29,6 +29,14 @@ const DEFAULT_SETTINGS = {
   show_original: true,
   auto_scroll: true,
 };
+
+// チャンネルページでないTwitchのパス（content.jsと同じ定義）
+const EXCLUDED_PATHS = new Set([
+  'directory', 'settings', 'subscriptions', 'inventory',
+  'wallet', 'friends', 'messages', 'following', 'browse',
+  'prime', 'drops', 'search', 'u', 'downloads', 'turbo',
+  'jobs', 'store', 'popout',
+]);
 
 // ===== インストール・起動時にコンテキストメニューを構築 =====
 chrome.runtime.onInstalled.addListener(buildContextMenus);
@@ -62,26 +70,86 @@ async function buildContextMenus() {
     chrome.contextMenus.create({ id: 'show_original', title: '原文を表示', type: 'checkbox', checked: s.show_original, contexts: ['action'] });
     chrome.contextMenus.create({ id: 'auto_scroll', title: '自動スクロール', type: 'checkbox', checked: s.auto_scroll, contexts: ['action'] });
 
-    // バージョン番号はメニュー末尾に表示（Chromeが先頭に拡張名を自動追加するため末尾に配置）
     chrome.contextMenus.create({ id: 'sep3', type: 'separator', contexts: ['action'] });
     chrome.contextMenus.create({ id: 'version', title: `Twitch Chat Translator  v${version}`, enabled: false, contexts: ['action'] });
   });
 }
 
-chrome.contextMenus.onClicked.addListener((info) => {
+// ===== コンテキストメニュークリック =====
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const { menuItemId, checked } = info;
-  if (menuItemId.startsWith('src_')) chrome.storage.local.set({ src_lang: menuItemId.replace('src_', '') });
-  else if (menuItemId.startsWith('tgt_')) chrome.storage.local.set({ tgt_lang: menuItemId.replace('tgt_', '') });
-  else if (menuItemId === 'show_original') chrome.storage.local.set({ show_original: checked });
-  else if (menuItemId === 'auto_scroll')   chrome.storage.local.set({ auto_scroll: checked });
+  const channel = getChannelFromTabUrl(tab?.url);
+
+  if (menuItemId.startsWith('src_')) {
+    await saveChannelLangSetting(channel, 'src_lang', menuItemId.replace('src_', ''));
+  } else if (menuItemId.startsWith('tgt_')) {
+    await saveChannelLangSetting(channel, 'tgt_lang', menuItemId.replace('tgt_', ''));
+  } else if (menuItemId === 'show_original') {
+    chrome.storage.local.set({ show_original: checked });
+  } else if (menuItemId === 'auto_scroll') {
+    chrome.storage.local.set({ auto_scroll: checked });
+  }
 });
+
+// チャンネル専用の言語設定を保存（グローバルデフォルトも更新）
+async function saveChannelLangSetting(channel, key, value) {
+  const update = { [key]: value }; // グローバルデフォルトを最後に使用した値に更新
+
+  if (channel) {
+    const { channel_settings = {} } = await chrome.storage.local.get('channel_settings');
+    channel_settings[channel] = { ...channel_settings[channel], [key]: value };
+    update.channel_settings = channel_settings;
+  }
+
+  await chrome.storage.local.set(update);
+}
+
+// ===== タブ切り替え・URL変化時にメニューのチェック状態を更新 =====
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    await syncMenuToTab(tab);
+  } catch {}
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.url) await syncMenuToTab(tab);
+});
+
+// タブのURLに対応するチャンネルの設定をメニューに反映
+async function syncMenuToTab(tab) {
+  const channel = getChannelFromTabUrl(tab?.url);
+  if (!channel) return;
+
+  const stored = await chrome.storage.local.get(['src_lang', 'tgt_lang', 'channel_settings']);
+  const cs = stored.channel_settings?.[channel];
+  const srcLang = cs?.src_lang ?? stored.src_lang ?? DEFAULT_SETTINGS.src_lang;
+  const tgtLang = cs?.tgt_lang ?? stored.tgt_lang ?? DEFAULT_SETTINGS.tgt_lang;
+
+  SRC_LANGS.forEach(([val]) => {
+    chrome.contextMenus.update(`src_${val}`, { checked: val === srcLang }).catch(() => {});
+  });
+  TGT_LANGS.forEach(([val]) => {
+    chrome.contextMenus.update(`tgt_${val}`, { checked: val === tgtLang }).catch(() => {});
+  });
+}
+
+// URLからTwitchチャンネル名を取得
+function getChannelFromTabUrl(url) {
+  if (!url?.includes('twitch.tv')) return null;
+  try {
+    const parts = new URL(url).pathname.split('/').filter(Boolean);
+    if (parts.length >= 1 && !EXCLUDED_PATHS.has(parts[0])) return parts[0].toLowerCase();
+  } catch {}
+  return null;
+}
 
 // ===== アイコン左クリック =====
 chrome.action.onClicked.addListener(async (tab) => {
   try {
     const res = await chrome.tabs.sendMessage(tab.id, { type: 'toggle' });
     setBadge(tab.id, res.active);
-  } catch { /* Twitch以外のタブ */ }
+  } catch {}
 });
 
 function setBadge(tabId, active) {
@@ -92,13 +160,11 @@ function setBadge(tabId, active) {
 
 // ===== メッセージ処理 =====
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // バッジ更新
   if (message.type === 'badge_update') {
     if (sender.tab?.id) setBadge(sender.tab.id, message.active);
     return;
   }
 
-  // Twitchログイン: OAuthタブを開く
   if (message.type === 'twitch_login') {
     const scope = 'chat:read chat:edit';
     const url = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}`
@@ -108,13 +174,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  // auth-callback.jsからのトークン受信
   if (message.type === 'twitch_auth') {
-    handleTwitchAuth(message.token, sender.tab?.id);
+    handleTwitchAuth(message.token);
     return;
   }
 
-  // 翻訳プロキシ
   if (message.type === 'translate') {
     const { text, from, to } = message;
     translateText(text, from, to)
@@ -123,7 +187,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Twitch APIプロキシ
   if (message.type === 'twitch_api') {
     const { url, token, clientId } = message;
     fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': clientId } })
@@ -134,7 +197,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// トークンからユーザー名を取得してストレージに保存し、Twitchタブに通知
 async function handleTwitchAuth(token) {
   try {
     const res  = await fetch('https://api.twitch.tv/helix/users', {
@@ -146,7 +208,6 @@ async function handleTwitchAuth(token) {
 
     await chrome.storage.local.set({ twitch_token: token, twitch_username: username });
 
-    // 開いているTwitchタブすべてに通知
     const tabs = await chrome.tabs.query({ url: '*://www.twitch.tv/*' });
     for (const tab of tabs) {
       chrome.tabs.sendMessage(tab.id, { type: 'twitch_auth_complete', username }).catch(() => {});

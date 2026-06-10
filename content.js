@@ -182,7 +182,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username',
+    'twitch_token', 'twitch_username', 'channel_settings',
   ]);
   settings = { ...settings, ...stored };
 
@@ -193,7 +193,7 @@ async function init() {
   }
 
   createPanel();
-  detectAndConnect();
+  await detectAndConnect();
   hookNavigation();
 
   chrome.storage.onChanged.addListener(onSettingsChanged);
@@ -206,11 +206,12 @@ function getChannelFromUrl() {
   return null;
 }
 
-function detectAndConnect() {
+async function detectAndConnect() {
   const ch = getChannelFromUrl();
   if (ch && ch !== currentChannel) {
     disconnect();
     currentChannel = ch;
+    await loadChannelSettings(ch);
     resetMessages();
     if (isActive) connect();
     else {
@@ -225,15 +226,35 @@ function detectAndConnect() {
   }
 }
 
+// チャンネル固有の言語設定をストレージから読み込む（なければグローバル設定を使用）
+async function loadChannelSettings(channel) {
+  const stored = await chrome.storage.local.get(['src_lang', 'tgt_lang', 'channel_settings']);
+  const cs = stored.channel_settings?.[channel];
+  settings.src_lang = cs?.src_lang ?? stored.src_lang ?? 'auto';
+  settings.tgt_lang = cs?.tgt_lang ?? stored.tgt_lang ?? 'ja';
+  updateInputPlaceholder();
+}
+
 function hookNavigation() {
   ['pushState', 'replaceState'].forEach(method => {
     const orig = history[method].bind(history);
-    history[method] = (...args) => { orig(...args); setTimeout(detectAndConnect, 200); };
+    history[method] = (...args) => { orig(...args); setTimeout(() => detectAndConnect(), 200); };
   });
-  window.addEventListener('popstate', () => setTimeout(detectAndConnect, 200));
+  window.addEventListener('popstate', () => setTimeout(() => detectAndConnect(), 200));
 }
 
 function onSettingsChanged(changes) {
+  // チャンネル固有設定が変わった場合、現在のチャンネルの設定を反映
+  if (changes.channel_settings && currentChannel) {
+    const cs = changes.channel_settings.newValue?.[currentChannel];
+    if (cs) {
+      if (cs.src_lang !== undefined) settings.src_lang = cs.src_lang;
+      if (cs.tgt_lang !== undefined) settings.tgt_lang = cs.tgt_lang;
+      updateInputPlaceholder();
+    }
+    return;
+  }
+  // グローバル設定の変更（チャンネル固有設定がない場合に適用）
   if (changes.src_lang) settings.src_lang = changes.src_lang.newValue;
   if (changes.tgt_lang) settings.tgt_lang = changes.tgt_lang.newValue;
   if (changes.show_original) {
