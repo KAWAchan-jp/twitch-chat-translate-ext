@@ -775,15 +775,22 @@ async function startVoice() {
   };
 
   recognition.onerror = ev => {
+    console.log('[TCT Voice] error:', ev.error);
     if (ev.error === 'not-allowed') {
       showSubtitle('⚠ マイクの使用が許可されていません', true);
       stopVoice();
-    } else if (ev.error !== 'no-speech') {
+    } else if (ev.error === 'no-speech') {
+      // 音声未検出 → 音量不足かデバイス選択の問題
+      showSubtitle('🔇 音声未検出（VB-Cableの音量を確認）', false);
+    } else if (ev.error === 'network') {
+      showSubtitle('⚠ ネットワークエラー（音声認識にはインターネット接続が必要）', true);
+    } else {
       showSubtitle(`音声認識エラー: ${ev.error}`, true);
     }
   };
 
   recognition.onend = () => {
+    console.log('[TCT Voice] onend, isVoiceActive=', isVoiceActive);
     // continuous=true でも接続が切れることがあるので自動再起動
     if (isVoiceActive) recognition.start();
   };
