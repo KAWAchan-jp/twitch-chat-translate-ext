@@ -699,6 +699,18 @@ function toggleVoice() {
   }
 }
 
+// 言語コードを BCP-47 タグに変換（Web Speech API 用）
+function toLangTag(lang) {
+  const map = {
+    'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
+    'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW',
+    'es': 'es-ES', 'fr': 'fr-FR', 'de': 'de-DE',
+    'pt': 'pt-BR', 'ru': 'ru-RU', 'ar': 'ar-SA',
+    'hi': 'hi-IN', 'th': 'th-TH', 'vi': 'vi-VN',
+  };
+  return map[lang] || lang;
+}
+
 function startVoice() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
@@ -706,21 +718,25 @@ function startVoice() {
     return;
   }
 
+  // 音声認識には認識する言語（src_lang）が必要。auto のままでは認識できない
+  if (settings.src_lang === 'auto') {
+    ensureSubtitleContainer();
+    showSubtitle('⚠ 右クリックで翻訳元言語を設定してください（自動検出は音声認識に使えません）', true);
+    return;
+  }
+
   ensureSubtitleContainer();
 
   recognition = new SR();
-  recognition.continuous    = true;
+  recognition.continuous     = true;
   recognition.interimResults = true;
-  // 認識言語は翻訳先言語を使用（VB-Cableに流れている音声の言語）
-  recognition.lang = settings.tgt_lang === 'ja' ? 'ja-JP'
-                   : settings.tgt_lang === 'ko' ? 'ko-KR'
-                   : settings.tgt_lang === 'zh-CN' ? 'zh-CN'
-                   : settings.tgt_lang === 'zh-TW' ? 'zh-TW'
-                   : settings.tgt_lang + '-' + settings.tgt_lang.toUpperCase();
+  // 認識言語 = 話されている言語（翻訳元）
+  recognition.lang = toLangTag(settings.src_lang);
 
   recognition.onstart = () => {
     isVoiceActive = true;
     updateVoiceBtn();
+    showSubtitle('🎤 音声認識中...', false);
   };
 
   recognition.onresult = e => {
@@ -731,14 +747,18 @@ function startVoice() {
       if (e.results[i].isFinal) final += t;
       else interim += t;
     }
+    // interim は認識中のテキストをそのまま表示
     if (interim) showSubtitle(interim, false);
+    // final は翻訳してから表示
     if (final)   handleFinalTranscript(final);
   };
 
   recognition.onerror = ev => {
-    // not-allowed: マイク権限なし、no-speech: 無音は無視
-    if (ev.error !== 'no-speech') {
-      showSubtitle(`音声認識エラー: ${ev.error}`, false);
+    if (ev.error === 'not-allowed') {
+      showSubtitle('⚠ マイクの使用が許可されていません', true);
+      stopVoice();
+    } else if (ev.error !== 'no-speech') {
+      showSubtitle(`音声認識エラー: ${ev.error}`, true);
     }
   };
 
@@ -758,8 +778,9 @@ function stopVoice() {
 }
 
 async function handleFinalTranscript(text) {
-  const from = settings.tgt_lang;
-  const to   = settings.src_lang === 'auto' ? 'ja' : settings.src_lang;
+  // 話されている言語（src_lang）→ 表示したい言語（tgt_lang）に翻訳
+  const from = settings.src_lang;
+  const to   = settings.tgt_lang;
   try {
     const translated = await translateViaBackground(text, from, to);
     showSubtitle(translated, true);
