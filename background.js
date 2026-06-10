@@ -1,15 +1,117 @@
 'use strict';
 
-// ===== 翻訳・Twitch APIリクエストのプロキシ =====
-// Chrome拡張のpopupから直接fetchするとCORSで弾かれる場合があるため
-// Service Worker（background.js）経由でfetchする
+// ===== 言語リスト =====
+const SRC_LANGS = [
+  ['auto', '自動検出'],
+  ['en', '英語'],
+  ['ko', '韓国語'],
+  ['zh-CN', '中国語（簡体字）'],
+  ['zh-TW', '中国語（繁体字）'],
+  ['es', 'スペイン語'],
+  ['fr', 'フランス語'],
+  ['de', 'ドイツ語'],
+  ['pt', 'ポルトガル語'],
+  ['ru', 'ロシア語'],
+  ['ja', '日本語'],
+  ['ar', 'アラビア語'],
+  ['hi', 'ヒンディー語'],
+  ['th', 'タイ語'],
+  ['vi', 'ベトナム語'],
+];
+const TGT_LANGS = SRC_LANGS.filter(([v]) => v !== 'auto');
 
+// ===== デフォルト設定 =====
+const DEFAULT_SETTINGS = {
+  src_lang: 'auto',
+  tgt_lang: 'ja',
+  show_original: true,
+  auto_scroll: true,
+};
+
+// ===== インストール・起動時にコンテキストメニューを構築 =====
+chrome.runtime.onInstalled.addListener(buildContextMenus);
+chrome.runtime.onStartup.addListener(buildContextMenus);
+
+async function buildContextMenus() {
+  const stored = await chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS));
+  const s = { ...DEFAULT_SETTINGS, ...stored };
+
+  chrome.contextMenus.removeAll(() => {
+    // 翻訳元言語のサブメニュー
+    chrome.contextMenus.create({ id: 'src_parent', title: '翻訳元言語', contexts: ['action'] });
+    SRC_LANGS.forEach(([val, label]) => {
+      chrome.contextMenus.create({
+        id: `src_${val}`,
+        parentId: 'src_parent',
+        title: label,
+        type: 'radio',
+        checked: val === s.src_lang,
+        contexts: ['action'],
+      });
+    });
+
+    chrome.contextMenus.create({ id: 'sep1', type: 'separator', contexts: ['action'] });
+
+    // 翻訳先言語のサブメニュー
+    chrome.contextMenus.create({ id: 'tgt_parent', title: '翻訳先言語', contexts: ['action'] });
+    TGT_LANGS.forEach(([val, label]) => {
+      chrome.contextMenus.create({
+        id: `tgt_${val}`,
+        parentId: 'tgt_parent',
+        title: label,
+        type: 'radio',
+        checked: val === s.tgt_lang,
+        contexts: ['action'],
+      });
+    });
+
+    chrome.contextMenus.create({ id: 'sep2', type: 'separator', contexts: ['action'] });
+
+    // 表示設定のトグル
+    chrome.contextMenus.create({
+      id: 'show_original',
+      title: '原文を表示',
+      type: 'checkbox',
+      checked: s.show_original,
+      contexts: ['action'],
+    });
+    chrome.contextMenus.create({
+      id: 'auto_scroll',
+      title: '自動スクロール',
+      type: 'checkbox',
+      checked: s.auto_scroll,
+      contexts: ['action'],
+    });
+  });
+}
+
+// ===== コンテキストメニュークリック: 設定を保存 =====
+chrome.contextMenus.onClicked.addListener((info) => {
+  const { menuItemId, checked } = info;
+
+  if (menuItemId.startsWith('src_')) {
+    chrome.storage.local.set({ src_lang: menuItemId.replace('src_', '') });
+  } else if (menuItemId.startsWith('tgt_')) {
+    chrome.storage.local.set({ tgt_lang: menuItemId.replace('tgt_', '') });
+  } else if (menuItemId === 'show_original') {
+    chrome.storage.local.set({ show_original: checked });
+  } else if (menuItemId === 'auto_scroll') {
+    chrome.storage.local.set({ auto_scroll: checked });
+  }
+});
+
+// ===== アイコンクリック: コンテンツスクリプトにパネル切り替えを通知 =====
+chrome.action.onClicked.addListener((tab) => {
+  chrome.tabs.sendMessage(tab.id, { type: 'toggle_panel' });
+});
+
+// ===== メッセージ処理: 翻訳・Twitch APIのプロキシ =====
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'translate') {
     const { text, from, to } = message;
     translateText(text, from, to)
       .then(result => sendResponse({ ok: true, result }))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
+      .catch(err  => sendResponse({ ok: false, error: err.message }));
     return true; // 非同期レスポンスのため必須
   }
 
@@ -19,11 +121,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Client-Id': clientId,
-      }
+      },
     })
       .then(r => r.json())
       .then(data => sendResponse({ ok: true, data }))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
+      .catch(err  => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 });
