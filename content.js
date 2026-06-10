@@ -582,6 +582,23 @@ function addChatMessage(username, text, color) {
   ).catch(() => {});
 }
 
+// 自分が送信したメッセージをパネルに追加（Twitchはエコーバックしないため手動追加）
+// sentText: 実際に送信したテキスト（src_lang）、typedText: 入力したテキスト（tgt_lang、翻訳なしの場合は null）
+function addOwnMessage(sentText, typedText) {
+  const el = document.createElement('div');
+  el.className = 'msg own-msg';
+  el.innerHTML = `
+    <span class="msg-user" style="color:#9147ff">${escapeHtml(twitchUsername)}</span>
+    <div class="msg-orig">${escapeHtml(sentText)}</div>
+    <div class="msg-trans">${escapeHtml(typedText ?? sentText)}</div>
+  `;
+  messagesEl.appendChild(el);
+  trimMessages();
+  messageCount++;
+  if (msgCountEl) msgCountEl.textContent = `${messageCount} msgs`;
+  if (settings.auto_scroll) scrollToBottom();
+}
+
 function addSystemMessage(text) {
   if (!messagesEl) return;
   const el = document.createElement('div');
@@ -617,6 +634,8 @@ async function sendUserMessage() {
       sendText = await translateViaBackground(text, settings.tgt_lang, settings.src_lang);
     }
     ws.send(`PRIVMSG #${currentChannel} :${sendText}`);
+    // Twitch IRC は自分のメッセージをエコーバックしないので手動でパネルに追加
+    addOwnMessage(sendText, sendText !== text ? text : null);
   } catch (e) {
     addSystemMessage(`送信失敗: ${e.message}`);
   } finally {
