@@ -26,7 +26,9 @@ let translateQueue  = Promise.resolve();
 let messageCount    = 0;
 let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true };
 
-// 音声認識関連（認識処理は offscreen.js が担当）
+// 音声認識関連
+let recognition       = null;
+let voiceStream       = null;
 let isVoiceActive     = false;
 let subtitleContainer = null;
 let subtitleFadeTimer = null;
@@ -408,9 +410,6 @@ function handleLogout() {
 
 // ===== background.jsからのメッセージ =====
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // target フィールドがある = background ↔ offscreen の内部メッセージなので無視
-  if (msg.target) return;
-
   if (msg.type === 'toggle') {
     setActive(!isActive);
     sendResponse({ active: isActive });
@@ -425,16 +424,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       addSystemMessage(`ログイン成功: ${msg.username}`);
       if (currentChannel) { disconnect(); connect(); }
     });
-  }
-  // offscreen からの音声字幕（background.js が tabs.sendMessage で転送）
-  if (msg.type === 'voice_subtitle') {
-    ensureSubtitleContainer();
-    showSubtitle(msg.text, msg.isFinal);
-  }
-  if (msg.type === 'voice_stopped') {
-    isVoiceActive = false;
-    updateVoiceBtn();
-    // エラーで停止した場合はメッセージを残す（clearSubtitle は手動停止時のみ）
   }
 });
 
@@ -701,35 +690,111 @@ function escapeHtml(str) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ===== 音声認識・字幕オーバーレイ =====
-// 認識処理は offscreen.js が担当。content.js はトグルと字幕表示のみ行う
 
 function toggleVoice() {
   if (isVoiceActive) stopVoice();
   else startVoice();
 }
 
-function startVoice() {
+async function startVoice() {
   if (settings.src_lang === 'auto') {
     ensureSubtitleContainer();
     showSubtitle('⚠ 右クリックで翻訳元言語を設定してください', true);
     return;
   }
-  isVoiceActive = true;
-  updateVoiceBtn();
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    ensureSubtitleContainer();
+    showSubtitle('⚠ このブラウザは Web Speech API に対応していません', true);
+    return;
+  }
+
   ensureSubtitleContainer();
   showSubtitle('マイク接続中...', false);
-  chrome.runtime.sendMessage({
-    type: 'voice_start',
-    srcLang: settings.src_lang,
-    tgtLang: settings.tgt_lang,
-  });
+
+  // getUserMedia で VB-Cable を明示的に選択してマイク権限も確立する
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const vbCable = devices.find(d =>
+      d.kind === 'audioinput' && d.label.toLowerCase().includes('cable output')
+    );
+    const constraints = vbCable
+      ? { audio: { deviceId: { exact: vbCable.deviceId } } }
+      : { audio: true };
+    voiceStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const label = vbCable ? vbCable.label : 'デフォルトマイク';
+    showSubtitle(`🎤 ${label}`, false);
+  } catch (e) {
+    showSubtitle(`⚠ マイク取得失敗: ${e.message}`, true);
+    return;
+  }
+
+  isVoiceActive = true;
+  updateVoiceBtn();
+
+  recognition = new SR();
+  recognition.continuous     = true;
+  recognition.interimResults = true;
+  recognition.lang           = toLangTag(settings.src_lang);
+
+  recognition.onresult = e => {
+    let interim = '', final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
+    }
+    if (interim) showSubtitle(interim, false);
+    if (final)   handleFinalTranscript(final);
+  };
+
+  recognition.onerror = ev => {
+    if (ev.error === 'not-allowed') {
+      showSubtitle('⚠ マイクの使用が許可されていません', true);
+      stopVoice();
+    } else if (ev.error === 'no-speech') {
+      showSubtitle('🔇 音声未検出', false);
+    } else if (ev.error === 'network') {
+      showSubtitle('⚠ ネットワークエラー', true);
+    } else {
+      showSubtitle(`認識エラー: ${ev.error}`, false);
+    }
+  };
+
+  recognition.onend = () => {
+    if (isVoiceActive) recognition.start();
+  };
+
+  recognition.start();
 }
 
 function stopVoice() {
   isVoiceActive = false;
   updateVoiceBtn();
-  chrome.runtime.sendMessage({ type: 'voice_stop' });
-  clearSubtitle(); // 手動停止時のみクリア
+  if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
+  if (voiceStream)  { voiceStream.getTracks().forEach(t => t.stop()); voiceStream = null; }
+  clearSubtitle();
+}
+
+async function handleFinalTranscript(text) {
+  try {
+    const translated = await translateViaBackground(text, settings.src_lang, settings.tgt_lang);
+    showSubtitle(translated, true);
+  } catch {
+    showSubtitle(text, true);
+  }
+}
+
+function toLangTag(lang) {
+  const map = {
+    'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
+    'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW',
+    'es': 'es-ES', 'fr': 'fr-FR', 'de': 'de-DE',
+    'pt': 'pt-BR', 'ru': 'ru-RU', 'ar': 'ar-SA',
+    'hi': 'hi-IN', 'th': 'th-TH', 'vi': 'vi-VN',
+  };
+  return map[lang] || lang;
 }
 
 // 字幕コンテナを document.body 直下に作成（Shadow DOM外）
