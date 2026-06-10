@@ -144,6 +144,28 @@ function getChannelFromTabUrl(url) {
   return null;
 }
 
+// ===== Offscreen Document 管理（音声認識用） =====
+let voiceTabId = null;
+
+async function ensureOffscreenDocument() {
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [chrome.runtime.getURL('offscreen.html')],
+  });
+  if (contexts.length > 0) return;
+  await chrome.offscreen.createDocument({
+    url: chrome.runtime.getURL('offscreen.html'),
+    reasons: ['USER_MEDIA'],
+    justification: '音声認識のためのマイクアクセス',
+  });
+}
+
+async function closeOffscreenDocument() {
+  const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+  if (contexts.length === 0) return;
+  await chrome.offscreen.closeDocument();
+}
+
 // ===== アイコン左クリック =====
 chrome.action.onClicked.addListener(async (tab) => {
   try {
@@ -160,6 +182,45 @@ function setBadge(tabId, active) {
 
 // ===== メッセージ処理 =====
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // ----- 音声認識: コンテンツスクリプト → background -----
+  if (message.type === 'voice_start') {
+    voiceTabId = sender.tab?.id ?? null;
+    (async () => {
+      await ensureOffscreenDocument();
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'voice_start', srcLang: message.srcLang, tgtLang: message.tgtLang }).catch(() => {});
+    })();
+    return;
+  }
+
+  if (message.type === 'voice_stop') {
+    (async () => {
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'voice_stop' }).catch(() => {});
+      await closeOffscreenDocument();
+      voiceTabId = null;
+    })();
+    return;
+  }
+
+  // ----- 音声認識: offscreen → background → 対象タブ -----
+  if (message.target === 'service-worker') {
+    const tabId = voiceTabId;
+    if (!tabId) return;
+
+    if (message.type === 'voice_status' || message.type === 'voice_interim') {
+      chrome.tabs.sendMessage(tabId, { type: 'voice_subtitle', text: message.text, isFinal: message.isFinal ?? false }).catch(() => {});
+    } else if (message.type === 'voice_final') {
+      // 翻訳してからタブに送信
+      translateText(message.text, message.srcLang, message.tgtLang)
+        .then(t  => chrome.tabs.sendMessage(tabId, { type: 'voice_subtitle', text: t,            isFinal: true }).catch(() => {}))
+        .catch(() => chrome.tabs.sendMessage(tabId, { type: 'voice_subtitle', text: message.text, isFinal: true }).catch(() => {}));
+    } else if (message.type === 'voice_stopped') {
+      chrome.tabs.sendMessage(tabId, { type: 'voice_stopped' }).catch(() => {});
+      closeOffscreenDocument();
+      voiceTabId = null;
+    }
+    return;
+  }
+
   if (message.type === 'badge_update') {
     if (sender.tab?.id) setBadge(sender.tab.id, message.active);
     return;

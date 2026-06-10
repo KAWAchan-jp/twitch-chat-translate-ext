@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Twitch Chat Translator",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Twitchチャットをリアルタイム日本語翻訳",
 
   "permissions": [
     "storage",
     "contextMenus",
-    "tabs"
+    "tabs",
+    "offscreen",
+    "audioCapture"
   ],
 
   "host_permissions": [

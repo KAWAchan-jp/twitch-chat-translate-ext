@@ -26,9 +26,7 @@ let translateQueue  = Promise.resolve();
 let messageCount    = 0;
 let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true };
 
-// 音声認識関連
-let recognition       = null;
-let voiceStream       = null; // getUserMedia で取得したストリーム
+// 音声認識関連（認識処理は offscreen.js が担当）
 let isVoiceActive     = false;
 let subtitleContainer = null;
 let subtitleFadeTimer = null;
@@ -410,21 +408,33 @@ function handleLogout() {
 
 // ===== background.jsからのメッセージ =====
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // target フィールドがある = background ↔ offscreen の内部メッセージなので無視
+  if (msg.target) return;
+
   if (msg.type === 'toggle') {
     setActive(!isActive);
     sendResponse({ active: isActive });
   }
   if (msg.type === 'twitch_auth_complete') {
-    twitchToken     = ''; // background.jsのストレージから再取得
+    twitchToken     = '';
     twitchUsername  = msg.username;
     isAuthenticated = true;
-    // ストレージからトークンを読んで再接続
     chrome.storage.local.get('twitch_token', ({ twitch_token }) => {
       twitchToken = twitch_token || '';
       updateAuthUI();
       addSystemMessage(`ログイン成功: ${msg.username}`);
       if (currentChannel) { disconnect(); connect(); }
     });
+  }
+  // offscreen からの音声字幕（background.js が tabs.sendMessage で転送）
+  if (msg.type === 'voice_subtitle') {
+    ensureSubtitleContainer();
+    showSubtitle(msg.text, msg.isFinal);
+  }
+  if (msg.type === 'voice_stopped') {
+    isVoiceActive = false;
+    updateVoiceBtn();
+    clearSubtitle();
   }
 });
 
@@ -691,131 +701,35 @@ function escapeHtml(str) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ===== 音声認識・字幕オーバーレイ =====
+// 認識処理は offscreen.js が担当。content.js はトグルと字幕表示のみ行う
 
 function toggleVoice() {
-  if (isVoiceActive) {
-    stopVoice();
-  } else {
-    startVoice();
-  }
+  if (isVoiceActive) stopVoice();
+  else startVoice();
 }
 
-// 言語コードを BCP-47 タグに変換（Web Speech API 用）
-function toLangTag(lang) {
-  const map = {
-    'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
-    'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW',
-    'es': 'es-ES', 'fr': 'fr-FR', 'de': 'de-DE',
-    'pt': 'pt-BR', 'ru': 'ru-RU', 'ar': 'ar-SA',
-    'hi': 'hi-IN', 'th': 'th-TH', 'vi': 'vi-VN',
-  };
-  return map[lang] || lang;
-}
-
-async function startVoice() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    alert('このブラウザは Web Speech API に対応していません。');
-    return;
-  }
-
-  // 音声認識には認識する言語（src_lang）が必要。auto のままでは認識できない
+function startVoice() {
   if (settings.src_lang === 'auto') {
     ensureSubtitleContainer();
-    showSubtitle('⚠ 右クリックで翻訳元言語を設定してください（自動検出は音声認識に使えません）', true);
+    showSubtitle('⚠ 右クリックで翻訳元言語を設定してください', true);
     return;
   }
-
+  isVoiceActive = true;
+  updateVoiceBtn();
   ensureSubtitleContainer();
   showSubtitle('マイク接続中...', false);
-
-  // getUserMedia を先に呼ぶことでマイク権限の取得と VB-Cable の選択を確実にする
-  // Chrome の SpeechRecognition はコンテンツスクリプトから呼ぶと権限プロンプトが出ない場合がある
-  try {
-    // 利用可能なデバイスから VB-Cable Output を探す
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const vbCable = devices.find(d =>
-      d.kind === 'audioinput' && d.label.toLowerCase().includes('cable output')
-    );
-    const constraints = vbCable
-      ? { audio: { deviceId: { exact: vbCable.deviceId } } }
-      : { audio: true };
-
-    voiceStream = await navigator.mediaDevices.getUserMedia(constraints);
-    const deviceLabel = vbCable ? vbCable.label : 'デフォルトマイク';
-    showSubtitle(`🎤 ${deviceLabel} で認識開始`, false);
-  } catch (e) {
-    showSubtitle(`⚠ マイク取得失敗: ${e.message}`, true);
-    return;
-  }
-
-  recognition = new SR();
-  recognition.continuous     = true;
-  recognition.interimResults = true;
-  // 認識言語 = 話されている言語（翻訳元）
-  recognition.lang = toLangTag(settings.src_lang);
-
-  recognition.onstart = () => {
-    isVoiceActive = true;
-    updateVoiceBtn();
-  };
-
-  recognition.onresult = e => {
-    let interim = '';
-    let final   = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final += t;
-      else interim += t;
-    }
-    // interim は認識中のテキストをそのまま表示
-    if (interim) showSubtitle(interim, false);
-    // final は翻訳してから表示
-    if (final)   handleFinalTranscript(final);
-  };
-
-  recognition.onerror = ev => {
-    console.log('[TCT Voice] error:', ev.error);
-    if (ev.error === 'not-allowed') {
-      showSubtitle('⚠ マイクの使用が許可されていません', true);
-      stopVoice();
-    } else if (ev.error === 'no-speech') {
-      // 音声未検出 → 音量不足かデバイス選択の問題
-      showSubtitle('🔇 音声未検出（VB-Cableの音量を確認）', false);
-    } else if (ev.error === 'network') {
-      showSubtitle('⚠ ネットワークエラー（音声認識にはインターネット接続が必要）', true);
-    } else {
-      showSubtitle(`音声認識エラー: ${ev.error}`, true);
-    }
-  };
-
-  recognition.onend = () => {
-    console.log('[TCT Voice] onend, isVoiceActive=', isVoiceActive);
-    // continuous=true でも接続が切れることがあるので自動再起動
-    if (isVoiceActive) recognition.start();
-  };
-
-  recognition.start();
+  chrome.runtime.sendMessage({
+    type: 'voice_start',
+    srcLang: settings.src_lang,
+    tgtLang: settings.tgt_lang,
+  });
 }
 
 function stopVoice() {
   isVoiceActive = false;
-  if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
-  if (voiceStream) { voiceStream.getTracks().forEach(t => t.stop()); voiceStream = null; }
-  clearSubtitle();
   updateVoiceBtn();
-}
-
-async function handleFinalTranscript(text) {
-  // 話されている言語（src_lang）→ 表示したい言語（tgt_lang）に翻訳
-  const from = settings.src_lang;
-  const to   = settings.tgt_lang;
-  try {
-    const translated = await translateViaBackground(text, from, to);
-    showSubtitle(translated, true);
-  } catch {
-    showSubtitle(text, true);
-  }
+  chrome.runtime.sendMessage({ type: 'voice_stop' });
+  clearSubtitle();
 }
 
 // 字幕コンテナを document.body 直下に作成（Shadow DOM外）
