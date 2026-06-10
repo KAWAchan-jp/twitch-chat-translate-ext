@@ -71,3 +71,6 @@ window.addEventListener('__tct_whisper_transcribe', async ({ detail }) => {
 function emitStatus(text) {
   window.dispatchEvent(new CustomEvent('__tct_whisper_status', { detail: { text } }));
 }
+
+// リスナー登録完了を content.js に通知
+window.dispatchEvent(new CustomEvent('__tct_whisper_ready'));

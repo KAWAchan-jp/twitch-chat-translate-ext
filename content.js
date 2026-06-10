@@ -856,38 +856,45 @@ async function handleFinalTranscript(text) {
 }
 
 // ===== Whisper ページスクリプト注入（MAIN world） =====
-let whisperPageReady = false;
+let whisperReadyPromise  = null;
 const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer }
 
 function ensureWhisperPageScript() {
-  if (whisperPageReady) return;
-  whisperPageReady = true;
+  if (whisperReadyPromise) return whisperReadyPromise;
 
-  // 結果を受信
-  window.addEventListener('__tct_whisper_result', ({ detail }) => {
-    const req = pendingTranscriptions.get(detail.requestId);
-    if (!req) return;
-    pendingTranscriptions.delete(detail.requestId);
-    clearTimeout(req.timer);
-    if (detail.ok) req.resolve(detail.result);
-    else req.reject(new Error(detail.error));
+  whisperReadyPromise = new Promise((resolve, reject) => {
+    // 結果を受信
+    window.addEventListener('__tct_whisper_result', ({ detail }) => {
+      const req = pendingTranscriptions.get(detail.requestId);
+      if (!req) return;
+      pendingTranscriptions.delete(detail.requestId);
+      clearTimeout(req.timer);
+      if (detail.ok) req.resolve(detail.result);
+      else req.reject(new Error(detail.error));
+    });
+
+    // ステータスを受信して字幕に表示
+    window.addEventListener('__tct_whisper_status', ({ detail }) => {
+      if (isVoiceActive) showSubtitle(detail.text, false);
+    });
+
+    // 注入完了を待つ（whisper-injected.js の末尾が __tct_whisper_ready を dispatch する）
+    window.addEventListener('__tct_whisper_ready', () => resolve(), { once: true });
+
+    // whisper-injected.js を MAIN world に注入
+    const script = document.createElement('script');
+    script.type    = 'module';
+    script.src     = chrome.runtime.getURL('whisper-injected.js');
+    script.onerror = () => reject(new Error('whisper-injected.js の読み込みに失敗しました'));
+    document.head.appendChild(script);
   });
 
-  // ステータスを受信して字幕に表示
-  window.addEventListener('__tct_whisper_status', ({ detail }) => {
-    if (isVoiceActive) showSubtitle(detail.text, false);
-  });
-
-  // whisper-injected.js を MAIN world に注入
-  const script = document.createElement('script');
-  script.type  = 'module';
-  script.src   = chrome.runtime.getURL('whisper-injected.js');
-  document.head.appendChild(script);
+  return whisperReadyPromise;
 }
 
 // 音声チャンクを MAIN world の Whisper スクリプトへ送信
 async function transcribeViaBackground(blob, mimeType, language) {
-  ensureWhisperPageScript();
+  await ensureWhisperPageScript(); // スクリプト準備完了まで待ってからイベント送信
 
   const arrayBuffer = await blob.arrayBuffer();
   const audioBase64 = arrayBufferToBase64(arrayBuffer);
