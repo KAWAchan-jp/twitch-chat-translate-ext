@@ -28,6 +28,7 @@ let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scr
 
 // 音声認識関連
 let recognition       = null;
+let voiceStream       = null; // getUserMedia で取得したストリーム
 let isVoiceActive     = false;
 let subtitleContainer = null;
 let subtitleFadeTimer = null;
@@ -711,7 +712,7 @@ function toLangTag(lang) {
   return map[lang] || lang;
 }
 
-function startVoice() {
+async function startVoice() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
     alert('このブラウザは Web Speech API に対応していません。');
@@ -726,6 +727,27 @@ function startVoice() {
   }
 
   ensureSubtitleContainer();
+  showSubtitle('マイク接続中...', false);
+
+  // getUserMedia を先に呼ぶことでマイク権限の取得と VB-Cable の選択を確実にする
+  // Chrome の SpeechRecognition はコンテンツスクリプトから呼ぶと権限プロンプトが出ない場合がある
+  try {
+    // 利用可能なデバイスから VB-Cable Output を探す
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const vbCable = devices.find(d =>
+      d.kind === 'audioinput' && d.label.toLowerCase().includes('cable output')
+    );
+    const constraints = vbCable
+      ? { audio: { deviceId: { exact: vbCable.deviceId } } }
+      : { audio: true };
+
+    voiceStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const deviceLabel = vbCable ? vbCable.label : 'デフォルトマイク';
+    showSubtitle(`🎤 ${deviceLabel} で認識開始`, false);
+  } catch (e) {
+    showSubtitle(`⚠ マイク取得失敗: ${e.message}`, true);
+    return;
+  }
 
   recognition = new SR();
   recognition.continuous     = true;
@@ -736,7 +758,6 @@ function startVoice() {
   recognition.onstart = () => {
     isVoiceActive = true;
     updateVoiceBtn();
-    showSubtitle('🎤 音声認識中...', false);
   };
 
   recognition.onresult = e => {
@@ -773,6 +794,7 @@ function startVoice() {
 function stopVoice() {
   isVoiceActive = false;
   if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
+  if (voiceStream) { voiceStream.getTracks().forEach(t => t.stop()); voiceStream = null; }
   clearSubtitle();
   updateVoiceBtn();
 }
