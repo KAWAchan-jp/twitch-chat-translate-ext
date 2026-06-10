@@ -9,7 +9,6 @@ const TRANSLATE_SKIP_PATTERNS = [
   /^[^\p{L}\p{N}]+$/u, // 文字・数字を含まない（記号・絵文字のみ）
 ];
 
-// チャンネルページでないTwitchのパス
 const EXCLUDED_PATHS = new Set([
   'directory', 'settings', 'subscriptions', 'inventory',
   'wallet', 'friends', 'messages', 'following', 'browse',
@@ -18,11 +17,11 @@ const EXCLUDED_PATHS = new Set([
 ]);
 
 // ===== 状態 =====
-let ws           = null;
+let ws             = null;
 let currentChannel = '';
-let isActive     = true;  // アイコンクリックでON/OFF
+let isActive       = true;
 let translateQueue = Promise.resolve();
-let messageCount = 0;
+let messageCount   = 0;
 let settings = {
   src_lang:      'auto',
   tgt_lang:      'ja',
@@ -32,6 +31,7 @@ let settings = {
 
 // ===== Shadow DOM 内のDOM参照 =====
 let container, shadowRoot, panel, messagesEl, statusDotEl, channelNameEl, msgCountEl;
+let chatInputEl, sendBtnEl;
 
 // ===== フローティングパネルのCSS =====
 const PANEL_CSS = `
@@ -42,11 +42,15 @@ const PANEL_CSS = `
     bottom: 20px;
     right: 20px;
     z-index: 2147483647;
+    width: 300px;
+    height: 480px;
+    min-width: 220px;
+    min-height: 200px;
   }
 
   .panel {
-    width: 300px;
-    height: 440px;
+    width: 100%;
+    height: 100%;
     background: #0e0e10;
     border: 1px solid #2d2d2f;
     border-radius: 8px;
@@ -55,6 +59,7 @@ const PANEL_CSS = `
     overflow: hidden;
     box-shadow: 0 4px 24px rgba(0,0,0,0.65);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+    position: relative;
   }
 
   /* ヘッダー */
@@ -123,6 +128,7 @@ const PANEL_CSS = `
     display: flex;
     flex-direction: column;
     gap: 6px;
+    min-height: 0;
   }
   .messages::-webkit-scrollbar       { width: 4px; }
   .messages::-webkit-scrollbar-track { background: transparent; }
@@ -164,11 +170,67 @@ const PANEL_CSS = `
     font-size: 12px;
     margin-top: 0;
   }
+
+  /* チャット送信エリア */
+  .input-area {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    border-top: 1px solid #2d2d2f;
+    background: #18181b;
+    flex-shrink: 0;
+  }
+
+  .chat-input {
+    flex: 1;
+    min-width: 0;
+    background: #0e0e10;
+    border: 1px solid #3d3d40;
+    border-radius: 4px;
+    color: #efeff1;
+    font-size: 12px;
+    padding: 6px 8px;
+    outline: none;
+    font-family: inherit;
+  }
+  .chat-input:focus        { border-color: #9147ff; }
+  .chat-input::placeholder { color: #5a5a6a; font-size: 11px; }
+  .chat-input:disabled     { opacity: 0.4; cursor: not-allowed; }
+
+  .send-btn {
+    background: #9147ff;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 10px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .send-btn:hover:not(:disabled) { background: #772ce8; }
+  .send-btn:disabled { background: #3d3d40; cursor: default; }
+
+  /* リサイズハンドル（右下コーナー） */
+  .resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, #3d3d40 50%);
+    border-radius: 0 0 8px 0;
+    z-index: 1;
+  }
+  .resize-handle:hover {
+    background: linear-gradient(135deg, transparent 50%, #9147ff 50%);
+  }
 `;
 
 // ===== 初期化 =====
 async function init() {
-  // 保存済みの設定を読み込む
   const stored = await chrome.storage.local.get(['src_lang', 'tgt_lang', 'show_original', 'auto_scroll']);
   settings = { ...settings, ...stored };
 
@@ -176,10 +238,8 @@ async function init() {
   detectAndConnect();
   hookNavigation();
 
-  // 設定変更をリアルタイムに反映
   chrome.storage.onChanged.addListener(onSettingsChanged);
 
-  // 起動時のバッジをONに設定
   notifyBadge(isActive);
 }
 
@@ -201,7 +261,6 @@ function detectAndConnect() {
     resetMessages();
     if (isActive) connect();
     else {
-      // OFFのままチャンネルだけ更新
       if (channelNameEl) channelNameEl.textContent = `#${ch} (停止中)`;
       setStatus('error');
     }
@@ -213,22 +272,19 @@ function detectAndConnect() {
   }
 }
 
-// ===== TwitchはSPAなのでhistory APIをフックしてURL変化を検知 =====
+// ===== TwitchのSPAナビゲーションに追従 =====
 function hookNavigation() {
   ['pushState', 'replaceState'].forEach(method => {
     const orig = history[method].bind(history);
-    history[method] = (...args) => {
-      orig(...args);
-      setTimeout(detectAndConnect, 200);
-    };
+    history[method] = (...args) => { orig(...args); setTimeout(detectAndConnect, 200); };
   });
   window.addEventListener('popstate', () => setTimeout(detectAndConnect, 200));
 }
 
 // ===== 設定変更ハンドラ =====
 function onSettingsChanged(changes) {
-  if (changes.src_lang)      settings.src_lang = changes.src_lang.newValue;
-  if (changes.tgt_lang)      settings.tgt_lang = changes.tgt_lang.newValue;
+  if (changes.src_lang) settings.src_lang = changes.src_lang.newValue;
+  if (changes.tgt_lang) settings.tgt_lang = changes.tgt_lang.newValue;
   if (changes.show_original) {
     settings.show_original = changes.show_original.newValue;
     panel?.classList.toggle('show-original', settings.show_original);
@@ -237,9 +293,10 @@ function onSettingsChanged(changes) {
     settings.auto_scroll = changes.auto_scroll.newValue;
     if (settings.auto_scroll) scrollToBottom();
   }
+  // 言語設定が変わったら入力欄のプレースホルダーを更新
+  if (changes.src_lang || changes.tgt_lang) updateInputPlaceholder();
 }
 
-// ===== background.jsへバッジ更新を通知 =====
 function notifyBadge(active) {
   chrome.runtime.sendMessage({ type: 'badge_update', active }).catch(() => {});
 }
@@ -248,6 +305,8 @@ function notifyBadge(active) {
 function createPanel() {
   container = document.createElement('div');
   container.id = 'tct-root';
+  // 初期サイズをstyleに設定（リサイズで上書きされる）
+  container.style.cssText = 'position:fixed;bottom:20px;right:20px;width:300px;height:480px;z-index:2147483647;';
   shadowRoot = container.attachShadow({ mode: 'open' });
 
   shadowRoot.innerHTML = `
@@ -260,6 +319,11 @@ function createPanel() {
         <button class="close-btn" id="closeBtn" title="閉じる（アイコンクリックで再表示）">×</button>
       </div>
       <div class="messages" id="messages"></div>
+      <div class="input-area" id="inputArea">
+        <input type="text" class="chat-input" id="chatInput" autocomplete="off" spellcheck="false">
+        <button class="send-btn" id="sendBtn">送信</button>
+      </div>
+      <div class="resize-handle" id="resizeHandle"></div>
     </div>
   `;
 
@@ -270,13 +334,16 @@ function createPanel() {
   channelNameEl = shadowRoot.getElementById('channelName');
   msgCountEl    = shadowRoot.getElementById('msgCount');
   messagesEl    = shadowRoot.getElementById('messages');
+  chatInputEl   = shadowRoot.getElementById('chatInput');
+  sendBtnEl     = shadowRoot.getElementById('sendBtn');
 
-  // ×ボタン: OFFに切り替え（アイコンクリックで復帰可能）
-  shadowRoot.getElementById('closeBtn').addEventListener('click', () => {
-    setActive(false);
-  });
+  shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
+  chatInputEl.addEventListener('keydown', e => { if (e.key === 'Enter') sendUserMessage(); });
+  sendBtnEl.addEventListener('click', sendUserMessage);
 
+  updateInputPlaceholder();
   makeDraggable(shadowRoot.getElementById('header'));
+  makeResizable(shadowRoot.getElementById('resizeHandle'));
 }
 
 // ===== ON/OFFを切り替える共通関数 =====
@@ -300,7 +367,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-// ===== ヘッダーをドラッグしてパネルを移動 =====
+// ===== ヘッダードラッグ移動 =====
 function makeDraggable(handle) {
   handle.addEventListener('mousedown', e => {
     if (e.target.closest('.close-btn')) return;
@@ -313,9 +380,36 @@ function makeDraggable(handle) {
     const origBottom = window.innerHeight - rect.bottom;
 
     const onMove = e => {
-      // 右・下のオフセットで位置管理（画面外に出ないようクランプ）
       container.style.right  = Math.max(0, origRight  - (e.clientX - startX)) + 'px';
       container.style.bottom = Math.max(0, origBottom - (e.clientY - startY)) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// ===== 右下ハンドルでリサイズ =====
+function makeResizable(handle) {
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX  = e.clientX;
+    const startY  = e.clientY;
+    const startW  = container.offsetWidth;
+    const startH  = container.offsetHeight;
+
+    const onMove = e => {
+      // 幅は右方向に広がるが右端固定なので左方向に広がる
+      const newW = Math.max(220, startW + (e.clientX - startX));
+      // 高さは上方向に広がる（下端固定）
+      const newH = Math.max(200, startH - (e.clientY - startY));
+      container.style.width  = newW + 'px';
+      container.style.height = newH + 'px';
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
@@ -337,23 +431,16 @@ function connect() {
 
   ws.onopen = () => {
     ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
-    // 匿名ログイン（justinfan + 乱数）
     ws.send('PASS oauth:will_not_actually_work');
     ws.send('NICK justinfan' + Math.floor(Math.random() * 99999));
     ws.send(`JOIN #${currentChannel}`);
   };
 
-  ws.onmessage = e => {
-    e.data.split('\r\n').filter(Boolean).forEach(handleIRCLine);
-  };
+  ws.onmessage = e => e.data.split('\r\n').filter(Boolean).forEach(handleIRCLine);
 
-  ws.onerror = () => {
-    setStatus('error');
-    addSystemMessage('接続エラーが発生しました。');
-  };
+  ws.onerror = () => { setStatus('error'); addSystemMessage('接続エラーが発生しました。'); };
 
   ws.onclose = () => {
-    // disconnect()による意図的なクローズはcurrentChannelが空になっている
     if (!currentChannel) return;
     setStatus('error');
     addSystemMessage('接続が切断されました。');
@@ -362,7 +449,6 @@ function connect() {
 
 function disconnect() {
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
-  // currentChannelは保持（再接続時に使用）
 }
 
 function resetMessages() {
@@ -374,10 +460,7 @@ function resetMessages() {
 
 // ===== IRCメッセージ処理 =====
 function handleIRCLine(line) {
-  if (line.startsWith('PING')) {
-    ws?.send('PONG :tmi.twitch.tv');
-    return;
-  }
+  if (line.startsWith('PING')) { ws?.send('PONG :tmi.twitch.tv'); return; }
   if (line.includes(`JOIN #${currentChannel}`)) {
     setStatus('connected');
     addSystemMessage(`#${currentChannel} に接続しました！`);
@@ -390,13 +473,11 @@ function handleIRCLine(line) {
 
 function parseIRCMessage(line) {
   try {
-    // タグ付きメッセージ（display-name, colorなどが含まれる）
     const withTags = line.match(/^@([^ ]+) :(\w+)!\w+@\S+ PRIVMSG #\w+ :(.+)$/);
     if (withTags) {
       const tags = parseTags(withTags[1]);
       return { username: tags['display-name'] || withTags[2], text: withTags[3], color: tags['color'] || null };
     }
-    // タグなしメッセージ
     const plain = line.match(/:(\w+)!\w+@\S+ PRIVMSG #\w+ :(.+)$/);
     if (plain) return { username: plain[1], text: plain[2], color: null };
   } catch (_) {}
@@ -405,10 +486,7 @@ function parseIRCMessage(line) {
 
 function parseTags(tagStr) {
   const tags = {};
-  tagStr.split(';').forEach(pair => {
-    const [k, v] = pair.split('=');
-    tags[k] = v || '';
-  });
+  tagStr.split(';').forEach(pair => { const [k, v] = pair.split('='); tags[k] = v || ''; });
   return tags;
 }
 
@@ -432,14 +510,12 @@ function addChatMessage(username, text, color) {
 
   const transEl = el.querySelector('.msg-trans');
 
-  // 翻訳不要なメッセージはそのまま表示
   if (shouldSkipTranslation(text)) {
     transEl.textContent = text;
     transEl.classList.remove('translating');
     return;
   }
 
-  // 翻訳キューに追加（連続リクエストを抑制）
   translateQueue = translateQueue.then(() =>
     sleep(TRANSLATE_DELAY_MS)
       .then(() => translateViaBackground(text, settings.src_lang, settings.tgt_lang))
@@ -469,17 +545,85 @@ function shouldSkipTranslation(text) {
 }
 
 function trimMessages() {
-  while (messagesEl.children.length > MAX_MESSAGES) {
-    messagesEl.removeChild(messagesEl.firstChild);
+  while (messagesEl.children.length > MAX_MESSAGES) messagesEl.removeChild(messagesEl.firstChild);
+}
+
+function scrollToBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+// ===== チャット送信 =====
+
+// 入力欄のプレースホルダーを設定に合わせて更新
+function updateInputPlaceholder() {
+  if (!chatInputEl) return;
+  if (settings.src_lang === 'auto') {
+    chatInputEl.placeholder = '⚠ 翻訳元言語を右クリックで設定してください';
+    chatInputEl.disabled = true;
+    sendBtnEl.disabled   = true;
+  } else {
+    const srcName = getLangName(settings.src_lang);
+    const tgtName = getLangName(settings.tgt_lang);
+    chatInputEl.placeholder = `${tgtName}で入力 → ${srcName}に翻訳して送信`;
+    chatInputEl.disabled = false;
+    sendBtnEl.disabled   = false;
   }
 }
 
-function scrollToBottom() {
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+// Intl APIで言語名を取得（'ja' → '日本語' など）
+function getLangName(code) {
+  if (code === 'auto') return '自動検出';
+  try {
+    return new Intl.DisplayNames(['ja'], { type: 'language' }).of(code) ?? code;
+  } catch (_) { return code; }
 }
 
-// ===== 翻訳リクエスト（background.js経由） =====
-// サービスワーカーが落ちている場合に備えてリトライする
+// ユーザーのメッセージを翻訳してTwitchのチャット入力欄に渡す
+async function sendUserMessage() {
+  const text = chatInputEl.value.trim();
+  if (!text) return;
+
+  chatInputEl.value   = '';
+  chatInputEl.disabled = true;
+  sendBtnEl.disabled  = true;
+
+  try {
+    // tgt_lang → src_lang 方向に翻訳
+    const translated = await translateViaBackground(text, settings.tgt_lang, settings.src_lang);
+    await injectToTwitchChat(translated);
+  } catch (e) {
+    addSystemMessage(`送信失敗: ${e.message}`);
+  } finally {
+    chatInputEl.disabled = false;
+    sendBtnEl.disabled   = false;
+    chatInputEl.focus();
+  }
+}
+
+// Twitchのチャット入力欄を探して翻訳済みテキストを注入・送信
+async function injectToTwitchChat(text) {
+  const input = (
+    document.querySelector('[data-a-target="chat-input"]') ||
+    document.querySelector('[data-test-selector="chat-input"]') ||
+    document.querySelector('.chat-input__textarea [contenteditable="true"]')
+  );
+  if (!input) throw new Error('チャット入力欄が見つかりません。Twitchにログインしているか確認してください。');
+
+  // contenteditable div の既存テキストを選択して置換
+  input.focus();
+  const sel   = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(input);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  document.execCommand('insertText', false, text);
+
+  // Reactの状態更新を待ってからEnterで送信
+  await sleep(80);
+  input.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true,
+  }));
+}
+
+// ===== 翻訳リクエスト（background.js経由、リトライあり） =====
 async function translateViaBackground(text, from, to) {
   const MAX_RETRIES = 2;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -492,24 +636,18 @@ async function translateViaBackground(text, from, to) {
       return res.result;
     } catch (e) {
       if (attempt === MAX_RETRIES) throw e;
-      // Service Workerが起動中の可能性があるため少し待ってリトライ
       await sleep(300 * (attempt + 1));
     }
   }
 }
 
 // ===== ユーティリティ =====
-function setStatus(state) {
-  if (!statusDotEl) return;
-  statusDotEl.className = `status-dot ${state}`;
-}
+function setStatus(state) { if (statusDotEl) statusDotEl.className = `status-dot ${state}`; }
 
 function escapeHtml(str) {
   return String(str)
-    .replace(/&/g,  '&amp;')
-    .replace(/</g,  '&lt;')
-    .replace(/>/g,  '&gt;')
-    .replace(/"/g,  '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

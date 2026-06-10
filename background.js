@@ -40,7 +40,7 @@ async function buildContextMenus() {
     // バージョン表示（クリック不可）
     chrome.contextMenus.create({
       id: 'version',
-      title: `Twitch Chat Translator  v${version}`,
+      title: `v${version}`,
       enabled: false,
       contexts: ['action'],
     });
