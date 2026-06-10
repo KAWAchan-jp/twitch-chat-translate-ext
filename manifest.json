@@ -1,20 +1,25 @@
 {
   "manifest_version": 3,
   "name": "Twitch Chat Translator",
-  "version": "0.2.7",
+  "version": "0.3.0",
   "description": "Twitchチャットをリアルタイム日本語翻訳",
 
   "permissions": [
     "storage",
     "contextMenus",
-    "tabs"
+    "tabs",
+    "offscreen"
   ],
 
   "host_permissions": [
     "https://translate.googleapis.com/*",
     "https://api.twitch.tv/*",
     "https://id.twitch.tv/*",
-    "https://api.groq.com/*"
+    "https://api.groq.com/*",
+    "https://huggingface.co/*",
+    "https://cdn-lfs.huggingface.co/*",
+    "https://cdn-lfs-us-1.huggingface.co/*",
+    "https://cdn.jsdelivr.net/*"
   ],
 
   "options_ui": {

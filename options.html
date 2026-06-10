@@ -13,7 +13,19 @@
     </header>
 
     <section class="card">
-      <h2>音声字幕 — Groq Whisper API</h2>
+      <h2>音声字幕 — ローカル Whisper</h2>
+      <p class="hint" style="margin-bottom:14px">
+        Transformers.js + Whisper Tiny を使ってブラウザ内で音声認識を行います。<br>
+        初回起動時にモデル（約20MB）を自動ダウンロードしてキャッシュします。
+      </p>
+      <div class="actions">
+        <button class="btn-primary" id="warmupBtn">モデルをダウンロード（任意・初回の遅延を回避）</button>
+      </div>
+      <p class="hint" id="warmupStatus" style="margin-top:10px"></p>
+    </section>
+
+    <section class="card">
+      <h2>音声字幕 — Groq Whisper API（旧・バックアップ用）</h2>
       <div class="field">
         <label for="groqKey">API キー</label>
         <div class="key-row">

@@ -230,7 +230,6 @@ async function init() {
   }
 
   createPanel();
-  if (!stored.groq_api_key) showGroqBar();
   await detectAndConnect();
   hookNavigation();
 
@@ -283,7 +282,7 @@ function hookNavigation() {
 
 function onSettingsChanged(changes) {
   // Groq キーが設定されたらバーを隠す
-  if (changes.groq_api_key?.newValue) hideGroqBar();
+  // groq_api_key は設定ページでのみ使用（ローカル Whisper では不使用）
 
   // チャンネル固有設定が変わった場合、現在のチャンネルの設定を反映
   if (changes.channel_settings && currentChannel) {
@@ -456,6 +455,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       addSystemMessage(`ログイン成功: ${msg.username}`);
       if (currentChannel) { disconnect(); connect(); }
     });
+  }
+  if (msg.type === 'whisper_status' && isVoiceActive) {
+    // Whisper モデルのロード進捗を字幕に表示
+    showSubtitle(msg.text, false);
   }
 });
 
@@ -731,14 +734,6 @@ function toggleVoice() {
 async function startVoice() {
   ensureSubtitleContainer();
 
-  // Groq API キー確認
-  const { groq_api_key } = await chrome.storage.local.get('groq_api_key');
-  if (!groq_api_key) {
-    showSubtitle('⚠ Groq API キーをパネルで設定してください', true);
-    showGroqBar();
-    return;
-  }
-
   showSubtitle('🎤 タブを選択してください（ダイアログで Twitch を選ぶ）', false);
 
   // getDisplayMedia でタブ音声を取得（VB-Cable 不要）
@@ -866,7 +861,7 @@ async function transcribeViaBackground(blob, mimeType, language) {
   const base64      = arrayBufferToBase64(arrayBuffer);
   const res = await Promise.race([
     chrome.runtime.sendMessage({ type: 'transcribe', audioBase64: base64, mimeType, language }),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト')), 30000)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）')), 180000)),
   ]);
   if (!res?.ok) throw new Error(res?.error || 'transcribe failed');
   return res.result;

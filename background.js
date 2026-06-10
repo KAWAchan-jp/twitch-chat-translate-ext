@@ -180,28 +180,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'transcribe') {
-    // Groq Whisper API で音声を文字起こし
-    const { audioBase64, mimeType, language } = message;
-    chrome.storage.local.get('groq_api_key').then(({ groq_api_key }) => {
-      if (!groq_api_key) { sendResponse({ ok: false, error: 'Groq API キーが設定されていません' }); return; }
-      const binaryStr = atob(audioBase64);
-      const bytes     = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-      const blob = new Blob([bytes], { type: mimeType });
-      const form = new FormData();
-      form.append('file', blob, 'audio.webm');
-      form.append('model', 'whisper-large-v3-turbo');
-      if (language && language !== 'auto') form.append('language', language);
-      form.append('response_format', 'json');
-      fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${groq_api_key}` },
-        body: form,
-      })
-        .then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d?.error?.message || `HTTP ${r.status}`); }))
-        .then(data => sendResponse({ ok: true, result: data.text?.trim() || '' }))
-        .catch(err  => sendResponse({ ok: false, error: err.message }));
+    // ローカル Whisper (Transformers.js) で音声を文字起こし
+    const tabId = sender.tab?.id;
+    (async () => {
+      try {
+        await ensureOffscreenDocument();
+        const res = await chrome.runtime.sendMessage({
+          target: 'offscreen-whisper',
+          type:   'transcribe',
+          audioBase64: message.audioBase64,
+          mimeType:    message.mimeType,
+          language:    message.language,
+        });
+        sendResponse(res);
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'whisper_status') {
+    // offscreen → 全 Twitch タブの content.js へ中継
+    chrome.tabs.query({ url: '*://www.twitch.tv/*' }).then(tabs => {
+      for (const tab of tabs) {
+        chrome.tabs.sendMessage(tab.id, { type: 'whisper_status', text: message.text }).catch(() => {});
+      }
     });
+    return;
+  }
+
+  if (message.type === 'warmup_whisper') {
+    // 設定ページのウォームアップボタン用
+    (async () => {
+      try {
+        await ensureOffscreenDocument();
+        await chrome.runtime.sendMessage({ target: 'offscreen-whisper', type: 'warmup' });
+        sendResponse({ ok: true });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
     return true;
   }
 
@@ -255,4 +274,20 @@ async function translateText(text, from, to) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ===== Offscreen Document 管理 =====
+async function ensureOffscreenDocument() {
+  const url = chrome.runtime.getURL('offscreen-whisper.html');
+  const existing = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [url],
+  });
+  if (existing.length > 0) return;
+
+  await chrome.offscreen.create({
+    url,
+    reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
+    justification: 'Whisper ローカル音声認識の実行（オーディオデコード＋ML推論）',
+  });
 }
