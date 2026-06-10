@@ -193,23 +193,18 @@ const PANEL_CSS = `
 
   /* Groq API キーバー */
   .groq-bar {
-    display: flex; align-items: center; gap: 6px;
-    padding: 5px 10px; background: #0e0e10;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 5px 10px; background: #18181b;
     border-bottom: 1px solid #2d2d2f; flex-shrink: 0;
   }
   .groq-bar.hidden { display: none; }
-  .groq-input {
-    flex: 1; min-width: 0; background: #18181b;
-    border: 1px solid #3d3d40; border-radius: 4px;
-    color: #efeff1; font-size: 11px; padding: 4px 8px; outline: none; font-family: inherit;
-  }
-  .groq-input:focus { border-color: #9147ff; }
-  .groq-input::placeholder { color: #5a5a6a; }
-  .groq-save-btn {
+  .groq-hint { font-size: 11px; color: #f0b429; flex: 1; }
+  .groq-open-btn {
     background: #9147ff; border: none; border-radius: 4px;
-    color: #fff; cursor: pointer; font-size: 11px; padding: 4px 10px; flex-shrink: 0;
+    color: #fff; cursor: pointer; font-size: 11px; padding: 4px 10px;
+    flex-shrink: 0; white-space: nowrap;
   }
-  .groq-save-btn:hover { background: #772ce8; }
+  .groq-open-btn:hover { background: #772ce8; }
 
   /* リサイズハンドル */
   .resize-handle {
@@ -287,6 +282,9 @@ function hookNavigation() {
 }
 
 function onSettingsChanged(changes) {
+  // Groq キーが設定されたらバーを隠す
+  if (changes.groq_api_key?.newValue) hideGroqBar();
+
   // チャンネル固有設定が変わった場合、現在のチャンネルの設定を反映
   if (changes.channel_settings && currentChannel) {
     const cs = changes.channel_settings.newValue?.[currentChannel];
@@ -340,8 +338,8 @@ function createPanel() {
         </div>
       </div>
       <div class="groq-bar hidden" id="groqBar">
-        <input type="password" class="groq-input" id="groqInput" placeholder="Groq API キー (gsk_...)">
-        <button class="groq-save-btn" id="groqSaveBtn">保存</button>
+        <span class="groq-hint">⚠ Groq API キー未設定</span>
+        <button class="groq-open-btn" id="groqOpenBtn">設定を開く</button>
       </div>
       <div class="messages" id="messages"></div>
       <div class="input-area" id="inputArea">
@@ -369,12 +367,8 @@ function createPanel() {
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
-  shadowRoot.getElementById('groqSaveBtn').addEventListener('click', async () => {
-    const key = shadowRoot.getElementById('groqInput').value.trim();
-    if (!key) return;
-    await chrome.storage.local.set({ groq_api_key: key });
-    hideGroqBar();
-    addSystemMessage('Groq API キーを保存しました。🎤 を押して開始してください。');
+  shadowRoot.getElementById('groqOpenBtn').addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
   });
   loginBtnEl.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'twitch_login' }));
   logoutBtnEl.addEventListener('click', handleLogout);
