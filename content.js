@@ -102,12 +102,8 @@ const PANEL_CSS = `
     font-size: 14px; line-height: 1; padding: 0 2px; flex-shrink: 0;
     opacity: 0.4; transition: opacity 0.2s;
   }
-  .voice-btn:hover    { opacity: 0.8; }
-  .voice-btn.active   { opacity: 1; animation: mic-pulse 1.2s infinite; }
-
-  @keyframes mic-pulse {
-    0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
-  }
+  .voice-btn:hover  { opacity: 0.8; }
+  .voice-btn.active { opacity: 1; filter: drop-shadow(0 0 5px #ff4444); }
 
   .close-btn {
     background: none; border: none; color: #adadb8; cursor: pointer;
