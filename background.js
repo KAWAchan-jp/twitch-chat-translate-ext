@@ -40,9 +40,6 @@ async function buildContextMenus() {
   const { version } = chrome.runtime.getManifest();
 
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: 'version', title: `v${version}`, enabled: false, contexts: ['action'] });
-    chrome.contextMenus.create({ id: 'sep0', type: 'separator', contexts: ['action'] });
-
     chrome.contextMenus.create({ id: 'src_parent', title: '翻訳元言語', contexts: ['action'] });
     SRC_LANGS.forEach(([val, label]) => {
       chrome.contextMenus.create({
@@ -64,6 +61,10 @@ async function buildContextMenus() {
     chrome.contextMenus.create({ id: 'sep2', type: 'separator', contexts: ['action'] });
     chrome.contextMenus.create({ id: 'show_original', title: '原文を表示', type: 'checkbox', checked: s.show_original, contexts: ['action'] });
     chrome.contextMenus.create({ id: 'auto_scroll', title: '自動スクロール', type: 'checkbox', checked: s.auto_scroll, contexts: ['action'] });
+
+    // バージョン番号はメニュー末尾に表示（Chromeが先頭に拡張名を自動追加するため末尾に配置）
+    chrome.contextMenus.create({ id: 'sep3', type: 'separator', contexts: ['action'] });
+    chrome.contextMenus.create({ id: 'version', title: `Twitch Chat Translator  v${version}`, enabled: false, contexts: ['action'] });
   });
 }
 
