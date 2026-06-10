@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Twitch Chat Translator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+<!-- セットアップ画面 -->
+<div id="setup-screen" class="setup-screen">
+  <div class="setup-card">
+    <div class="logo">
+      <span class="logo-icon">💬</span>
+      <h1>Twitch Chat Translator</h1>
+      <p class="subtitle">Twitchチャットをリアルタイム日本語翻訳</p>
+    </div>
+    <div class="input-group">
+      <label for="channel-input">チャンネル名</label>
+      <div class="input-row">
+        <span class="input-prefix">twitch.tv/</span>
+        <input type="text" id="channel-input" placeholder="xqc" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="input-group lang-row">
+      <div class="lang-col">
+        <label for="lang-select">翻訳元</label>
+        <select id="lang-select"></select>
+      </div>
+      <span class="lang-arrow">→</span>
+      <div class="lang-col">
+        <label for="target-lang-select">翻訳先</label>
+        <select id="target-lang-select"></select>
+      </div>
+    </div>
+    <button id="connect-btn" class="connect-btn">接続する</button>
+    <p class="note">※ APIキー不要・サーバー不要で動作します</p>
+    <p class="version">v0.9.0</p>
+  </div>
+</div>
+
+<!-- チャット画面 -->
+<div id="chat-screen" class="chat-screen hidden">
+  <header class="chat-header">
+    <div class="header-left">
+      <div id="status-dot" class="status-dot connecting"></div>
+      <span id="channel-name" class="channel-name"></span>
+    </div>
+    <div class="header-center">
+      <span id="msg-count" class="msg-count">0 メッセージ</span>
+    </div>
+    <div class="header-right">
+      <div class="header-langs">
+        <select id="header-src-lang"></select>
+        <span class="header-lang-arrow">→</span>
+        <select id="header-tgt-lang"></select>
+      </div>
+      <label class="toggle-label">
+        <input type="checkbox" id="show-original" checked>
+        <span>原文</span>
+      </label>
+      <label class="toggle-label">
+        <input type="checkbox" id="auto-scroll" checked>
+        <span>自動scroll</span>
+      </label>
+      <label class="toggle-label">
+        <input type="checkbox" id="experimental-toggle">
+        <span>送信 <span class="exp-badge">実験的</span></span>
+      </label>
+      <button id="disconnect-btn" class="disconnect-btn">切断</button>
+    </div>
+  </header>
+
+  <div id="chat-container" class="chat-container">
+    <div id="chat-messages" class="chat-messages"></div>
+  </div>
+
+  <div id="translate-queue-info" class="queue-info hidden">翻訳中...</div>
+
+  <div id="chat-input-area" class="chat-input-area hidden">
+    <div id="auth-panel" class="auth-panel">
+      <button id="twitch-login-btn" class="twitch-login-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+        Twitchでログイン
+      </button>
+    </div>
+    <div id="send-panel" class="send-panel hidden">
+      <span class="send-user"></span>
+      <input type="text" id="message-input" placeholder="メッセージを送信" autocomplete="off">
+      <button id="send-btn" class="send-btn">送信</button>
+      <button id="logout-btn" class="logout-btn">ログアウト</button>
+    </div>
+  </div>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

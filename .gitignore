@@ -1,0 +1,10 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ
+.vscode/
+*.swp
+
+# 引き継ぎドキュメント（開発用）
+HANDOVER_*.md
