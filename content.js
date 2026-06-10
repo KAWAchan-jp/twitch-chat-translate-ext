@@ -338,7 +338,16 @@ function createPanel() {
   sendBtnEl     = shadowRoot.getElementById('sendBtn');
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
-  chatInputEl.addEventListener('keydown', e => { if (e.key === 'Enter') sendUserMessage(); });
+
+  // Twitchはdocumentレベルでキーイベントを監視してチャット入力欄にフォーカスを奪う
+  // stopPropagationで Shadow DOM 外への漏れを防ぐ
+  chatInputEl.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') sendUserMessage();
+  });
+  chatInputEl.addEventListener('keyup',    e => e.stopPropagation());
+  chatInputEl.addEventListener('keypress', e => e.stopPropagation());
+
   sendBtnEl.addEventListener('click', sendUserMessage);
 
   updateInputPlaceholder();
