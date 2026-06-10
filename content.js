@@ -26,10 +26,16 @@ let translateQueue  = Promise.resolve();
 let messageCount    = 0;
 let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true };
 
-// 音声認識関連
-let recognition       = null;
-let voiceStream       = null;
-let isVoiceActive     = false;
+// 音声関連
+let voiceStream        = null;
+let voiceAudioCtx      = null;
+let mediaRecorder      = null;
+let audioChunks        = [];
+let hadSpeech          = false;
+let isSendingChunk     = false;
+let voiceSessionTimer  = null;
+let cableLevel         = 0;
+let isVoiceActive      = false;
 let subtitleContainer = null;
 let subtitleFadeTimer = null;
 
@@ -185,6 +191,26 @@ const PANEL_CSS = `
   .send-btn:hover:not(:disabled) { background: #772ce8; }
   .send-btn:disabled { background: #3d3d40; cursor: default; }
 
+  /* Groq API キーバー */
+  .groq-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; background: #0e0e10;
+    border-bottom: 1px solid #2d2d2f; flex-shrink: 0;
+  }
+  .groq-bar.hidden { display: none; }
+  .groq-input {
+    flex: 1; min-width: 0; background: #18181b;
+    border: 1px solid #3d3d40; border-radius: 4px;
+    color: #efeff1; font-size: 11px; padding: 4px 8px; outline: none; font-family: inherit;
+  }
+  .groq-input:focus { border-color: #9147ff; }
+  .groq-input::placeholder { color: #5a5a6a; }
+  .groq-save-btn {
+    background: #9147ff; border: none; border-radius: 4px;
+    color: #fff; cursor: pointer; font-size: 11px; padding: 4px 10px; flex-shrink: 0;
+  }
+  .groq-save-btn:hover { background: #772ce8; }
+
   /* リサイズハンドル */
   .resize-handle {
     position: absolute; bottom: 0; right: 0; width: 14px; height: 14px;
@@ -198,7 +224,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings',
+    'twitch_token', 'twitch_username', 'channel_settings', 'groq_api_key',
   ]);
   settings = { ...settings, ...stored };
 
@@ -209,6 +235,7 @@ async function init() {
   }
 
   createPanel();
+  if (!stored.groq_api_key) showGroqBar();
   await detectAndConnect();
   hookNavigation();
 
@@ -312,6 +339,10 @@ function createPanel() {
           <button class="logout-btn" id="logoutBtn">ログアウト</button>
         </div>
       </div>
+      <div class="groq-bar hidden" id="groqBar">
+        <input type="password" class="groq-input" id="groqInput" placeholder="Groq API キー (gsk_...)">
+        <button class="groq-save-btn" id="groqSaveBtn">保存</button>
+      </div>
       <div class="messages" id="messages"></div>
       <div class="input-area" id="inputArea">
         <input type="text" class="chat-input" id="chatInput" autocomplete="off" spellcheck="false">
@@ -338,6 +369,13 @@ function createPanel() {
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
+  shadowRoot.getElementById('groqSaveBtn').addEventListener('click', async () => {
+    const key = shadowRoot.getElementById('groqInput').value.trim();
+    if (!key) return;
+    await chrome.storage.local.set({ groq_api_key: key });
+    hideGroqBar();
+    addSystemMessage('Groq API キーを保存しました。🎤 を押して開始してください。');
+  });
   loginBtnEl.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'twitch_login' }));
   logoutBtnEl.addEventListener('click', handleLogout);
 
@@ -697,94 +735,160 @@ function toggleVoice() {
 }
 
 async function startVoice() {
-  if (settings.src_lang === 'auto') {
-    ensureSubtitleContainer();
-    showSubtitle('⚠ 右クリックで翻訳元言語を設定してください', true);
-    return;
-  }
-
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    ensureSubtitleContainer();
-    showSubtitle('⚠ このブラウザは Web Speech API に対応していません', true);
-    return;
-  }
-
   ensureSubtitleContainer();
-  showSubtitle('マイク接続中...', false);
 
-  // getUserMedia で VB-Cable を明示的に選択してマイク権限も確立する
+  // Groq API キー確認
+  const { groq_api_key } = await chrome.storage.local.get('groq_api_key');
+  if (!groq_api_key) {
+    showSubtitle('⚠ Groq API キーをパネルで設定してください', true);
+    showGroqBar();
+    return;
+  }
+
+  showSubtitle('🎤 タブを選択してください（ダイアログで Twitch を選ぶ）', false);
+
+  // getDisplayMedia でタブ音声を取得（VB-Cable 不要）
+  // ダイアログが出るので Twitch タブを選択して「共有」をクリック
+  let captureStream;
   try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const vbCable = devices.find(d =>
-      d.kind === 'audioinput' && d.label.toLowerCase().includes('cable output')
-    );
-    const constraints = vbCable
-      ? { audio: { deviceId: { exact: vbCable.deviceId } } }
-      : { audio: true };
-    voiceStream = await navigator.mediaDevices.getUserMedia(constraints);
-    const label = vbCable ? vbCable.label : 'デフォルトマイク';
-    showSubtitle(`🎤 ${label}`, false);
+    captureStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { width: 1, height: 1, frameRate: 1 },
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+      preferCurrentTab: true,
+    });
   } catch (e) {
-    showSubtitle(`⚠ マイク取得失敗: ${e.message}`, true);
+    showSubtitle(`⚠ タブ音声取得失敗: ${e.message}`, true);
+    return;
+  }
+  captureStream.getVideoTracks().forEach(t => t.stop()); // 映像トラックは即停止
+  voiceStream = new MediaStream(captureStream.getAudioTracks());
+  if (voiceStream.getAudioTracks().length === 0) {
+    showSubtitle('⚠ 音声トラックが取得できませんでした（タブを選択したか確認）', true);
     return;
   }
 
   isVoiceActive = true;
   updateVoiceBtn();
 
-  recognition = new SR();
-  recognition.continuous     = true;
-  recognition.interimResults = true;
-  recognition.lang           = toLangTag(settings.src_lang);
+  // AudioContext で音量レベルを計測
+  cableLevel = 0;
+  hadSpeech  = false;
+  try {
+    voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    await voiceAudioCtx.resume();
+    const src      = voiceAudioCtx.createMediaStreamSource(voiceStream);
+    const analyser = voiceAudioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    src.connect(analyser);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const sampleLevel = () => {
+      if (!isVoiceActive) return;
+      analyser.getByteFrequencyData(buf);
+      cableLevel = Math.round(Math.max(...buf) / 255 * 100);
+      if (cableLevel > 10) hadSpeech = true;
+      setTimeout(sampleLevel, 300);
+    };
+    sampleLevel();
+  } catch (_) {}
 
-  recognition.onresult = e => {
-    let interim = '', final = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final += t;
-      else interim += t;
-    }
-    if (interim) showSubtitle(interim, false);
-    if (final)   handleFinalTranscript(final);
-  };
+  // 3秒ごとに stop/start して完結した WebM ファイルを生成し Groq へ送信
+  isSendingChunk = false;
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus' : 'audio/webm';
 
-  recognition.onerror = ev => {
-    if (ev.error === 'not-allowed') {
-      showSubtitle('⚠ マイクの使用が許可されていません', true);
-      stopVoice();
-    } else if (ev.error === 'no-speech') {
-      showSubtitle('🔇 音声未検出', false);
-    } else if (ev.error === 'network') {
-      showSubtitle('⚠ ネットワークエラー', true);
-    } else {
-      showSubtitle(`認識エラー: ${ev.error}`, false);
-    }
-  };
+  function startRecordingCycle() {
+    if (!isVoiceActive) return;
+    audioChunks   = [];
+    mediaRecorder = new MediaRecorder(voiceStream, { mimeType });
 
-  recognition.onend = () => {
-    if (isVoiceActive) recognition.start();
-  };
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
 
-  recognition.start();
+    mediaRecorder.onstop = async () => {
+      const wasSpeech = hadSpeech;
+      hadSpeech = false;
+      if (wasSpeech && audioChunks.length > 0 && !isSendingChunk) {
+        isSendingChunk = true;
+        showSubtitle('🔄 認識中...', false);
+        // 全チャンクをまとめて完結した WebM ファイルとして Groq へ送る
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        try {
+          const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
+          if (text?.trim()) await handleFinalTranscript(text.trim());
+          else showSubtitle(`🎤 録音中 (${cableLevel}%)`, false);
+        } catch (err) {
+          showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
+        } finally {
+          isSendingChunk = false;
+        }
+      }
+      startRecordingCycle(); // 次のサイクルへ
+    };
+
+    mediaRecorder.start();
+    voiceSessionTimer = setTimeout(() => {
+      if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+    }, 3000);
+  }
+  startRecordingCycle();
+  showSubtitle('🎤 録音開始', false);
 }
 
 function stopVoice() {
   isVoiceActive = false;
   updateVoiceBtn();
-  if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
-  if (voiceStream)  { voiceStream.getTracks().forEach(t => t.stop()); voiceStream = null; }
+  clearTimeout(voiceSessionTimer);
+  voiceSessionTimer = null;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.ondataavailable = null;
+    mediaRecorder.onstop = null; // 再帰呼び出しを防ぐ
+    mediaRecorder.stop();
+  }
+  mediaRecorder = null;
+  audioChunks   = [];
+  hadSpeech     = false;
+  if (voiceStream)   { voiceStream.getTracks().forEach(t => t.stop()); voiceStream = null; }
+  if (voiceAudioCtx) { voiceAudioCtx.close(); voiceAudioCtx = null; }
+  cableLevel = 0;
   clearSubtitle();
 }
 
 async function handleFinalTranscript(text) {
   try {
-    const translated = await translateViaBackground(text, settings.src_lang, settings.tgt_lang);
+    const from = (settings.src_lang === 'auto') ? 'auto' : settings.src_lang;
+    const translated = await translateViaBackground(text, from, settings.tgt_lang);
     showSubtitle(translated, true);
   } catch {
     showSubtitle(text, true);
   }
 }
+
+// 音声チャンクを background.js 経由で Groq Whisper API に送信して文字起こし
+async function transcribeViaBackground(blob, mimeType, language) {
+  const arrayBuffer = await blob.arrayBuffer();
+  const base64      = arrayBufferToBase64(arrayBuffer);
+  const res = await Promise.race([
+    chrome.runtime.sendMessage({ type: 'transcribe', audioBase64: base64, mimeType, language }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト')), 30000)),
+  ]);
+  if (!res?.ok) throw new Error(res?.error || 'transcribe failed');
+  return res.result;
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, bytes.length)));
+  }
+  return btoa(binary);
+}
+
+function showGroqBar() { shadowRoot?.getElementById('groqBar')?.classList.remove('hidden'); }
+function hideGroqBar() { shadowRoot?.getElementById('groqBar')?.classList.add('hidden'); }
 
 function toLangTag(lang) {
   const map = {
