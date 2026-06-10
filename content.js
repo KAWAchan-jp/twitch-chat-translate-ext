@@ -134,7 +134,8 @@ const PANEL_CSS = `
   .messages::-webkit-scrollbar-track { background: transparent; }
   .messages::-webkit-scrollbar-thumb { background: #3d3d40; border-radius: 2px; }
 
-  .msg { font-size: 13px; line-height: 1.45; }
+  .msg { font-size: 13px; line-height: 1.45; border-bottom: 1px solid #1e1e21; padding-bottom: 5px; }
+  .msg:last-child { border-bottom: none; }
   .msg-user { font-size: 12px; font-weight: 700; }
 
   .msg-orig {
