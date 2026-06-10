@@ -7,31 +7,9 @@ document.getElementById('version').textContent =
 const warmupBtn    = document.getElementById('warmupBtn');
 const warmupStatus = document.getElementById('warmupStatus');
 
-warmupBtn.addEventListener('click', async () => {
-  warmupBtn.disabled = true;
-  warmupStatus.textContent = 'バックグラウンドでモデルをダウンロード中...';
+warmupBtn.addEventListener('click', () => {
+  warmupStatus.textContent = 'Twitch ページで 🎤 ボタンを押すと自動的にモデルがロードされます';
   warmupStatus.style.color = '#adadb8';
-
-  // whisper_status を設定ページに中継するため直接 offscreen へ
-  chrome.runtime.onMessage.addListener(function handler(msg) {
-    if (msg.type === 'whisper_status') {
-      warmupStatus.textContent = msg.text;
-      if (msg.text.includes('準備完了')) {
-        warmupBtn.disabled = false;
-        chrome.runtime.onMessage.removeListener(handler);
-      }
-    }
-  });
-
-  try {
-    await chrome.runtime.sendMessage({ type: 'warmup_whisper' });
-    warmupStatus.textContent = 'Whisper 準備完了 ✓';
-    warmupStatus.style.color = '#00b894';
-  } catch (e) {
-    warmupStatus.textContent = `⚠ エラー: ${e.message}`;
-    warmupStatus.style.color = '#e84393';
-    warmupBtn.disabled = false;
-  }
 });
 
 // ===== Groq API キー =====

@@ -179,34 +179,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  if (message.type === 'transcribe') {
-    // Service Worker 内で Transformers.js + Whisper 推論
-    (async () => {
-      try {
-        const t = await getWhisper();
-        const bytes   = Uint8Array.from(atob(message.pcmBase64), c => c.charCodeAt(0));
-        const float32 = new Float32Array(bytes.buffer);
-        const opts = { task: 'transcribe', return_timestamps: false };
-        if (message.language && message.language !== 'auto') opts.language = message.language;
-        const result = await t(float32, opts);
-        sendResponse({ ok: true, result: result.text?.trim() || '' });
-      } catch (err) {
-        sendResponse({ ok: false, error: err.message });
-      }
-    })();
-    return true;
-  }
-
   if (message.type === 'warmup_whisper') {
-    (async () => {
-      try {
-        await getWhisper();
-        sendResponse({ ok: true });
-      } catch (err) {
-        sendResponse({ ok: false, error: err.message });
-      }
-    })();
-    return true;
+    // Whisper は Twitch ページの MAIN world で動作するため
+    // ウォームアップは 🎤 ボタンを押した時に自動的に開始されます
+    sendResponse({ ok: true });
+    return;
   }
 
   if (message.type === 'translate') {
@@ -261,51 +238,3 @@ async function translateText(text, from, to) {
   }
 }
 
-// ===== Whisper (Transformers.js) — Service Worker 内で実行 =====
-let _whisper      = null;
-let _whisperLoad  = null;
-
-async function getWhisper() {
-  if (_whisper) return _whisper;
-  if (_whisperLoad) return _whisperLoad;
-
-  _whisperLoad = (async () => {
-    await notifyWhisperStatus('Whisper モデルをロード中... (初回は数十秒かかります)');
-
-    const { pipeline, env } = await import('./lib/transformers.web.min.js');
-    env.useBrowserCache  = true;
-    env.allowLocalModels = false;
-
-    _whisper = await pipeline(
-      'automatic-speech-recognition',
-      'onnx-community/whisper-tiny',
-      {
-        device: 'wasm',
-        dtype:  'q4',
-        progress_callback: ({ status, name, progress }) => {
-          if (status === 'downloading') {
-            const pct = progress != null ? Math.round(progress) : '...';
-            notifyWhisperStatus(`ダウンロード中: ${name ?? ''} (${pct}%)`);
-          } else if (status === 'ready') {
-            notifyWhisperStatus('Whisper 準備完了 ✓');
-          }
-        },
-      },
-    );
-
-    _whisperLoad = null;
-    await notifyWhisperStatus('Whisper 準備完了 ✓');
-    return _whisper;
-  })();
-
-  return _whisperLoad;
-}
-
-async function notifyWhisperStatus(text) {
-  try {
-    const tabs = await chrome.tabs.query({ url: '*://www.twitch.tv/*' });
-    for (const tab of tabs) {
-      chrome.tabs.sendMessage(tab.id, { type: 'whisper_status', text }).catch(() => {});
-    }
-  } catch {}
-}

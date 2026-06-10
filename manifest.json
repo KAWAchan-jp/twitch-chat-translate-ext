@@ -27,9 +27,13 @@
   },
 
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
+
+  "web_accessible_resources": [{
+    "resources": ["whisper-injected.js", "lib/transformers.web.min.js"],
+    "matches": ["*://www.twitch.tv/*"]
+  }],
 
   "action": {
     "default_icon": {

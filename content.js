@@ -855,40 +855,56 @@ async function handleFinalTranscript(text) {
   }
 }
 
-// WebM/Opus blob を 16kHz モノラル Float32 PCM にデコード
-async function decodeAudioToPCM(blob) {
-  const arrayBuffer = await blob.arrayBuffer();
-  const audioCtx = new AudioContext();
-  let audioBuffer;
-  try {
-    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
-  } finally {
-    audioCtx.close();
-  }
-  if (audioBuffer.sampleRate === 16000) {
-    return audioBuffer.getChannelData(0);
-  }
-  // 16kHz にリサンプリング
-  const length     = Math.ceil(audioBuffer.duration * 16000);
-  const offlineCtx = new OfflineAudioContext({ numberOfChannels: 1, length, sampleRate: 16000 });
-  const src        = offlineCtx.createBufferSource();
-  src.buffer       = audioBuffer;
-  src.connect(offlineCtx.destination);
-  src.start();
-  const resampled = await offlineCtx.startRendering();
-  return resampled.getChannelData(0);
+// ===== Whisper ページスクリプト注入（MAIN world） =====
+let whisperPageReady = false;
+const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer }
+
+function ensureWhisperPageScript() {
+  if (whisperPageReady) return;
+  whisperPageReady = true;
+
+  // 結果を受信
+  window.addEventListener('__tct_whisper_result', ({ detail }) => {
+    const req = pendingTranscriptions.get(detail.requestId);
+    if (!req) return;
+    pendingTranscriptions.delete(detail.requestId);
+    clearTimeout(req.timer);
+    if (detail.ok) req.resolve(detail.result);
+    else req.reject(new Error(detail.error));
+  });
+
+  // ステータスを受信して字幕に表示
+  window.addEventListener('__tct_whisper_status', ({ detail }) => {
+    if (isVoiceActive) showSubtitle(detail.text, false);
+  });
+
+  // whisper-injected.js を MAIN world に注入
+  const script = document.createElement('script');
+  script.type  = 'module';
+  script.src   = chrome.runtime.getURL('whisper-injected.js');
+  document.head.appendChild(script);
 }
 
-// 音声チャンクを PCM にデコードして background.js (Whisper SW) へ送信
-async function transcribeViaBackground(blob, _mimeType, language) {
-  const float32 = await decodeAudioToPCM(blob);
-  const pcmBase64 = arrayBufferToBase64(float32.buffer);
-  const res = await Promise.race([
-    chrome.runtime.sendMessage({ type: 'transcribe', pcmBase64, language }),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）')), 180000)),
-  ]);
-  if (!res?.ok) throw new Error(res?.error || 'transcribe failed');
-  return res.result;
+// 音声チャンクを MAIN world の Whisper スクリプトへ送信
+async function transcribeViaBackground(blob, mimeType, language) {
+  ensureWhisperPageScript();
+
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioBase64 = arrayBufferToBase64(arrayBuffer);
+  const requestId   = Math.random().toString(36).slice(2);
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingTranscriptions.delete(requestId);
+      reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
+    }, 180000);
+
+    pendingTranscriptions.set(requestId, { resolve, reject, timer });
+
+    window.dispatchEvent(new CustomEvent('__tct_whisper_transcribe', {
+      detail: { audioBase64, mimeType, language, requestId },
+    }));
+  });
 }
 
 function arrayBufferToBase64(buffer) {
