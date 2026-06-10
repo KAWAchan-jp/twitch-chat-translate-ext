@@ -15,7 +15,15 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 
 async function startRecognition(srcLang, tgtLang) {
-  // getUserMedia で VB-Cable を優先取得（マイク権限も同時に確立）
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    send({ type: 'voice_status', text: '⚠ Web Speech API 非対応', isFinal: true });
+    send({ type: 'voice_stopped' });
+    return;
+  }
+
+  // getUserMedia は VB-Cable をアクティブにするために試みるが、失敗しても継続する
+  // Offscreen Document では audioCapture パーミッション経由で SpeechRecognition が動く可能性がある
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const vbCable = devices.find(d =>
@@ -28,16 +36,8 @@ async function startRecognition(srcLang, tgtLang) {
     const label = vbCable ? vbCable.label : 'デフォルトマイク';
     send({ type: 'voice_status', text: `🎤 ${label} で認識開始`, isFinal: false });
   } catch (e) {
-    send({ type: 'voice_status', text: `⚠ マイク取得失敗: ${e.message}`, isFinal: true });
-    send({ type: 'voice_stopped' });
-    return;
-  }
-
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    send({ type: 'voice_status', text: '⚠ Web Speech API 非対応', isFinal: true });
-    send({ type: 'voice_stopped' });
-    return;
+    // getUserMedia 失敗でも SpeechRecognition は試みる（audioCapture パーミッション経由）
+    send({ type: 'voice_status', text: `🎤 認識開始（マイク直接アクセス: ${e.message}）`, isFinal: false });
   }
 
   isActive = true;
