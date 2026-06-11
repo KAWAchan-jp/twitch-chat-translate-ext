@@ -8,6 +8,19 @@ const TRANSLATE_SKIP_PATTERNS = [
   /^[!\/]/,
   /^[^\p{L}\p{N}]+$/u,
 ];
+const WHISPER_DEFAULT_PROMPTS = {
+  en:      'Twitch stream. Gaming commentary.',
+  ja:      'Twitchゲーム実況配信。',
+  ko:      '트위치 게임 방송.',
+  'zh-CN': 'Twitch游戏直播。',
+  'zh-TW': 'Twitch遊戲直播。',
+  ru:      'Трансляция игр на Twitch.',
+  es:      'Transmisión de juegos en Twitch.',
+  fr:      'Stream de jeux sur Twitch.',
+  de:      'Twitch Gaming-Stream.',
+  pt:      'Stream de jogos na Twitch.',
+};
+
 const LANG_SCRIPT_PATTERNS = {
   ja:      /[぀-ゟ゠-ヿ]/,
   ko:      /[가-힯ᄀ-ᇿ]/,
@@ -34,7 +47,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny' };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '' };
 
 // 音声関連
 let voiceStream        = null;
@@ -236,7 +249,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model',
+    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own',
   ]);
   settings = { ...settings, ...stored };
@@ -344,7 +357,8 @@ function onSettingsChanged(changes) {
   if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
   if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;
-  if (changes.whisper_model)      settings.whisper_model      = changes.whisper_model.newValue;
+  if (changes.whisper_model)  settings.whisper_model  = changes.whisper_model.newValue;
+  if (changes.whisper_prompt) settings.whisper_prompt = changes.whisper_prompt.newValue;
 }
 
 function notifyBadge(active) {
@@ -998,8 +1012,9 @@ async function transcribeViaBackground(blob, mimeType, language) {
 
     pendingTranscriptions.set(requestId, { resolve, reject, timer });
 
+    const initial_prompt = settings.whisper_prompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
     window.dispatchEvent(new CustomEvent('__tct_whisper_transcribe', {
-      detail: { audioBase64, mimeType, language, requestId, model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}` },
+      detail: { audioBase64, mimeType, language, requestId, model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt },
     }));
   });
 }

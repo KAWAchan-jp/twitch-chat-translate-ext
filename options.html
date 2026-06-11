@@ -33,6 +33,11 @@
         <p class="hint">モデルを変更すると次回の音声認識から適用されます。変更後は別途ダウンロードが必要です。</p>
       </div>
       <div class="field">
+        <label for="whisperPrompt">認識ヒント（initial_prompt）</label>
+        <input type="text" id="whisperPrompt" placeholder="空欄のとき言語に応じた既定値を使用" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box">
+        <p class="hint">Whisperに文脈を伝えるヒント文。空欄のとき「Twitchゲーム実況配信。」のような言語別既定値が使われます。固有名詞（配信者名・ゲームタイトル等）を含めると認識精度が上がります。</p>
+      </div>
+      <div class="field">
         <label for="subtitleFontSize">字幕フォントサイズ</label>
         <div class="slider-row">
           <input type="range" id="subtitleFontSize" min="14" max="56" step="2" value="22">

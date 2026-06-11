@@ -24,6 +24,15 @@ whisperModelEls.forEach(el => {
   });
 });
 
+// ===== Whisper 認識ヒント =====
+const whisperPromptEl = document.getElementById('whisperPrompt');
+chrome.storage.local.get('whisper_prompt', ({ whisper_prompt }) => {
+  whisperPromptEl.value = whisper_prompt ?? '';
+});
+whisperPromptEl.addEventListener('change', () => {
+  chrome.storage.local.set({ whisper_prompt: whisperPromptEl.value.trim() });
+});
+
 // ===== 字幕フォントサイズ =====
 const fontSizeEl  = document.getElementById('subtitleFontSize');
 const fontSizeVal = document.getElementById('subtitleFontSizeVal');
