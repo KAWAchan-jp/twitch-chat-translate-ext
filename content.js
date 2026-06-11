@@ -47,7 +47,7 @@ let subtitleContainer = null;
 let subtitleFadeTimer = null;
 
 // ===== Shadow DOM 内のDOM参照 =====
-let container, shadowRoot, panel, messagesEl, statusDotEl, channelNameEl, msgCountEl;
+let container, shadowRoot, panel, messagesEl, statusDotEl, channelNameEl, langIndicatorEl, msgCountEl;
 let authBarEl, loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
 let chatInputEl, sendBtnEl;
 
@@ -110,6 +110,12 @@ const PANEL_CSS = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .msg-count { font-size: 11px; color: #adadb8; flex-shrink: 0; }
+
+  .lang-indicator {
+    font-size: 10px; color: #5a5a6a; background: #1e1e21;
+    padding: 2px 5px; border-radius: 3px; flex-shrink: 0;
+    font-family: 'Courier New', monospace; letter-spacing: 0.3px;
+  }
 
   .voice-btn {
     background: none; border: none; cursor: pointer;
@@ -277,6 +283,7 @@ async function loadChannelSettings(channel) {
   settings.src_lang = cs?.src_lang ?? stored.src_lang ?? 'auto';
   settings.tgt_lang = cs?.tgt_lang ?? stored.tgt_lang ?? 'ja';
   updateInputPlaceholder();
+  updateLangIndicator();
 }
 
 function hookNavigation() {
@@ -312,7 +319,7 @@ function onSettingsChanged(changes) {
     settings.auto_scroll = changes.auto_scroll.newValue;
     if (settings.auto_scroll) scrollToBottom();
   }
-  if (changes.src_lang || changes.tgt_lang) updateInputPlaceholder();
+  if (changes.src_lang || changes.tgt_lang) { updateInputPlaceholder(); updateLangIndicator(); }
 }
 
 function notifyBadge(active) {
@@ -332,6 +339,7 @@ function createPanel() {
       <div class="header" id="header">
         <div class="status-dot connecting" id="statusDot"></div>
         <span class="channel-name" id="channelName">接続待ち</span>
+        <span class="lang-indicator" id="langIndicator"></span>
         <span class="msg-count" id="msgCount">0 msgs</span>
         <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
         <button class="close-btn" id="closeBtn" title="閉じる">×</button>
@@ -358,10 +366,11 @@ function createPanel() {
 
   document.body.appendChild(container);
 
-  panel          = shadowRoot.getElementById('panel');
-  statusDotEl    = shadowRoot.getElementById('statusDot');
-  channelNameEl  = shadowRoot.getElementById('channelName');
-  msgCountEl     = shadowRoot.getElementById('msgCount');
+  panel             = shadowRoot.getElementById('panel');
+  statusDotEl       = shadowRoot.getElementById('statusDot');
+  channelNameEl     = shadowRoot.getElementById('channelName');
+  langIndicatorEl   = shadowRoot.getElementById('langIndicator');
+  msgCountEl        = shadowRoot.getElementById('msgCount');
   messagesEl     = shadowRoot.getElementById('messages');
   authBarEl      = shadowRoot.getElementById('authBar');
   loginBtnEl     = shadowRoot.getElementById('loginBtn');
@@ -391,6 +400,7 @@ function createPanel() {
 
   updateAuthUI();
   updateInputPlaceholder();
+  updateLangIndicator();
   makeDraggable(shadowRoot.getElementById('header'));
   makeResizable(shadowRoot.getElementById('resizeHandle'));
 }
@@ -428,6 +438,13 @@ function updateInputPlaceholder() {
   chatInputEl.placeholder = `${tgtName}で入力 → ${srcName}に翻訳して送信`;
   chatInputEl.disabled    = false;
   sendBtnEl.disabled      = false;
+}
+
+function updateLangIndicator() {
+  if (!langIndicatorEl) return;
+  const src = settings.src_lang === 'auto' ? 'AUTO' : settings.src_lang.toUpperCase();
+  const tgt = settings.tgt_lang.toUpperCase();
+  langIndicatorEl.textContent = `${src}→${tgt}`;
 }
 
 function getLangName(code) {
