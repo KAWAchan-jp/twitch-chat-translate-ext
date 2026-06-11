@@ -29,6 +29,8 @@ let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scr
 // 音声関連
 let voiceStream        = null;
 let voiceAudioCtx      = null;
+let voiceSourceNode    = null; // MediaElementSourceNode（video 要素につき1回だけ作成）
+let voiceDestNode      = null; // MediaStreamDestinationNode（start/stop ごとに再作成）
 let mediaRecorder      = null;
 let audioChunks        = [];
 let hadSpeech          = false;
@@ -734,29 +736,30 @@ function toggleVoice() {
 async function startVoice() {
   ensureSubtitleContainer();
 
-  showSubtitle('🎤 タブを選択してください（ダイアログで Twitch を選ぶ）', false);
-
-  // getDisplayMedia でタブ音声を取得（VB-Cable 不要）
-  // ダイアログが出るので Twitch タブを選択して「共有」をクリック
-  let captureStream;
-  try {
-    captureStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { width: 1, height: 1, frameRate: 1 },
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      },
-      preferCurrentTab: true,
-    });
-  } catch (e) {
-    showSubtitle(`⚠ タブ音声取得失敗: ${e.message}`, true);
+  // Web Audio API で <video> 要素から直接音声を取得（タブ共有バナーなし）
+  const videoEl = document.querySelector('video');
+  if (!videoEl) {
+    showSubtitle('⚠ 動画要素が見つかりません。動画が再生中か確認してください', true);
     return;
   }
-  captureStream.getVideoTracks().forEach(t => t.stop()); // 映像トラックは即停止
-  voiceStream = new MediaStream(captureStream.getAudioTracks());
-  if (voiceStream.getAudioTracks().length === 0) {
-    showSubtitle('⚠ 音声トラックが取得できませんでした（タブを選択したか確認）', true);
+
+  try {
+    if (!voiceAudioCtx || voiceAudioCtx.state === 'closed') {
+      voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    await voiceAudioCtx.resume();
+
+    // MediaElementSourceNode は同一 video 要素に対して1回だけ作成可能
+    if (!voiceSourceNode) {
+      voiceSourceNode = voiceAudioCtx.createMediaElementSource(videoEl);
+      voiceSourceNode.connect(voiceAudioCtx.destination); // 音声を引き続き再生
+    }
+
+    voiceDestNode = voiceAudioCtx.createMediaStreamDestination();
+    voiceSourceNode.connect(voiceDestNode);
+    voiceStream = voiceDestNode.stream;
+  } catch (e) {
+    showSubtitle(`⚠ 音声取得失敗: ${e.message}`, true);
     return;
   }
 
@@ -767,8 +770,6 @@ async function startVoice() {
   cableLevel = 0;
   hadSpeech  = false;
   try {
-    voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    await voiceAudioCtx.resume();
     const src      = voiceAudioCtx.createMediaStreamSource(voiceStream);
     const analyser = voiceAudioCtx.createAnalyser();
     analyser.fftSize = 512;
@@ -839,8 +840,13 @@ function stopVoice() {
   mediaRecorder = null;
   audioChunks   = [];
   hadSpeech     = false;
-  if (voiceStream)   { voiceStream.getTracks().forEach(t => t.stop()); voiceStream = null; }
-  if (voiceAudioCtx) { voiceAudioCtx.close(); voiceAudioCtx = null; }
+  // voiceSourceNode は video 要素と紐づくため再利用する（close しない）
+  // voiceDestNode への接続だけ切断
+  if (voiceSourceNode && voiceDestNode) {
+    try { voiceSourceNode.disconnect(voiceDestNode); } catch (_) {}
+  }
+  voiceDestNode = null;
+  voiceStream   = null;
   cableLevel = 0;
   clearSubtitle();
 }
