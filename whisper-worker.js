@@ -1,5 +1,27 @@
 'use strict';
 
+// Whisper が無音・BGM時に頻出するハルシネーションフレーズ
+const HALLUCINATION_PATTERNS = [
+  'ご視聴ありがとうございました',
+  'ご視聴ありがとうございます',
+  'チャンネル登録よろしくお願いします',
+  'チャンネル登録お願いします',
+  'チャンネル登録',
+  '字幕は自動生成されています',
+  'ご視聴ありがとうございました。',
+  'thank you for watching',
+  'thanks for watching',
+  'please subscribe',
+  'subscribe to my channel',
+];
+
+function isHallucination(text) {
+  const normalized = text.toLowerCase().replace(/[。、！？!?,.\s]/g, '');
+  return HALLUCINATION_PATTERNS.some(p =>
+    normalized === p.toLowerCase().replace(/[。、！？!?,.\s]/g, '')
+  );
+}
+
 // libBase は init メッセージで受け取る（import.meta.url は classic worker では使えない）
 let LIB_BASE          = null;
 let transcriber       = null;
@@ -74,6 +96,10 @@ self.addEventListener('message', async (e) => {
       if (context) opts.initial_prompt = context;
       const result = await transcriber(audioData, opts);
       const text = result.text?.trim() ?? '';
+      if (isHallucination(text)) {
+        postMessage({ type: 'result', requestId, ok: true, result: '' });
+        return;
+      }
       lastTranscriptText = text;
       postMessage({ type: 'result', requestId, ok: true, result: text });
     } catch (err) {
