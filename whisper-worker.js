@@ -123,18 +123,25 @@ async function ensureTranscriber(modelName) {
       const mid = resolveModelId(modelName, dev);
       const deviceLabel = dev === 'webgpu' ? 'GPU' : 'CPU';
       postMessage({ type: 'status', text: `Whisper モデル準備中... (${deviceLabel})` });
-      // WebGPU: fp32エンコーダ（精度安定。大きすぎて失敗した場合は呼び出し側でWASMにfallback）
-      // WASM:   q8エンコーダ
       const dtype = dev === 'webgpu'
         ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
         : { encoder_model: 'q8',   decoder_model_merged: 'q4' };
-      return pipeline(
+
+      let idleTimer = null;
+      let shaderInterval = null;
+
+      const result = await pipeline(
         'automatic-speech-recognition',
         mid,
         {
           device: dev,
           dtype,
           progress_callback: ({ status, name, progress }) => {
+            // ファイル受信中はシェーダー待機メッセージをリセット
+            clearTimeout(idleTimer);
+            clearInterval(shaderInterval);
+            shaderInterval = null;
+
             const fname = (name ?? '').split('/').pop().split('?')[0] || '';
             if (status === 'downloading' || status === 'progress') {
               const pct = Math.round(progress ?? 0);
@@ -143,12 +150,22 @@ async function ensureTranscriber(modelName) {
               postMessage({ type: 'status', text: `読込中: ${fname}` });
             } else if (status === 'initiate') {
               postMessage({ type: 'status', text: `取得中: ${fname}` });
-            } else if (status === 'ready') {
-              postMessage({ type: 'status', text: `GPU初期化中... しばらくお待ちください` });
             }
+
+            // ファイル処理が2秒止まったらシェーダーコンパイル中とみなす
+            idleTimer = setTimeout(() => {
+              postMessage({ type: 'status', text: `GPU シェーダー初期化中... しばらくお待ちください` });
+              shaderInterval = setInterval(() => {
+                postMessage({ type: 'status', text: `GPU シェーダー初期化中... しばらくお待ちください` });
+              }, 4000);
+            }, 2000);
           },
         },
       );
+
+      clearTimeout(idleTimer);
+      clearInterval(shaderInterval);
+      return result;
     };
 
     // WebGPU で失敗した場合は WASM にフォールバック
