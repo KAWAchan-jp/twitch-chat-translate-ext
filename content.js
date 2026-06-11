@@ -915,7 +915,7 @@ async function startVoice() {
               const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
               console.log(`[TCT] ← Whisper結果: "${text}"`);
               if (!isVoiceActive) return;
-              if (text?.trim()) await handleFinalTranscript(text.trim());
+              if (text?.trim() && text.trim().length >= 3) await handleFinalTranscript(text.trim());
             } catch (err) {
               console.warn(`[TCT] Whisperエラー: ${err.message}`);
               if (isVoiceActive) showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
