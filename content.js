@@ -60,7 +60,7 @@ let hadSpeech          = false;
 let voiceSessionTimer  = null;
 let cableLevel         = 0;
 let isVoiceActive      = false;
-let whisperBusy        = false; // 処理中フラグ（true の間は新チャンクを破棄）
+let whisperActiveCount = 0;     // 並列処理中の数（◯ドット表示管理用）
 // settings.vad_threshold と settings.vad_silence_ms を使用
 let subtitleContainer = null;
 let subtitleFadeTimer = null;
@@ -901,30 +901,29 @@ async function startVoice() {
       // 次の録音を即座に開始（並列処理）
       startRecordingCycle();
 
-      console.log(`[TCT] chunk stop: wasSpeech=${wasSpeech} chunks=${chunks.length} level=${cableLevel}% busy=${whisperBusy}`);
+      console.log(`[TCT] chunk stop: wasSpeech=${wasSpeech} chunks=${chunks.length} level=${cableLevel}% active=${whisperActiveCount}`);
       if (wasSpeech && chunks.length > 0) {
-        if (whisperBusy) {
-          console.log('[TCT] Whisper処理中のためスキップ');
-        } else {
-          whisperBusy = true;
-          setSubtitleProcessing(true);
-          const blob = new Blob(chunks, { type: 'audio/webm' });
-          console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model}`);
-          (async () => {
-            try {
-              const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
-              console.log(`[TCT] ← Whisper結果: "${text}"`);
-              if (!isVoiceActive) return;
-              if (text?.trim() && text.trim().length >= 3) await handleFinalTranscript(text.trim());
-            } catch (err) {
-              console.warn(`[TCT] Whisperエラー: ${err.message}`);
-              if (isVoiceActive) showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
-            } finally {
-              whisperBusy = false;
-              setSubtitleProcessing(false);
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        (async () => {
+          whisperActiveCount++;
+          if (whisperActiveCount === 1) setSubtitleProcessing(true);
+          try {
+            const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
+            if (text === null) {
+              console.log('[TCT] 全Workerビジー・スキップ');
+              return;
             }
-          })();
-        }
+            console.log(`[TCT] ← Whisper結果: "${text}"`);
+            if (!isVoiceActive) return;
+            if (text?.trim() && text.trim().length >= 3) await handleFinalTranscript(text.trim());
+          } catch (err) {
+            console.warn(`[TCT] Whisperエラー: ${err.message}`);
+            if (isVoiceActive) showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
+          } finally {
+            whisperActiveCount--;
+            if (whisperActiveCount === 0) setSubtitleProcessing(false);
+          }
+        })();
       }
     };
 
@@ -956,10 +955,11 @@ function stopVoice() {
   if (voiceSourceNode && voiceDestNode) {
     try { voiceSourceNode.disconnect(voiceDestNode); } catch (_) {}
   }
-  voiceDestNode = null;
-  voiceStream   = null;
-  cableLevel    = 0;
-  whisperBusy   = false;
+  voiceDestNode      = null;
+  voiceStream        = null;
+  cableLevel         = 0;
+  whisperActiveCount = 0;
+  whisperSlots.forEach(s => { s.busy = false; });
   clearSubtitle();
 }
 
@@ -973,37 +973,32 @@ async function handleFinalTranscript(text) {
   }
 }
 
-// ===== Whisper Web Worker =====
-let whisperWorker        = null;
-let whisperWorkerReady   = null;
-const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer }
+// ===== Whisper Web Worker（並列スロット方式） =====
+const WHISPER_WORKER_COUNT  = 3; // 並列数（75%カバー率目安）
+const whisperSlots          = []; // { worker, busy, ready }
+const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer, slot }
 
-function ensureWhisperWorker() {
-  if (whisperWorkerReady) return whisperWorkerReady;
-
-  // chrome-extension:// URL を Worker コンストラクタに直接渡すと
-  // Twitch origin からアクセス不可エラーになるため、
-  // Blob URL 経由で importScripts を使って読み込む
+function createWhisperSlot() {
   const scriptUrl = chrome.runtime.getURL('whisper-worker.js');
   const libBase   = chrome.runtime.getURL('lib/');
   const blobUrl   = URL.createObjectURL(
     new Blob([`importScripts(${JSON.stringify(scriptUrl)});`], { type: 'application/javascript' })
   );
-
-  whisperWorker = new Worker(blobUrl);
+  const slot = { worker: null, busy: false, ready: null };
+  slot.worker = new Worker(blobUrl);
   URL.revokeObjectURL(blobUrl);
 
-  whisperWorkerReady = new Promise((resolve, reject) => {
-    whisperWorker.addEventListener('message', ({ data }) => {
+  slot.ready = new Promise((resolve, reject) => {
+    slot.worker.addEventListener('message', ({ data }) => {
       if (data.type === 'ready') {
         resolve();
       } else if (data.type === 'status') {
         if (isVoiceActive || pendingTranscriptions.size > 0) showSubtitle(data.text, false);
-        // DL・ロード中はタイムアウトをリセット（small モデルは初回DLに時間がかかる）
         pendingTranscriptions.forEach((req, id) => {
           clearTimeout(req.timer);
           req.timer = setTimeout(() => {
             pendingTranscriptions.delete(id);
+            req.slot.busy = false;
             req.reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
           }, 180000);
         });
@@ -1012,27 +1007,33 @@ function ensureWhisperWorker() {
         if (!req) return;
         pendingTranscriptions.delete(data.requestId);
         clearTimeout(req.timer);
+        req.slot.busy = false;
         if (data.ok) req.resolve(data.result);
         else req.reject(new Error(data.error));
       }
     });
-
-    whisperWorker.addEventListener('error', (e) => {
-      whisperWorkerReady = null;
+    slot.worker.addEventListener('error', (e) => {
+      slot.busy = false;
       reject(new Error(`Whisper Worker エラー: ${e.message}`));
     });
   });
 
-  // libBase を渡して Worker を初期化（import.meta.url の代替）
-  whisperWorker.postMessage({ type: 'init', libBase });
-
-  return whisperWorkerReady;
+  slot.worker.postMessage({ type: 'init', libBase });
+  return slot;
 }
 
-// 音声チャンクを Worker へ送信
+async function ensureWhisperWorkers() {
+  while (whisperSlots.length < WHISPER_WORKER_COUNT) whisperSlots.push(createWhisperSlot());
+  await Promise.all(whisperSlots.map(s => s.ready));
+}
+
+// 音声チャンクを Worker へ送信（空きスロットがなければ null を返す）
 // Web Worker 内は AudioContext 不可のためメインスレッドで PCM デコードしてから転送
 async function transcribeViaBackground(blob, mimeType, language) {
-  await ensureWhisperWorker();
+  await ensureWhisperWorkers();
+
+  const slot = whisperSlots.find(s => !s.busy);
+  if (!slot) return null; // 全スロットビジー
 
   const rawBuffer = await blob.arrayBuffer();
   const audioCtx  = new AudioContext({ sampleRate: 16000 });
@@ -1044,17 +1045,20 @@ async function transcribeViaBackground(blob, mimeType, language) {
   }
   const float32   = new Float32Array(decoded.getChannelData(0));
   const requestId = Math.random().toString(36).slice(2);
+  slot.busy = true;
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingTranscriptions.delete(requestId);
+      slot.busy = false;
       reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
     }, 180000);
 
-    pendingTranscriptions.set(requestId, { resolve, reject, timer });
+    pendingTranscriptions.set(requestId, { resolve, reject, timer, slot });
 
     const initial_prompt = settings.whisper_prompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
-    whisperWorker.postMessage(
+    console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model} slot=${whisperSlots.indexOf(slot)}`);
+    slot.worker.postMessage(
       { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
         model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
         num_beams: settings.whisper_num_beams ?? 1 },
