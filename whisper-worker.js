@@ -138,10 +138,10 @@ self.addEventListener('message', async (e) => {
     const modelName = model || 'Xenova/whisper-tiny';
     try {
       await ensureTranscriber(modelName);
-      const sr = sampling_rate ?? 16000;
       const opts = {
         task: 'transcribe',
         return_timestamps: false,
+        sampling_rate: sampling_rate ?? 16000,
         num_beams: num_beams ?? 1,
         max_new_tokens: 128,
       };
@@ -149,8 +149,7 @@ self.addEventListener('message', async (e) => {
       const context = initial_prompt || (lastTranscriptText ? lastTranscriptText.slice(-80) : '');
       if (context) opts.initial_prompt = context;
       console.log(`[TCT-W] 推論開始 model=${loadedModelKey} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
-      // v3: { array, sampling_rate } 形式で渡すと確実にサンプルレートが伝わる
-      const result = await transcriber({ array: audioData, sampling_rate: sr }, opts);
+      const result = await transcriber(audioData, opts);
       const text = result.text?.trim() ?? '';
       console.log(`[TCT-W] 推論完了: "${text}"`);
       if (isHallucination(text)) {
