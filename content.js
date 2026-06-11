@@ -1031,6 +1031,17 @@ function createWhisperSlot() {
     slot.worker.addEventListener('message', ({ data }) => {
       if (data.type === 'ready') {
         resolve();
+      } else if (data.type === 'device_info') {
+        const label = data.device === 'webgpu' ? '🎮 GPU' : '🖥 CPU';
+        console.log(`[TCT] Whisper デバイス: ${data.device}`);
+        if (data.device === 'webgpu') {
+          // WebGPU は高速なのでワーカー数を2に削減（VRAM節約）
+          while (whisperSlots.length > 2) {
+            const s = whisperSlots.pop();
+            s.worker.terminate();
+          }
+        }
+        if (isVoiceActive) showSubtitle(`Whisper 準備完了 ✓ (${label})`, false);
       } else if (data.type === 'status') {
         if (isVoiceActive || pendingTranscriptions.size > 0) showSubtitle(data.text, false);
         pendingTranscriptions.forEach((req, id) => {

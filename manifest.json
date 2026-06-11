@@ -36,6 +36,8 @@
     "resources": [
       "whisper-worker.js",
       "lib/transformers.min.js",
+      "lib/ort-wasm-simd-threaded.jsep.wasm",
+      "lib/ort-wasm-simd-threaded.jsep.mjs",
       "lib/ort-wasm-simd.wasm",
       "lib/ort-wasm.wasm"
     ],

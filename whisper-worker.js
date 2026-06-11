@@ -1,6 +1,5 @@
 'use strict';
 
-// Whisper が無音・BGM時に頻出するハルシネーションフレーズ
 const HALLUCINATION_PATTERNS = [
   'ご視聴ありがとうございました',
   'ご視聴ありがとうございます',
@@ -29,7 +28,7 @@ function isHallucination(text) {
     normalized === p.toLowerCase().replace(/[。、！？!?,.\s]/g, '')
   )) return true;
   if (normalized.length < 2) return false;
-  // 音楽記号・波線のみで構成されるテキスト（「♪~♪~」「♫♫♫」等）
+  // 音楽記号・波線のみ（「♪~♪~」「♫♫♫」等）
   const noMusicSymbols = normalized.replace(/[♪♫♬♩~～〜ー]/g, '');
   if (noMusicSymbols.length === 0) return true;
   // 同一文字の繰り返し（「んんんん」等）
@@ -46,48 +45,79 @@ function isHallucination(text) {
   return false;
 }
 
-// libBase は init メッセージで受け取る（import.meta.url は classic worker では使えない）
+// WebGPU が使えるか確認
+async function detectDevice() {
+  if (typeof navigator !== 'undefined' && navigator.gpu) {
+    try {
+      const adapter = await navigator.gpu.requestAdapter();
+      if (adapter) return 'webgpu';
+    } catch {}
+  }
+  return 'wasm';
+}
+
+// WebGPU 用は fp16 バリアントを持つ onnx-community モデルを使用
+function resolveModelId(modelName, device) {
+  if (device === 'webgpu') {
+    return modelName.replace('Xenova/', 'onnx-community/');
+  }
+  return modelName;
+}
+
 let LIB_BASE          = null;
 let transcriber       = null;
-let loadedModel       = null;
+let loadedModelKey    = null; // "modelId:device"
 let loadPromise       = null;
-let lastTranscriptText = ''; // 直前の認識テキスト（condition_on_prev_tokens の代替）
+let lastTranscriptText = '';
+let currentDevice     = null;
 
 async function ensureTranscriber(modelName) {
-  if (transcriber && loadedModel === modelName) return;
-  if (loadPromise) { await loadPromise; if (loadedModel === modelName) return; }
+  const device  = await detectDevice();
+  const modelId = resolveModelId(modelName, device);
+  const key     = `${modelId}:${device}`;
 
-  transcriber = null;
-  loadedModel = null;
+  if (transcriber && loadedModelKey === key) return;
+  if (loadPromise) { await loadPromise; if (loadedModelKey === key) return; }
+
+  transcriber    = null;
+  loadedModelKey = null;
+  currentDevice  = null;
 
   loadPromise = (async () => {
-    postMessage({ type: 'status', text: 'Whisper モデルをロード中...' });
+    const deviceLabel = device === 'webgpu' ? 'GPU' : 'CPU';
+    postMessage({ type: 'status', text: `Whisper ロード中... (${deviceLabel})` });
 
     const { pipeline, env } = await import(LIB_BASE + 'transformers.min.js');
     env.backends.onnx.wasm.wasmPaths = LIB_BASE;
     env.backends.onnx.wasm.numThreads = 1;
-    env.backends.onnx.logLevel = 'error'; // "Removing initializer" 等の警告を抑制
     env.useBrowserCache  = true;
     env.allowLocalModels = false;
 
+    // WebGPU: fp16エンコーダ＋q4デコーダ（速度優先）
+    // WASM:   q8エンコーダ＋q4デコーダ（サイズ優先）
+    const dtype = device === 'webgpu'
+      ? { encoder_model: 'fp16', decoder_model_merged: 'q4' }
+      : { encoder_model: 'q8',   decoder_model_merged: 'q4' };
+
     transcriber = await pipeline(
       'automatic-speech-recognition',
-      modelName,
+      modelId,
       {
-        quantized: true,
+        device,
+        dtype,
         progress_callback: ({ status, name, progress }) => {
           if (status === 'downloading') {
             postMessage({ type: 'status', text: `DL中: ${name ?? ''} (${Math.round(progress ?? 0)}%)` });
-          } else if (status === 'ready') {
-            postMessage({ type: 'status', text: 'Whisper 準備完了 ✓' });
           }
         },
       },
     );
 
-    loadedModel = modelName;
-    loadPromise = null;
-    postMessage({ type: 'status', text: 'Whisper 準備完了 ✓' });
+    loadedModelKey = key;
+    currentDevice  = device;
+    loadPromise    = null;
+    postMessage({ type: 'device_info', device });
+    postMessage({ type: 'status', text: `Whisper 準備完了 ✓ (${deviceLabel})` });
   })();
 
   return loadPromise;
@@ -115,10 +145,9 @@ self.addEventListener('message', async (e) => {
         temperature: 0,
       };
       if (language && language !== 'auto') opts.language = language;
-      // ユーザー設定のプロンプトがあればそれを優先、なければ直前の認識テキストを文脈として使う
       const context = initial_prompt || (lastTranscriptText ? lastTranscriptText.slice(-80) : '');
       if (context) opts.initial_prompt = context;
-      console.log(`[TCT-W] 推論開始 model=${modelName} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
+      console.log(`[TCT-W] 推論開始 model=${loadedModelKey} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
       const result = await transcriber(audioData, opts);
       const text = result.text?.trim() ?? '';
       console.log(`[TCT-W] 推論完了: "${text}"`);
