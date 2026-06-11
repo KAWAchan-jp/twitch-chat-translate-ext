@@ -956,6 +956,7 @@ async function startVoice() {
             if (!isVoiceActive) return;
             if (text?.trim() && text.trim().length >= 3) await handleFinalTranscript(text.trim());
           } catch (err) {
+            if (err.message === 'worker trimmed') return; // WebGPU検出時の想定内キャンセル
             console.warn(`[TCT] Whisperエラー: ${err.message}`);
             if (isVoiceActive) showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
           } finally {
