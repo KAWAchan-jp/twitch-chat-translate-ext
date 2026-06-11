@@ -213,21 +213,6 @@ const PANEL_CSS = `
   .send-btn:hover:not(:disabled) { background: #772ce8; }
   .send-btn:disabled { background: #3d3d40; cursor: default; }
 
-  /* Groq API キーバー */
-  .groq-bar {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 5px 10px; background: #18181b;
-    border-bottom: 1px solid #2d2d2f; flex-shrink: 0;
-  }
-  .groq-bar.hidden { display: none; }
-  .groq-hint { font-size: 11px; color: #f0b429; flex: 1; }
-  .groq-open-btn {
-    background: #9147ff; border: none; border-radius: 4px;
-    color: #fff; cursor: pointer; font-size: 11px; padding: 4px 10px;
-    flex-shrink: 0; white-space: nowrap;
-  }
-  .groq-open-btn:hover { background: #772ce8; }
-
   /* リサイズハンドル */
   .resize-handle {
     position: absolute; bottom: 0; right: 0; width: 14px; height: 14px;
@@ -241,7 +226,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings', 'groq_api_key',
+    'twitch_token', 'twitch_username', 'channel_settings',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own',
   ]);
   settings = { ...settings, ...stored };
@@ -377,10 +362,6 @@ function createPanel() {
           <button class="logout-btn" id="logoutBtn">ログアウト</button>
         </div>
       </div>
-      <div class="groq-bar hidden" id="groqBar">
-        <span class="groq-hint">⚠ Groq API キー未設定</span>
-        <button class="groq-open-btn" id="groqOpenBtn">設定を開く</button>
-      </div>
       <div class="messages" id="messages"></div>
       <button class="scroll-to-bottom" id="scrollToBottomBtn">↓ 最新へ</button>
       <div class="input-area" id="inputArea">
@@ -410,9 +391,6 @@ function createPanel() {
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
-  shadowRoot.getElementById('groqOpenBtn').addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
   loginBtnEl.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'twitch_login' }));
   logoutBtnEl.addEventListener('click', handleLogout);
 
@@ -1015,8 +993,6 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
-function showGroqBar() { shadowRoot?.getElementById('groqBar')?.classList.remove('hidden'); }
-function hideGroqBar() { shadowRoot?.getElementById('groqBar')?.classList.add('hidden'); }
 
 function toLangTag(lang) {
   const map = {
