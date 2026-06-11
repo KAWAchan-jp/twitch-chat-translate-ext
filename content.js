@@ -900,15 +900,19 @@ async function startVoice() {
       // 次の録音を即座に開始（並列処理）
       startRecordingCycle();
 
+      console.log(`[TCT] chunk stop: wasSpeech=${wasSpeech} chunks=${chunks.length} level=${cableLevel}%`);
       if (wasSpeech && chunks.length > 0) {
         setSubtitleProcessing(true);
         const blob = new Blob(chunks, { type: 'audio/webm' });
+        console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model}`);
         (async () => {
           try {
             const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
+            console.log(`[TCT] ← Whisper結果: "${text}"`);
             if (!isVoiceActive) return;
             if (text?.trim()) await handleFinalTranscript(text.trim());
           } catch (err) {
+            console.warn(`[TCT] Whisperエラー: ${err.message}`);
             if (isVoiceActive) showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
           } finally {
             setSubtitleProcessing(false);

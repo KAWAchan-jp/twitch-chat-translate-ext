@@ -94,9 +94,12 @@ self.addEventListener('message', async (e) => {
       // ユーザー設定のプロンプトがあればそれを優先、なければ直前の認識テキストを文脈として使う
       const context = initial_prompt || (lastTranscriptText ? lastTranscriptText.slice(-80) : '');
       if (context) opts.initial_prompt = context;
+      console.log(`[TCT-W] 推論開始 model=${modelName} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
       const result = await transcriber(audioData, opts);
       const text = result.text?.trim() ?? '';
+      console.log(`[TCT-W] 推論完了: "${text}"`);
       if (isHallucination(text)) {
+        console.log('[TCT-W] ハルシネーション検出 → 破棄');
         postMessage({ type: 'result', requestId, ok: true, result: '' });
         return;
       }
