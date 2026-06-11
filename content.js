@@ -986,6 +986,14 @@ function ensureWhisperWorker() {
         resolve();
       } else if (data.type === 'status') {
         if (isVoiceActive) showSubtitle(data.text, false);
+        // DL・ロード中はタイムアウトをリセット（small モデルは初回DLに時間がかかる）
+        pendingTranscriptions.forEach((req, id) => {
+          clearTimeout(req.timer);
+          req.timer = setTimeout(() => {
+            pendingTranscriptions.delete(id);
+            req.reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
+          }, 180000);
+        });
       } else if (data.type === 'result') {
         const req = pendingTranscriptions.get(data.requestId);
         if (!req) return;
