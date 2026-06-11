@@ -24,7 +24,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4 };
 
 // 音声関連
 let voiceStream        = null;
@@ -226,7 +226,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings',
+    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own',
   ]);
   settings = { ...settings, ...stored };
@@ -328,9 +328,11 @@ function onSettingsChanged(changes) {
   if (changes.vad_threshold)  settings.vad_threshold  = changes.vad_threshold.newValue;
   if (changes.vad_silence_ms) settings.vad_silence_ms = changes.vad_silence_ms.newValue;
   if (changes.deepl_enabled) { settings.deepl_enabled = changes.deepl_enabled.newValue; updateLangIndicator(); }
-  if (changes.deepl_chat)    { settings.deepl_chat    = changes.deepl_chat.newValue;    updateLangIndicator(); }
-  if (changes.deepl_voice)   settings.deepl_voice   = changes.deepl_voice.newValue;
-  if (changes.deepl_own)     settings.deepl_own     = changes.deepl_own.newValue;
+  if (changes.deepl_chat)         { settings.deepl_chat         = changes.deepl_chat.newValue;         updateLangIndicator(); }
+  if (changes.deepl_voice)        settings.deepl_voice        = changes.deepl_voice.newValue;
+  if (changes.deepl_own)          settings.deepl_own          = changes.deepl_own.newValue;
+  if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
+  if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
 }
 
 function notifyBadge(active) {
@@ -705,7 +707,9 @@ function addSystemMessage(text) {
 }
 
 function shouldSkipTranslation(text) {
-  return TRANSLATE_SKIP_PATTERNS.some(p => p.test(text));
+  if (TRANSLATE_SKIP_PATTERNS.some(p => p.test(text))) return true;
+  if (settings.min_length_enabled && text.length < (settings.min_length ?? 4)) return true;
+  return false;
 }
 
 function trimMessages() {

@@ -76,6 +76,26 @@
     </section>
 
     <section class="card">
+      <h2>チャット翻訳フィルター</h2>
+      <div class="field">
+        <label class="toggle-label">
+          <span>最小文字数フィルター（短すぎるメッセージを翻訳スキップ）</span>
+          <input type="checkbox" id="minLengthEnabled">
+          <span class="toggle-switch"></span>
+        </label>
+      </div>
+      <div class="field" id="minLengthField">
+        <label for="minLength">最小文字数（現在: <span id="minLengthVal">4</span>文字未満をスキップ）</label>
+        <div class="slider-row">
+          <span class="slider-label">1</span>
+          <input type="range" id="minLength" min="1" max="20" step="1" value="4">
+          <span class="slider-label">20</span>
+        </div>
+        <p class="hint">「w」「lol」などの短い相槌を翻訳せずそのまま表示します。</p>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>VAD 感度</h2>
       <div class="field">
         <label for="vadThreshold">無音判定レベル（現在: <span id="vadThresholdVal">10</span>%）</label>

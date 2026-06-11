@@ -110,3 +110,31 @@ vadSilenceMsEl.addEventListener('input', () => {
   vadSilenceMsVal.textContent = vadSilenceMsEl.value;
   chrome.storage.local.set({ vad_silence_ms: Number(vadSilenceMsEl.value) });
 });
+
+// ===== 最小文字数フィルター =====
+const minLengthEnabledEl = document.getElementById('minLengthEnabled');
+const minLengthEl        = document.getElementById('minLength');
+const minLengthValEl     = document.getElementById('minLengthVal');
+const minLengthFieldEl   = document.getElementById('minLengthField');
+
+function updateMinLengthVisibility() {
+  minLengthFieldEl.style.opacity      = minLengthEnabledEl.checked ? '1' : '0.4';
+  minLengthFieldEl.style.pointerEvents = minLengthEnabledEl.checked ? '' : 'none';
+}
+
+chrome.storage.local.get(['min_length_enabled', 'min_length'], ({ min_length_enabled, min_length }) => {
+  minLengthEnabledEl.checked  = !!min_length_enabled;
+  minLengthEl.value           = min_length ?? 4;
+  minLengthValEl.textContent  = minLengthEl.value;
+  updateMinLengthVisibility();
+});
+
+minLengthEnabledEl.addEventListener('change', () => {
+  chrome.storage.local.set({ min_length_enabled: minLengthEnabledEl.checked });
+  updateMinLengthVisibility();
+});
+
+minLengthEl.addEventListener('input', () => {
+  minLengthValEl.textContent = minLengthEl.value;
+  chrome.storage.local.set({ min_length: Number(minLengthEl.value) });
+});
