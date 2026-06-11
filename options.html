@@ -29,6 +29,10 @@
             <input type="radio" name="whisperModel" id="whisperModelBase" value="base">
             <span><strong>Base</strong>（約74MB・やや遅い・高精度）</span>
           </label>
+          <label class="radio-label">
+            <input type="radio" name="whisperModel" id="whisperModelSmall" value="small">
+            <span><strong>Small</strong>（約244MB・遅い・最高精度）⭐ 日本語おすすめ</span>
+          </label>
         </div>
         <p class="hint">モデルを変更すると次回の音声認識から適用されます。変更後は別途ダウンロードが必要です。</p>
       </div>
@@ -130,7 +134,7 @@
           <input type="range" id="vadThreshold" min="2" max="30" step="1" value="10">
           <span class="slider-label">鈍感</span>
         </div>
-        <p class="hint">値が小さいほど小さな音も「発話中」と判定します。静かな配信では下げる、騒がしい配信では上げるのが目安。</p>
+        <p class="hint">値が小さいほど小さな音も「発話中」と判定します。静かな配信では下げる、騒がしい配信では上げるのが目安。（デフォルト: 10%）</p>
       </div>
       <div class="field">
         <label for="vadSilenceMs">無音継続時間（現在: <span id="vadSilenceMsVal">500</span>ms）</label>
@@ -139,7 +143,7 @@
           <input type="range" id="vadSilenceMs" min="200" max="1500" step="100" value="500">
           <span class="slider-label">遅め</span>
         </div>
-        <p class="hint">発話が止まってからこの時間が経過すると処理を開始します。短くすると応答が速くなりますが誤検知が増えます。</p>
+        <p class="hint">発話が止まってからこの時間が経過すると処理を開始します。短くすると応答が速くなりますが誤検知が増えます。（デフォルト: 500ms）</p>
       </div>
       <div class="field">
         <label>ビーム数（精度 vs 速度）</label>
@@ -157,7 +161,7 @@
           <input type="range" id="whisperMaxChunkMs" min="1000" max="8000" step="500" value="5000">
           <span class="slider-label">8秒</span>
         </div>
-        <p class="hint">無音が検出されない場合でもこの時間で強制的に処理します。短くするとラグが減りますが長い発話が途切れます。</p>
+        <p class="hint">無音が検出されない場合でもこの時間で強制的に処理します。短くするとラグが減りますが長い発話が途切れます。（デフォルト: 5秒）</p>
       </div>
     </section>
 
