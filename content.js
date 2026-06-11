@@ -967,12 +967,19 @@ const pendingTranscriptions = new Map(); // requestId → { resolve, reject, tim
 function ensureWhisperWorker() {
   if (whisperWorkerReady) return whisperWorkerReady;
 
-  whisperWorkerReady = new Promise((resolve, reject) => {
-    whisperWorker = new Worker(
-      chrome.runtime.getURL('whisper-worker.js'),
-      { type: 'module' }
-    );
+  // chrome-extension:// URL を Worker コンストラクタに直接渡すと
+  // Twitch origin からアクセス不可エラーになるため、
+  // Blob URL 経由で importScripts を使って読み込む
+  const scriptUrl = chrome.runtime.getURL('whisper-worker.js');
+  const libBase   = chrome.runtime.getURL('lib/');
+  const blobUrl   = URL.createObjectURL(
+    new Blob([`importScripts(${JSON.stringify(scriptUrl)});`], { type: 'application/javascript' })
+  );
 
+  whisperWorker = new Worker(blobUrl);
+  URL.revokeObjectURL(blobUrl);
+
+  whisperWorkerReady = new Promise((resolve, reject) => {
     whisperWorker.addEventListener('message', ({ data }) => {
       if (data.type === 'ready') {
         resolve();
@@ -989,19 +996,32 @@ function ensureWhisperWorker() {
     });
 
     whisperWorker.addEventListener('error', (e) => {
+      whisperWorkerReady = null;
       reject(new Error(`Whisper Worker エラー: ${e.message}`));
     });
   });
 
+  // libBase を渡して Worker を初期化（import.meta.url の代替）
+  whisperWorker.postMessage({ type: 'init', libBase });
+
   return whisperWorkerReady;
 }
 
-// 音声チャンクを Worker へ送信（ArrayBuffer 転送でゼロコピー）
+// 音声チャンクを Worker へ送信
+// Web Worker 内は AudioContext 不可のためメインスレッドで PCM デコードしてから転送
 async function transcribeViaBackground(blob, mimeType, language) {
   await ensureWhisperWorker();
 
-  const audioBuffer = await blob.arrayBuffer();
-  const requestId   = Math.random().toString(36).slice(2);
+  const rawBuffer = await blob.arrayBuffer();
+  const audioCtx  = new AudioContext({ sampleRate: 16000 });
+  let decoded;
+  try {
+    decoded = await audioCtx.decodeAudioData(rawBuffer);
+  } finally {
+    audioCtx.close();
+  }
+  const float32   = new Float32Array(decoded.getChannelData(0));
+  const requestId = Math.random().toString(36).slice(2);
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -1013,9 +1033,9 @@ async function transcribeViaBackground(blob, mimeType, language) {
 
     const initial_prompt = settings.whisper_prompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
     whisperWorker.postMessage(
-      { type: 'transcribe', audioBuffer, mimeType, language, requestId,
+      { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
         model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt },
-      [audioBuffer] // 転送（コピーなし）
+      [float32.buffer]
     );
   });
 }

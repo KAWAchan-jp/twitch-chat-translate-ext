@@ -1,12 +1,10 @@
-// Whisper 推論専用 Web Worker（モジュールワーカー）
-// メインスレッドと完全に分離して実行される
 'use strict';
 
-const LIB_BASE = new URL('./lib/', import.meta.url).href;
-
-let transcriber = null;
-let loadedModel = null;
-let loadPromise = null;
+// libBase は init メッセージで受け取る（import.meta.url は classic worker では使えない）
+let LIB_BASE     = null;
+let transcriber  = null;
+let loadedModel  = null;
+let loadPromise  = null;
 
 async function ensureTranscriber(modelName) {
   if (transcriber && loadedModel === modelName) return;
@@ -21,6 +19,7 @@ async function ensureTranscriber(modelName) {
     const { pipeline, env } = await import(LIB_BASE + 'transformers.min.js');
     env.backends.onnx.wasm.wasmPaths = LIB_BASE;
     env.backends.onnx.wasm.numThreads = 1;
+    env.backends.onnx.logLevel = 'error'; // "Removing initializer" 等の警告を抑制
     env.useBrowserCache  = true;
     env.allowLocalModels = false;
 
@@ -48,25 +47,27 @@ async function ensureTranscriber(modelName) {
 }
 
 self.addEventListener('message', async (e) => {
-  const { type, audioBuffer, mimeType, language, requestId, model, initial_prompt } = e.data;
-  if (type !== 'transcribe') return;
+  const { type } = e.data;
 
-  const modelName = model || 'Xenova/whisper-tiny';
-  const blob = new Blob([audioBuffer], { type: mimeType || 'audio/webm' });
-  const url  = URL.createObjectURL(blob);
+  if (type === 'init') {
+    LIB_BASE = e.data.libBase;
+    postMessage({ type: 'ready' });
+    return;
+  }
 
-  try {
-    await ensureTranscriber(modelName);
-    const opts = { task: 'transcribe', return_timestamps: false };
-    if (language && language !== 'auto') opts.language = language;
-    if (initial_prompt) opts.initial_prompt = initial_prompt;
-    const result = await transcriber(url, opts);
-    postMessage({ type: 'result', requestId, ok: true, result: result.text?.trim() ?? '' });
-  } catch (err) {
-    postMessage({ type: 'result', requestId, ok: false, error: err.message });
-  } finally {
-    URL.revokeObjectURL(url);
+  if (type === 'transcribe') {
+    const { audioData, sampling_rate, language, requestId, model, initial_prompt } = e.data;
+    const modelName = model || 'Xenova/whisper-tiny';
+    try {
+      await ensureTranscriber(modelName);
+      const opts = { task: 'transcribe', return_timestamps: false };
+      if (language && language !== 'auto') opts.language = language;
+      if (initial_prompt) opts.initial_prompt = initial_prompt;
+      // Float32Array を直接渡す（AudioContext 不要、Blob URL 不要）
+      const result = await transcriber({ array: audioData, sampling_rate: sampling_rate ?? 16000 }, opts);
+      postMessage({ type: 'result', requestId, ok: true, result: result.text?.trim() ?? '' });
+    } catch (err) {
+      postMessage({ type: 'result', requestId, ok: false, error: err.message });
+    }
   }
 });
-
-postMessage({ type: 'ready' });
