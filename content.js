@@ -1067,6 +1067,7 @@ function createWhisperSlot() {
         }
         if (isVoiceActive) showSubtitle(`Whisper 準備完了 ✓ (${label})`, false);
       } else if (data.type === 'status') {
+        // モデルロード中のステータス → タイムアウトをリセット（シェーダーコンパイル等で数分かかる場合があるため）
         if (isVoiceActive || pendingTranscriptions.size > 0) showSubtitle(data.text, false);
         pendingTranscriptions.forEach((req, id) => {
           clearTimeout(req.timer);
@@ -1076,6 +1077,9 @@ function createWhisperSlot() {
             req.reject(new Error('タイムアウト'));
           }, 180000);
         });
+      } else if (data.type === 'infer_status') {
+        // 推論中のステータス → タイムアウトはリセットしない（ワーカー側で90秒タイムアウトが制御）
+        if (isVoiceActive || pendingTranscriptions.size > 0) showSubtitle(data.text, false);
       } else if (data.type === 'result') {
         const req = pendingTranscriptions.get(data.requestId);
         if (!req) return;

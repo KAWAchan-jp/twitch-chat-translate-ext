@@ -297,16 +297,23 @@ self.addEventListener('message', async (e) => {
       console.log(`[TCT-W] 推論開始 model=${loadedModelKey} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
 
       // 推論が2秒以上かかる場合（初回GPUシェーダーコンパイル等）に経過時間を表示
+      // infer_status はメインスレッド側でタイムアウトをリセットしない（load_status と区別）
+      const INFER_TIMEOUT_MS = 90000;
       let inferElapsed = 0;
       let inferInterval = null;
-      const inferTimer = setTimeout(() => {
+      let inferTimedOut = false;
+      const inferDisplayTimer = setTimeout(() => {
         const tick = () => {
-          postMessage({ type: 'status', text: `GPU推論中... ${inferElapsed}秒経過` });
+          postMessage({ type: 'infer_status', text: `推論中... ${inferElapsed}秒経過` });
           inferElapsed += 4;
         };
         tick();
         inferInterval = setInterval(tick, 4000);
       }, 2000);
+      const inferTimeoutTimer = setTimeout(() => {
+        inferTimedOut = true;
+        postMessage({ type: 'result', requestId, ok: false, error: `推論タイムアウト（${INFER_TIMEOUT_MS / 1000}秒）。モデルが重すぎるかVRAM不足の可能性があります` });
+      }, INFER_TIMEOUT_MS);
 
       let result;
       try {
@@ -322,9 +329,12 @@ self.addEventListener('message', async (e) => {
           throw inferErr;
         }
       } finally {
-        clearTimeout(inferTimer);
+        clearTimeout(inferDisplayTimer);
+        clearTimeout(inferTimeoutTimer);
         clearInterval(inferInterval);
       }
+      // タイムアウト済みの場合は既にエラーを送信しているため結果を破棄
+      if (inferTimedOut) return;
       const text = result.text?.trim() ?? '';
       console.log(`[TCT-W] 推論完了: "${text}"`);
       if (isHallucination(text)) {
