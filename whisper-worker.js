@@ -102,18 +102,36 @@ let transcriber       = null;
 let loadedModelKey    = null; // "modelId:device"
 let loadPromise       = null;
 let currentDevice     = null;
+let loadError         = null; // { modelName, error } - 直近のロード失敗情報（無限リトライ防止）
 
 async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
+  // 同じモデルで既にロードに失敗している場合は即エラー（毎リクエストごとの無限リトライを防ぐ）
+  if (loadError?.modelName === modelName) throw loadError.error;
+
   let device  = await detectDevice();
   let modelId = resolveModelId(modelName, device);
   let key     = `${modelId}:${device}`;
 
   if (transcriber && loadedModelKey === key) return;
-  if (loadPromise) { await loadPromise; if (loadedModelKey === key) return; }
+  // WASMフォールバック後は detectDevice() が 'webgpu' を返しても
+  // 実際は 'wasm' でロード済みなので currentDevice ベースでも確認する
+  if (transcriber && currentDevice && currentDevice !== device) {
+    const altKey = `${resolveModelId(modelName, currentDevice)}:${currentDevice}`;
+    if (loadedModelKey === altKey) return;
+  }
+  if (loadPromise) {
+    await loadPromise;
+    if (loadedModelKey === key) return;
+    if (transcriber && currentDevice) {
+      const altKey = `${resolveModelId(modelName, currentDevice)}:${currentDevice}`;
+      if (loadedModelKey === altKey) return;
+    }
+  }
 
   transcriber    = null;
   loadedModelKey = null;
   currentDevice  = null;
+  loadError      = null;
 
   loadPromise = (async () => {
     const { pipeline, env } = await import(LIB_BASE + 'transformers.min.js');
@@ -218,7 +236,15 @@ async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
     const deviceLabel = device === 'webgpu' ? 'GPU' : 'CPU';
     postMessage({ type: 'device_info', device });
     postMessage({ type: 'status', text: `Whisper 準備完了 ✓ (${deviceLabel})` });
-  })().catch(err => { loadPromise = null; throw err; });
+  })().catch(err => {
+    loadPromise = null;
+    // バッファ確保失敗はVRAM/メモリ不足なのでわかりやすいエラーに変換
+    const finalErr = err?.message?.includes('failed to allocate a buffer')
+      ? new Error('VRAM/メモリ不足でモデルをロードできません。より小さいモデル（Small等）に切り替えてください')
+      : err;
+    loadError = { modelName, error: finalErr };
+    throw finalErr;
+  });
 
   return loadPromise;
 }
