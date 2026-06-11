@@ -34,7 +34,7 @@
 
   "web_accessible_resources": [{
     "resources": [
-      "whisper-injected.js",
+      "whisper-worker.js",
       "lib/transformers.min.js",
       "lib/ort-wasm-simd.wasm",
       "lib/ort-wasm.wasm"

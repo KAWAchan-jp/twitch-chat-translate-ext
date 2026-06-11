@@ -959,63 +959,64 @@ async function handleFinalTranscript(text) {
   }
 }
 
-// ===== Whisper ページスクリプト注入（MAIN world） =====
-let whisperReadyPromise  = null;
+// ===== Whisper Web Worker =====
+let whisperWorker        = null;
+let whisperWorkerReady   = null;
 const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer }
 
-function ensureWhisperPageScript() {
-  if (whisperReadyPromise) return whisperReadyPromise;
+function ensureWhisperWorker() {
+  if (whisperWorkerReady) return whisperWorkerReady;
 
-  whisperReadyPromise = new Promise((resolve, reject) => {
-    // 結果を受信
-    window.addEventListener('__tct_whisper_result', ({ detail }) => {
-      const req = pendingTranscriptions.get(detail.requestId);
-      if (!req) return;
-      pendingTranscriptions.delete(detail.requestId);
-      clearTimeout(req.timer);
-      if (detail.ok) req.resolve(detail.result);
-      else req.reject(new Error(detail.error));
+  whisperWorkerReady = new Promise((resolve, reject) => {
+    whisperWorker = new Worker(
+      chrome.runtime.getURL('whisper-worker.js'),
+      { type: 'module' }
+    );
+
+    whisperWorker.addEventListener('message', ({ data }) => {
+      if (data.type === 'ready') {
+        resolve();
+      } else if (data.type === 'status') {
+        if (isVoiceActive) showSubtitle(data.text, false);
+      } else if (data.type === 'result') {
+        const req = pendingTranscriptions.get(data.requestId);
+        if (!req) return;
+        pendingTranscriptions.delete(data.requestId);
+        clearTimeout(req.timer);
+        if (data.ok) req.resolve(data.result);
+        else req.reject(new Error(data.error));
+      }
     });
 
-    // ステータスを受信して字幕に表示
-    window.addEventListener('__tct_whisper_status', ({ detail }) => {
-      if (isVoiceActive) showSubtitle(detail.text, false);
+    whisperWorker.addEventListener('error', (e) => {
+      reject(new Error(`Whisper Worker エラー: ${e.message}`));
     });
-
-    // 注入完了を待つ（whisper-injected.js の末尾が __tct_whisper_ready を dispatch する）
-    window.addEventListener('__tct_whisper_ready', () => resolve(), { once: true });
-
-    // whisper-injected.js を MAIN world に注入
-    const script = document.createElement('script');
-    script.type    = 'module';
-    script.src     = chrome.runtime.getURL('whisper-injected.js');
-    script.onerror = () => reject(new Error('whisper-injected.js の読み込みに失敗しました'));
-    document.head.appendChild(script);
   });
 
-  return whisperReadyPromise;
+  return whisperWorkerReady;
 }
 
-// 音声チャンクを MAIN world の Whisper スクリプトへ送信
+// 音声チャンクを Worker へ送信（ArrayBuffer 転送でゼロコピー）
 async function transcribeViaBackground(blob, mimeType, language) {
-  await ensureWhisperPageScript();
+  await ensureWhisperWorker();
 
-  const audioUrl   = URL.createObjectURL(blob);
-  const requestId  = Math.random().toString(36).slice(2);
+  const audioBuffer = await blob.arrayBuffer();
+  const requestId   = Math.random().toString(36).slice(2);
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingTranscriptions.delete(requestId);
-      URL.revokeObjectURL(audioUrl);
       reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
     }, 180000);
 
     pendingTranscriptions.set(requestId, { resolve, reject, timer });
 
     const initial_prompt = settings.whisper_prompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
-    window.dispatchEvent(new CustomEvent('__tct_whisper_transcribe', {
-      detail: { audioUrl, mimeType, language, requestId, model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt },
-    }));
+    whisperWorker.postMessage(
+      { type: 'transcribe', audioBuffer, mimeType, language, requestId,
+        model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt },
+      [audioBuffer] // 転送（コピーなし）
+    );
   });
 }
 
