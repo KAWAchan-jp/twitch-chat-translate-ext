@@ -12,6 +12,18 @@ warmupBtn.addEventListener('click', () => {
   warmupStatus.style.color = '#adadb8';
 });
 
+// ===== Whisper モデル選択 =====
+const whisperModelEls = document.querySelectorAll('input[name="whisperModel"]');
+chrome.storage.local.get('whisper_model', ({ whisper_model }) => {
+  const val = whisper_model ?? 'tiny';
+  whisperModelEls.forEach(el => { el.checked = el.value === val; });
+});
+whisperModelEls.forEach(el => {
+  el.addEventListener('change', () => {
+    if (el.checked) chrome.storage.local.set({ whisper_model: el.value });
+  });
+});
+
 // ===== 字幕フォントサイズ =====
 const fontSizeEl  = document.getElementById('subtitleFontSize');
 const fontSizeVal = document.getElementById('subtitleFontSizeVal');
