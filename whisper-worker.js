@@ -63,6 +63,9 @@ function isHallucination(text) {
   return false;
 }
 
+// GPU シェーダーコンパイルが異常に長引いた場合のタイムアウト（5分）
+const GPU_LOAD_TIMEOUT_MS = 5 * 60 * 1000;
+
 let _detectedDevice = null;
 
 // WebGPU が使えるか確認（結果をキャッシュ）
@@ -100,7 +103,7 @@ let loadedModelKey    = null; // "modelId:device"
 let loadPromise       = null;
 let currentDevice     = null;
 
-async function ensureTranscriber(modelName) {
+async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
   let device  = await detectDevice();
   let modelId = resolveModelId(modelName, device);
   let key     = `${modelId}:${device}`;
@@ -119,7 +122,7 @@ async function ensureTranscriber(modelName) {
     env.useBrowserCache  = true;
     env.allowLocalModels = false;
 
-    const tryLoad = async (dev) => {
+    const tryLoad = async (dev, cancelRef = {}) => {
       const mid = resolveModelId(modelName, dev);
       const deviceLabel = dev === 'webgpu' ? 'GPU' : 'CPU';
       postMessage({ type: 'status', text: `Whisper モデル準備中... (${deviceLabel})` });
@@ -130,50 +133,75 @@ async function ensureTranscriber(modelName) {
       let idleTimer = null;
       let shaderInterval = null;
 
-      const result = await pipeline(
-        'automatic-speech-recognition',
-        mid,
-        {
-          device: dev,
-          dtype,
-          progress_callback: ({ status, name, progress }) => {
-            // ファイル受信中はシェーダー待機メッセージをリセット
-            clearTimeout(idleTimer);
-            clearInterval(shaderInterval);
-            shaderInterval = null;
+      try {
+        const result = await pipeline(
+          'automatic-speech-recognition',
+          mid,
+          {
+            device: dev,
+            dtype,
+            progress_callback: ({ status, name, progress }) => {
+              // ファイル受信中はシェーダー待機メッセージをリセット
+              clearTimeout(idleTimer);
+              clearInterval(shaderInterval);
+              shaderInterval = null;
 
-            const fname = (name ?? '').split('/').pop().split('?')[0] || '';
-            if (status === 'downloading' || status === 'progress') {
-              const pct = Math.round(progress ?? 0);
-              postMessage({ type: 'download_progress', progress: pct, name: fname });
-            } else if (status === 'loading') {
-              postMessage({ type: 'status', text: `読込中: ${fname}` });
-            } else if (status === 'initiate') {
-              postMessage({ type: 'status', text: `取得中: ${fname}` });
-            }
+              const fname = (name ?? '').split('/').pop().split('?')[0] || '';
+              if (status === 'downloading' || status === 'progress') {
+                const pct = Math.round(progress ?? 0);
+                postMessage({ type: 'download_progress', progress: pct, name: fname });
+              } else if (status === 'loading') {
+                postMessage({ type: 'status', text: `読込中: ${fname}` });
+              } else if (status === 'initiate') {
+                postMessage({ type: 'status', text: `取得中: ${fname}` });
+              }
 
-            // ファイル処理が2秒止まったらシェーダーコンパイル中とみなす
-            idleTimer = setTimeout(() => {
-              postMessage({ type: 'status', text: `GPU シェーダー初期化中... しばらくお待ちください` });
-              shaderInterval = setInterval(() => {
-                postMessage({ type: 'status', text: `GPU シェーダー初期化中... しばらくお待ちください` });
-              }, 4000);
-            }, 2000);
+              // ファイル処理が2秒止まったらシェーダーコンパイル中とみなす（経過時間付きで表示）
+              idleTimer = setTimeout(() => {
+                let elapsed = 0;
+                const sendShaderMsg = () => {
+                  if (cancelRef.cancelled) { clearInterval(shaderInterval); return; }
+                  postMessage({ type: 'status', text: `GPU シェーダー初期化中... ${elapsed}秒経過（初回のみ）` });
+                  elapsed += 4;
+                };
+                sendShaderMsg();
+                shaderInterval = setInterval(sendShaderMsg, 4000);
+              }, 2000);
+            },
           },
-        },
-      );
-
-      clearTimeout(idleTimer);
-      clearInterval(shaderInterval);
-      return result;
+        );
+        return result;
+      } finally {
+        // 例外発生時もタイマーを必ずクリア
+        clearTimeout(idleTimer);
+        clearInterval(shaderInterval);
+      }
     };
 
-    // WebGPU で失敗した場合は WASM にフォールバック
+    // WebGPU で失敗またはタイムアウトした場合は WASM にフォールバック
     if (device === 'webgpu') {
       try {
-        transcriber = await tryLoad('webgpu');
+        const cancelRef = {};
+        const gpuLoadPromise = tryLoad('webgpu', cancelRef);
+        if (useTimeout) {
+          let gpuTimeoutId;
+          const gpuTimeoutPromise = new Promise((_, reject) => {
+            gpuTimeoutId = setTimeout(() => {
+              cancelRef.cancelled = true;
+              reject(new Error('GPU_SHADER_TIMEOUT'));
+            }, GPU_LOAD_TIMEOUT_MS);
+          });
+          transcriber = await Promise.race([gpuLoadPromise, gpuTimeoutPromise]);
+          clearTimeout(gpuTimeoutId);
+        } else {
+          transcriber = await gpuLoadPromise;
+        }
       } catch (gpuErr) {
-        console.warn('[TCT-W] WebGPU ロード失敗、WASM にフォールバック:', gpuErr?.message ?? gpuErr);
+        if (gpuErr?.message === 'GPU_SHADER_TIMEOUT') {
+          postMessage({ type: 'status', text: 'GPU初期化がタイムアウト → CPUモードに切り替えます' });
+        } else {
+          console.warn('[TCT-W] WebGPU ロード失敗、WASM にフォールバック:', gpuErr?.message ?? gpuErr);
+        }
         device  = 'wasm';
         modelId = resolveModelId(modelName, 'wasm');
         key     = `${modelId}:wasm`;
@@ -190,7 +218,7 @@ async function ensureTranscriber(modelName) {
     const deviceLabel = device === 'webgpu' ? 'GPU' : 'CPU';
     postMessage({ type: 'device_info', device });
     postMessage({ type: 'status', text: `Whisper 準備完了 ✓ (${deviceLabel})` });
-  })();
+  })().catch(err => { loadPromise = null; throw err; });
 
   return loadPromise;
 }
@@ -208,7 +236,7 @@ self.addEventListener('message', async (e) => {
     const { model } = e.data;
     const modelName = model || 'Xenova/whisper-tiny';
     try {
-      await ensureTranscriber(modelName);
+      await ensureTranscriber(modelName, { useTimeout: false });
       postMessage({ type: 'download_complete', ok: true });
     } catch (err) {
       postMessage({ type: 'download_complete', ok: false, error: err.message });

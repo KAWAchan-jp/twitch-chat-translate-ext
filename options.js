@@ -67,6 +67,7 @@ function renderModelTable() {
     const { action, model } = btn.dataset;
     if (action === 'download') startDownload(model);
     else if (action === 'delete') startDelete(model);
+    else if (action === 'skip' && activeDownload?.value === model && activeDownload.finish) activeDownload.finish();
   });
 }
 
@@ -88,10 +89,12 @@ function startDownload(value) {
 
   const worker = new Worker(chrome.runtime.getURL('whisper-worker.js'));
   let idleTimer = null;
+  let shaderInterval = null;
   activeDownload = { value, worker };
 
   worker.addEventListener('error', (e) => {
     clearTimeout(idleTimer);
+    clearInterval(shaderInterval);
     console.error('[TCT-DL] worker error:', e.message, e);
     worker.terminate();
     activeDownload = null;
@@ -102,12 +105,14 @@ function startDownload(value) {
 
   const finishDownload = async () => {
     clearTimeout(idleTimer);
+    clearInterval(shaderInterval);
     worker.terminate();
     activeDownload = null;
     downloadedModels = [...new Set([...downloadedModels, value])];
     await chrome.storage.local.set({ downloaded_models: downloadedModels });
     setModelStatus(value, statusHTML(value, true));
   };
+  activeDownload.finish = finishDownload;
 
   worker.addEventListener('message', async ({ data }) => {
     const { type } = data;
@@ -120,19 +125,36 @@ function startDownload(value) {
       const fill = document.getElementById(`dl-fill-${value}`);
       if (txt)  txt.textContent  = `DL中... ${pct}%　${fname}`;
       if (fill) fill.style.width = `${pct}%`;
-      // 全ファイルDL完了後3秒でワーカー終了（シェーダーコンパイル前に切り上げ）
       clearTimeout(idleTimer);
-      if (pct >= 100) {
-        idleTimer = setTimeout(finishDownload, 3000);
-      }
     } else if (type === 'status') {
       const txt  = document.getElementById(`dl-txt-${value}`);
       const fill = document.getElementById(`dl-fill-${value}`);
       if (txt)  txt.textContent  = data.text;
       if (fill) fill.style.width = '100%';
+      // シェーダーコンパイル中のステータスが届いたときだけスキップボタンを表示
+      if (data.text.includes('シェーダー')) {
+        const statusEl = document.getElementById(`model-status-${value}`);
+        if (statusEl && !statusEl.querySelector('[data-action="skip"]')) {
+          const skipBtn = document.createElement('button');
+          skipBtn.className = 'btn-ghost btn-sm';
+          skipBtn.dataset.action = 'skip';
+          skipBtn.dataset.model = value;
+          skipBtn.textContent = 'スキップ';
+          statusEl.appendChild(skipBtn);
+        }
+      }
     } else if (type === 'download_complete') {
-      // 小さいモデルはシェーダーコンパイルまで完了した場合もここに来る
-      await finishDownload();
+      if (data.ok) {
+        await finishDownload();
+      } else {
+        clearTimeout(idleTimer);
+        clearInterval(shaderInterval);
+        worker.terminate();
+        activeDownload = null;
+        setModelStatus(value, `
+          <span class="dl-badge dl-badge--err">エラー: ${data.error ?? 'ロード失敗'}</span>
+          <button class="btn-primary btn-sm" data-action="download" data-model="${value}">再試行</button>`);
+      }
     }
   });
 
