@@ -1134,8 +1134,9 @@ function showSubtitle(text, isFinal) {
 
   let textEl = subtitleContainer.querySelector('.tct-sub-text');
   if (!textEl) {
-    subtitleContainer.innerHTML = '<span class="tct-sub-text"></span>';
-    textEl = subtitleContainer.querySelector('.tct-sub-text');
+    textEl = document.createElement('span');
+    textEl.className = 'tct-sub-text';
+    subtitleContainer.insertBefore(textEl, subtitleContainer.firstChild);
     Object.assign(textEl.style, {
       display: 'inline-block',
       maxWidth: '100%',
