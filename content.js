@@ -858,6 +858,7 @@ async function startVoice() {
       analyser.getByteFrequencyData(buf);
       cableLevel = Math.round(Math.max(...buf) / 255 * 100);
       if (cableLevel > (settings.vad_threshold ?? 10)) hadSpeech = true;
+      updateLevelMeter(cableLevel);
       setTimeout(sampleLevel, 100);
     };
     sampleLevel();
@@ -985,7 +986,7 @@ function ensureWhisperWorker() {
       if (data.type === 'ready') {
         resolve();
       } else if (data.type === 'status') {
-        if (isVoiceActive) showSubtitle(data.text, false);
+        if (isVoiceActive || pendingTranscriptions.size > 0) showSubtitle(data.text, false);
         // DL・ロード中はタイムアウトをリセット（small モデルは初回DLに時間がかかる）
         pendingTranscriptions.forEach((req, id) => {
           clearTimeout(req.timer);
@@ -1197,6 +1198,27 @@ function clearSubtitle() {
   clearTimeout(subtitleFadeTimer);
   subtitleContainer.innerHTML = '';
   subtitleContainer.style.opacity = '1';
+}
+
+function updateLevelMeter(level) {
+  if (!subtitleContainer) return;
+  let meter = subtitleContainer.querySelector('.tct-level');
+  if (!meter) {
+    meter = document.createElement('div');
+    meter.className = 'tct-level';
+    Object.assign(meter.style, {
+      fontSize: '10px', color: '#adadb8', textAlign: 'center',
+      padding: '2px 0', fontFamily: 'monospace',
+    });
+    subtitleContainer.appendChild(meter);
+  }
+  const threshold = settings.vad_threshold ?? 10;
+  const bar = Math.round(level / 5);
+  const filled = '█'.repeat(Math.min(bar, 20));
+  const empty  = '░'.repeat(Math.max(0, 20 - bar));
+  const color  = level > threshold ? '#00b894' : '#adadb8';
+  meter.style.color = color;
+  meter.textContent = `${filled}${empty} ${level}%`;
 }
 
 function updateVoiceBtn() {
