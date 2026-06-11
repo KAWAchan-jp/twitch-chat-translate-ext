@@ -1036,18 +1036,21 @@ async function transcribeViaBackground(blob, mimeType, language) {
 
   const slot = whisperSlots.find(s => !s.busy);
   if (!slot) return null; // 全スロットビジー
+  slot.busy = true; // await の前に確保（レース防止）
 
   const rawBuffer = await blob.arrayBuffer();
   const audioCtx  = new AudioContext({ sampleRate: 16000 });
   let decoded;
   try {
     decoded = await audioCtx.decodeAudioData(rawBuffer);
+  } catch (err) {
+    slot.busy = false;
+    throw err;
   } finally {
     audioCtx.close();
   }
   const float32   = new Float32Array(decoded.getChannelData(0));
   const requestId = Math.random().toString(36).slice(2);
-  slot.busy = true;
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
