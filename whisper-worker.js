@@ -89,9 +89,9 @@ let loadPromise       = null;
 let currentDevice     = null;
 
 async function ensureTranscriber(modelName) {
-  const device  = await detectDevice();
-  const modelId = resolveModelId(modelName, device);
-  const key     = `${modelId}:${device}`;
+  let device  = await detectDevice();
+  let modelId = resolveModelId(modelName, device);
+  let key     = `${modelId}:${device}`;
 
   if (transcriber && loadedModelKey === key) return;
   if (loadPromise) { await loadPromise; if (loadedModelKey === key) return; }
@@ -101,38 +101,55 @@ async function ensureTranscriber(modelName) {
   currentDevice  = null;
 
   loadPromise = (async () => {
-    const deviceLabel = device === 'webgpu' ? 'GPU' : 'CPU';
-    postMessage({ type: 'status', text: `Whisper ロード中... (${deviceLabel})` });
-
     const { pipeline, env } = await import(LIB_BASE + 'transformers.min.js');
     env.backends.onnx.wasm.wasmPaths = LIB_BASE;
     env.backends.onnx.wasm.numThreads = 1;
     env.useBrowserCache  = true;
     env.allowLocalModels = false;
 
-    // WebGPU: fp32エンコーダ＋q4デコーダ（fp16/q4は精度不安定のためfp32で安定性優先）
-    // WASM:   q8エンコーダ＋q4デコーダ（サイズ優先）
-    const dtype = device === 'webgpu'
-      ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
-      : { encoder_model: 'q8',   decoder_model_merged: 'q4' };
-
-    transcriber = await pipeline(
-      'automatic-speech-recognition',
-      modelId,
-      {
-        device,
-        dtype,
-        progress_callback: ({ status, name, progress }) => {
-          if (status === 'downloading') {
-            postMessage({ type: 'status', text: `DL中: ${name ?? ''} (${Math.round(progress ?? 0)}%)` });
-          }
+    const tryLoad = async (dev) => {
+      const mid = resolveModelId(modelName, dev);
+      const deviceLabel = dev === 'webgpu' ? 'GPU' : 'CPU';
+      postMessage({ type: 'status', text: `Whisper ロード中... (${deviceLabel})` });
+      // WebGPU: fp32エンコーダ（精度安定。大きすぎて失敗した場合は呼び出し側でWASMにfallback）
+      // WASM:   q8エンコーダ
+      const dtype = dev === 'webgpu'
+        ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
+        : { encoder_model: 'q8',   decoder_model_merged: 'q4' };
+      return pipeline(
+        'automatic-speech-recognition',
+        mid,
+        {
+          device: dev,
+          dtype,
+          progress_callback: ({ status, name, progress }) => {
+            if (status === 'downloading') {
+              postMessage({ type: 'status', text: `DL中: ${name ?? ''} (${Math.round(progress ?? 0)}%)` });
+            }
+          },
         },
-      },
-    );
+      );
+    };
+
+    // WebGPU で失敗した場合は WASM にフォールバック
+    if (device === 'webgpu') {
+      try {
+        transcriber = await tryLoad('webgpu');
+      } catch (gpuErr) {
+        console.warn('[TCT-W] WebGPU ロード失敗、WASM にフォールバック:', gpuErr?.message ?? gpuErr);
+        device  = 'wasm';
+        modelId = resolveModelId(modelName, 'wasm');
+        key     = `${modelId}:wasm`;
+        transcriber = await tryLoad('wasm');
+      }
+    } else {
+      transcriber = await tryLoad('wasm');
+    }
 
     loadedModelKey = key;
     currentDevice  = device;
     loadPromise    = null;
+    const deviceLabel = device === 'webgpu' ? 'GPU' : 'CPU';
     postMessage({ type: 'device_info', device });
     postMessage({ type: 'status', text: `Whisper 準備完了 ✓ (${deviceLabel})` });
   })();
