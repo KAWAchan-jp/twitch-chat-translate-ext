@@ -19,6 +19,8 @@ const HALLUCINATION_PATTERNS = [
   '(笑)',
   '(笑い)',
   '[笑]',
+  '(字幕を覚えてくれてありがとう!)',
+  '(字幕を覚えてくれてありがとう)',
 ];
 
 function isHallucination(text) {
