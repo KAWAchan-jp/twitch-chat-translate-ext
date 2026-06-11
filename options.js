@@ -12,6 +12,22 @@ warmupBtn.addEventListener('click', () => {
   warmupStatus.style.color = '#adadb8';
 });
 
+// ===== 字幕フォントサイズ =====
+const fontSizeEl  = document.getElementById('subtitleFontSize');
+const fontSizeVal = document.getElementById('subtitleFontSizeVal');
+
+chrome.storage.local.get('subtitle_font_size', ({ subtitle_font_size }) => {
+  const size = subtitle_font_size ?? 22;
+  fontSizeEl.value       = size;
+  fontSizeVal.textContent = `${size}px`;
+});
+
+fontSizeEl.addEventListener('input', () => {
+  const size = Number(fontSizeEl.value);
+  fontSizeVal.textContent = `${size}px`;
+  chrome.storage.local.set({ subtitle_font_size: size });
+});
+
 // ===== Groq API キー =====
 const groqKeyEl = document.getElementById('groqKey');
 const toggleBtn = document.getElementById('toggleKey');

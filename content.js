@@ -24,7 +24,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22 };
 
 // 音声関連
 let voiceStream        = null;
@@ -233,6 +233,7 @@ async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'groq_api_key',
+    'subtitle_font_size',
   ]);
   settings = { ...settings, ...stored };
 
@@ -328,6 +329,7 @@ function onSettingsChanged(changes) {
     if (settings.auto_scroll) scrollToBottom();
   }
   if (changes.src_lang || changes.tgt_lang) { updateInputPlaceholder(); updateLangIndicator(); }
+  if (changes.subtitle_font_size) settings.subtitle_font_size = changes.subtitle_font_size.newValue;
 }
 
 function notifyBadge(active) {
@@ -1064,7 +1066,7 @@ function showSubtitle(text, isFinal) {
       display:inline-block;
       background:rgba(0,0,0,0.75);
       color:${isFinal ? '#ffffff' : '#aaaaaa'};
-      font-size:22px;
+      font-size:${settings.subtitle_font_size ?? 22}px;
       font-weight:${isFinal ? '700' : '400'};
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
       padding:8px 18px;

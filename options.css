@@ -124,3 +124,22 @@ input::placeholder { color: #5a5a6a; }
   font-size: 13px;
   transition: opacity 0.3s;
 }
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+input[type="range"] {
+  flex: 1;
+  accent-color: #9147ff;
+  cursor: pointer;
+}
+
+.slider-value {
+  font-size: 13px;
+  color: #efeff1;
+  min-width: 36px;
+  text-align: right;
+}

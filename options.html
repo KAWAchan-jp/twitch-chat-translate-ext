@@ -16,8 +16,15 @@
       <h2>音声字幕 — ローカル Whisper</h2>
       <p class="hint" style="margin-bottom:14px">
         Transformers.js + Whisper Tiny を使ってブラウザ内で音声認識を行います。<br>
-        初回起動時にモデル（約20MB）を自動ダウンロードしてキャッシュします。
+        初回起動時にモデル（約38MB）を自動ダウンロードしてキャッシュします。
       </p>
+      <div class="field">
+        <label for="subtitleFontSize">字幕フォントサイズ</label>
+        <div class="slider-row">
+          <input type="range" id="subtitleFontSize" min="14" max="56" step="2" value="22">
+          <span class="slider-value" id="subtitleFontSizeVal">22px</span>
+        </div>
+      </div>
       <div class="actions">
         <button class="btn-primary" id="warmupBtn">モデルをダウンロード（任意・初回の遅延を回避）</button>
       </div>
