@@ -1138,7 +1138,7 @@ function setSubtitleProcessing(active) {
       dot = document.createElement('span');
       dot.className = 'tct-sub-dot';
       Object.assign(dot.style, {
-        position: 'absolute', top: '2px', right: '6px',
+        position: 'absolute', top: '2px', left: '6px',
         width: '7px', height: '7px',
         background: '#9147ff', borderRadius: '50%',
         animation: 'tct-pulse 1s infinite',
