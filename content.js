@@ -280,7 +280,7 @@ async function detectAndConnect() {
     await loadChannelSettings(ch);
     resetMessages();
     updateTwitchAutoPrompt(); // 即時（チャンネル名だけでも反映）
-    setTimeout(updateTwitchAutoPrompt, 2000); // ゲーム名DOMの読み込み待ち
+    watchForGameLink();       // ゲーム名のDOM出現を監視して追加
     if (isActive) connect();
     else {
       if (channelNameEl) channelNameEl.textContent = `#${ch} (停止中)`;
@@ -306,11 +306,7 @@ async function loadChannelSettings(channel) {
 
 function updateTwitchAutoPrompt() {
   const ch = currentChannel || getChannelFromUrl() || '';
-  // Twitchのゲーム名リンク（DOM変更に備え複数セレクターを試みる）
-  const gameEl =
-    document.querySelector('a[data-a-target="stream-game-link"]') ||
-    document.querySelector('a[href*="/directory/game/"]') ||
-    document.querySelector('a[href*="/directory/category/"]');
+  const gameEl = document.querySelector('a[data-a-target="stream-game-link"]');
   const gameName = gameEl?.textContent?.trim() ?? '';
   const base = WHISPER_DEFAULT_PROMPTS[settings.src_lang] || WHISPER_DEFAULT_PROMPTS.ja;
   const parts = [base];
@@ -318,6 +314,30 @@ function updateTwitchAutoPrompt() {
   if (gameName) parts.push(`ゲーム: ${gameName}。`);
   twitchAutoPrompt = parts.join('');
   console.log(`[TCT] auto prompt: "${twitchAutoPrompt}"`);
+}
+
+let _gameLinkObserver = null;
+
+function watchForGameLink() {
+  if (_gameLinkObserver) { _gameLinkObserver.disconnect(); _gameLinkObserver = null; }
+
+  // すでに要素があれば即更新して終わり
+  if (document.querySelector('a[data-a-target="stream-game-link"]')) {
+    updateTwitchAutoPrompt();
+    return;
+  }
+
+  // 要素が出現するまで body を監視
+  _gameLinkObserver = new MutationObserver(() => {
+    if (document.querySelector('a[data-a-target="stream-game-link"]')) {
+      _gameLinkObserver.disconnect();
+      _gameLinkObserver = null;
+      updateTwitchAutoPrompt();
+    }
+  });
+  _gameLinkObserver.observe(document.body, { childList: true, subtree: true });
+  // 60秒でタイムアウト（ゲームなし配信や非対応ページ対策）
+  setTimeout(() => { if (_gameLinkObserver) { _gameLinkObserver.disconnect(); _gameLinkObserver = null; } }, 60000);
 }
 
 function hookNavigation() {
