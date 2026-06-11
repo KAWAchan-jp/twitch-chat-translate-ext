@@ -323,6 +323,7 @@ function onSettingsChanged(changes) {
       if (cs.src_lang !== undefined) settings.src_lang = cs.src_lang;
       if (cs.tgt_lang !== undefined) settings.tgt_lang = cs.tgt_lang;
       updateInputPlaceholder();
+      updateLangIndicator();
     }
     return;
   }
