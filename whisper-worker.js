@@ -293,19 +293,35 @@ self.addEventListener('message', async (e) => {
       if (language && language !== 'auto') opts.language = language;
       if (initial_prompt) opts.initial_prompt = initial_prompt;
       console.log(`[TCT-W] 推論開始 model=${loadedModelKey} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
+
+      // 推論が2秒以上かかる場合（初回GPUシェーダーコンパイル等）に経過時間を表示
+      let inferElapsed = 0;
+      let inferInterval = null;
+      const inferTimer = setTimeout(() => {
+        const tick = () => {
+          postMessage({ type: 'status', text: `GPU推論中... ${inferElapsed}秒経過` });
+          inferElapsed += 4;
+        };
+        tick();
+        inferInterval = setInterval(tick, 4000);
+      }, 2000);
+
       let result;
       try {
         result = await transcriber(audioData, opts);
       } catch (inferErr) {
-        // token_ids エラーは initial_prompt のトークン化失敗が原因の場合がある
-        // → initial_prompt を除いて再試行
-        if (inferErr?.message?.includes('token_ids') && opts.initial_prompt) {
-          console.warn('[TCT-W] token_ids エラー → initial_prompt なしで再試行');
-          const { initial_prompt: _, ...optsWithout } = opts;
-          result = await transcriber(audioData, optsWithout);
+        // token_ids エラーはトークナイザー非互換が原因の場合がある
+        // → initial_prompt と language を外して再試行
+        if (inferErr?.message?.includes('token_ids')) {
+          console.warn('[TCT-W] token_ids エラー → initial_prompt/language なしで再試行');
+          const { initial_prompt: _p, language: _l, ...optsBase } = opts;
+          result = await transcriber(audioData, optsBase);
         } else {
           throw inferErr;
         }
+      } finally {
+        clearTimeout(inferTimer);
+        clearInterval(inferInterval);
       }
       const text = result.text?.trim() ?? '';
       console.log(`[TCT-W] 推論完了: "${text}"`);
