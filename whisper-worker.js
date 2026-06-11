@@ -3,6 +3,7 @@
 const HALLUCINATION_PATTERNS = [
   'ご視聴ありがとうございました',
   'ご視聴ありがとうございます',
+  'ありがとうございました',
   'チャンネル登録よろしくお願いします',
   'チャンネル登録お願いします',
   'チャンネル登録',
@@ -22,17 +23,21 @@ const HALLUCINATION_PATTERNS = [
   '(字幕を覚えてくれてありがとう)',
 ];
 
-function isHallucination(text) {
+function isHallucination(text, customPatterns = []) {
   const normalized = text.toLowerCase().replace(/[。、！？!?,.\s]/g, '');
   if (HALLUCINATION_PATTERNS.some(p =>
     normalized === p.toLowerCase().replace(/[。、！？!?,.\s]/g, '')
   )) return true;
+  // ユーザー定義パターン（部分一致）
+  if (customPatterns.length > 0 && customPatterns.some(p => p && text.toLowerCase().includes(p.toLowerCase()))) return true;
   if (normalized.length === 0) return true; // 句読点・記号のみ（「。。。。」等）
   if (normalized.length < 2) return false;
   // Whisper 非音声アノテーション：テキスト全体が (…) または […] で囲まれている
   // 例：(小声) (シャッシュ) (パンッ) (お腹が空いている) (♪) [音楽]
   const trimmed = text.trim();
   if (/^\([^()]+\)$/.test(trimmed) || /^\[[^\[\]]+\]$/.test(trimmed)) return true;
+  // (で始まるが)で終わらない → Whisper の自己コメント（"(I'm not sure..." 等）
+  if (trimmed.startsWith('(') && !trimmed.endsWith(')')) return true;
   // 音楽記号・波線のみ（「♪~♪~」「♫♫♫」等）
   const noMusicSymbols = normalized.replace(/[♪♫♬♩~～〜ー]/g, '');
   if (noMusicSymbols.length === 0) return true;
@@ -91,8 +96,8 @@ async function detectDevice() {
   return (_detectedDevice = 'wasm');
 }
 
-// WebGPU 用は onnx-community モデルを使用
-// medium は onnx-community/whisper-medium が存在しないため量子化版リポジトリを使用
+// WebGPU 用は onnx-community モデルを使用（fp16 量子化・GPU最適化済み）
+// medium は onnx-community/whisper-medium が存在しないため -ONNX サフィックス版を使用
 function resolveModelId(modelName, device) {
   if (device === 'webgpu') {
     if (modelName === 'Xenova/whisper-medium') {
@@ -150,9 +155,11 @@ async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
       const mid = resolveModelId(modelName, dev);
       const deviceLabel = dev === 'webgpu' ? 'GPU' : 'CPU';
       postMessage({ type: 'status', text: `Whisper モデル準備中... (${deviceLabel})` });
-      // WebGPU は fp32 エンコーダーを使用（q8 エンコーダーは空出力・低速推論になるケースがある）
+      // onnx-community リポジトリは fp16 エンコーダーを使用（GPU最適化済み）
+      // Xenova リポジトリは fp32 エンコーダーを使用
+      const isOnnxCommunity = mid.startsWith('onnx-community/');
       const dtype = dev === 'webgpu'
-        ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
+        ? { encoder_model: isOnnxCommunity ? 'fp16' : 'fp32', decoder_model_merged: 'q4' }
         : { encoder_model: 'q8', decoder_model_merged: 'q4' };
 
       let idleTimer = null;
@@ -278,7 +285,7 @@ self.addEventListener('message', async (e) => {
   }
 
   if (type === 'transcribe') {
-    const { audioData, sampling_rate, language, requestId, model, initial_prompt, num_beams } = e.data;
+    const { audioData, sampling_rate, language, requestId, model, initial_prompt, num_beams, custom_hallucination_patterns } = e.data;
     const modelName = model || 'Xenova/whisper-tiny';
     try {
       await ensureTranscriber(modelName);
@@ -336,7 +343,7 @@ self.addEventListener('message', async (e) => {
       if (inferTimedOut) return;
       const text = result.text?.trim() ?? '';
       console.log(`[TCT-W] 推論完了: "${text}"`);
-      if (isHallucination(text)) {
+      if (isHallucination(text, custom_hallucination_patterns ?? [])) {
         console.log('[TCT-W] ハルシネーション検出 → 破棄');
         postMessage({ type: 'result', requestId, ok: true, result: '' });
         return;

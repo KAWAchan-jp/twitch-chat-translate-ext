@@ -252,7 +252,7 @@ async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_max_chunk_ms', 'whisper_num_beams',
-    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'downloaded_models',
+    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'downloaded_models', 'custom_hallucination_patterns',
   ]);
   settings = { ...settings, ...stored };
 
@@ -1154,7 +1154,8 @@ async function transcribeViaBackground(blob, mimeType, language) {
         model: settings.whisper_model === 'large-v3-turbo'
           ? 'onnx-community/whisper-large-v3-turbo'
           : `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
-        num_beams: settings.whisper_num_beams ?? 1 },
+        num_beams: settings.whisper_num_beams ?? 1,
+        custom_hallucination_patterns: settings.custom_hallucination_patterns ?? [] },
       [float32.buffer]
     );
   });

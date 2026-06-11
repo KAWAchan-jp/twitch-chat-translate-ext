@@ -379,3 +379,23 @@ whisperMaxChunkMsEl.addEventListener('input', () => {
   whisperMaxChunkMsVal.textContent = (ms / 1000).toFixed(1).replace('.0', '');
   chrome.storage.local.set({ whisper_max_chunk_ms: ms });
 });
+
+// ===== カスタムハルシネーション除外パターン =====
+const customHallucinationPatternsEl = document.getElementById('customHallucinationPatterns');
+const saveCustomPatternsBtn         = document.getElementById('saveCustomPatterns');
+const saveCustomPatternsMsgEl       = document.getElementById('saveCustomPatternsMsg');
+
+chrome.storage.local.get('custom_hallucination_patterns', ({ custom_hallucination_patterns }) => {
+  customHallucinationPatternsEl.value = (custom_hallucination_patterns ?? []).join('\n');
+});
+
+saveCustomPatternsBtn.addEventListener('click', () => {
+  const patterns = customHallucinationPatternsEl.value
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+  chrome.storage.local.set({ custom_hallucination_patterns: patterns }, () => {
+    saveCustomPatternsMsgEl.style.display = 'inline';
+    setTimeout(() => { saveCustomPatternsMsgEl.style.display = 'none'; }, 2000);
+  });
+});

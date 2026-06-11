@@ -1,6 +1,6 @@
 # Twitch Chat Translator
 
-![version](https://img.shields.io/badge/version-0.5.1.16-9147ff)
+![version](https://img.shields.io/badge/version-0.5.2.0-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 
 **Twitch の言葉の壁をなくす Chrome 拡張**

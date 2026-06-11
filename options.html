@@ -158,6 +158,17 @@
       </div>
     </section>
 
+    <section class="card">
+      <h2>ハルシネーション除外パターン</h2>
+      <div class="field">
+        <label for="customHallucinationPatterns">カスタム除外ワード（1行1パターン・部分一致）</label>
+        <textarea id="customHallucinationPatterns" rows="5" style="width:100%;box-sizing:border-box;font-size:13px;padding:6px;border-radius:4px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;resize:vertical;" placeholder="例: I'm not sure what he's saying&#10;例: ご視聴ありがとう"></textarea>
+        <p class="hint">Whisper が誤生成するフレーズを登録すると字幕から自動除外されます。運用中に誤認識パターンが出たらここに追記してください。</p>
+        <button id="saveCustomPatterns" style="margin-top:6px;">保存</button>
+        <span id="saveCustomPatternsMsg" style="margin-left:8px;font-size:12px;color:#7fba00;display:none;">保存しました</span>
+      </div>
+    </section>
+
     <section class="card muted">
       <h2>翻訳言語</h2>
       <p class="hint">翻訳元・翻訳先言語は拡張機能アイコンを右クリックして変更できます。チャンネルごとに記憶されます。</p>
