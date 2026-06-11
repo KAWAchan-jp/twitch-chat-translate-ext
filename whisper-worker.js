@@ -60,11 +60,11 @@ self.addEventListener('message', async (e) => {
     const modelName = model || 'Xenova/whisper-tiny';
     try {
       await ensureTranscriber(modelName);
-      const opts = { task: 'transcribe', return_timestamps: false };
+      const opts = { task: 'transcribe', return_timestamps: false, sampling_rate: sampling_rate ?? 16000 };
       if (language && language !== 'auto') opts.language = language;
       if (initial_prompt) opts.initial_prompt = initial_prompt;
-      // Float32Array を直接渡す（AudioContext 不要、Blob URL 不要）
-      const result = await transcriber({ array: audioData, sampling_rate: sampling_rate ?? 16000 }, opts);
+      // Float32Array を第1引数に直接渡す（sampling_rate はオプション側）
+      const result = await transcriber(audioData, opts);
       postMessage({ type: 'result', requestId, ok: true, result: result.text?.trim() ?? '' });
     } catch (err) {
       postMessage({ type: 'result', requestId, ok: false, error: err.message });
