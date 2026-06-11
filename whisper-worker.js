@@ -13,6 +13,9 @@ const HALLUCINATION_PATTERNS = [
   'thanks for watching',
   'please subscribe',
   'subscribe to my channel',
+  '(音楽)',
+  '[音楽]',
+  '♪',
 ];
 
 function isHallucination(text) {
@@ -20,11 +23,17 @@ function isHallucination(text) {
   if (HALLUCINATION_PATTERNS.some(p =>
     normalized === p.toLowerCase().replace(/[。、！？!?,.\s]/g, '')
   )) return true;
-  // 同一文字の繰り返しを検出（「んんんん」「ahahah」等）
+  if (normalized.length < 2) return false;
+  // 同一文字の繰り返し（「んんんん」等）
   if (normalized.length >= 4) {
     const freq = [...normalized].reduce((m, c) => (m.set(c, (m.get(c) ?? 0) + 1), m), new Map());
-    const maxFreq = Math.max(...freq.values());
-    if (maxFreq / normalized.length > 0.6) return true;
+    if (Math.max(...freq.values()) / normalized.length > 0.6) return true;
+  }
+  // 短いフレーズの繰り返し（「東京都市の東京都市の...」等）
+  for (let len = 2; len <= Math.min(8, Math.floor(normalized.length / 2)); len++) {
+    const phrase = normalized.slice(0, len);
+    const rep = phrase.repeat(Math.floor(normalized.length / len));
+    if (normalized.startsWith(rep) && rep.length / normalized.length > 0.7) return true;
   }
   return false;
 }
