@@ -27,6 +27,7 @@ function isHallucination(text) {
   if (HALLUCINATION_PATTERNS.some(p =>
     normalized === p.toLowerCase().replace(/[。、！？!?,.\s]/g, '')
   )) return true;
+  if (normalized.length === 0) return true; // 句読点・記号のみ（「。。。。」等）
   if (normalized.length < 2) return false;
   // 音楽記号・波線のみ（「♪~♪~」「♫♫♫」等）
   const noMusicSymbols = normalized.replace(/[♪♫♬♩~～〜ー]/g, '');
@@ -93,11 +94,11 @@ async function ensureTranscriber(modelName) {
     env.useBrowserCache  = true;
     env.allowLocalModels = false;
 
-    // WebGPU: q4エンコーダ＋q4デコーダ（fp16は精度不安定のため回避）
+    // WebGPU: fp32エンコーダ＋q4デコーダ（fp16/q4は精度不安定のためfp32で安定性優先）
     // WASM:   q8エンコーダ＋q4デコーダ（サイズ優先）
     const dtype = device === 'webgpu'
-      ? { encoder_model: 'q4', decoder_model_merged: 'q4' }
-      : { encoder_model: 'q8', decoder_model_merged: 'q4' };
+      ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
+      : { encoder_model: 'q8',   decoder_model_merged: 'q4' };
 
     transcriber = await pipeline(
       'automatic-speech-recognition',
@@ -142,6 +143,7 @@ self.addEventListener('message', async (e) => {
         task: 'transcribe',
         return_timestamps: false,
         num_beams: num_beams ?? 1,
+        max_new_tokens: 128,
       };
       if (language && language !== 'auto') opts.language = language;
       const context = initial_prompt || (lastTranscriptText ? lastTranscriptText.slice(-80) : '');
