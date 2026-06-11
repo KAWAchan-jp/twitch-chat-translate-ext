@@ -55,18 +55,15 @@ async function ensureTranscriber(modelName) {
 
 // content.js → このスクリプト: 音声認識リクエスト
 window.addEventListener('__tct_whisper_transcribe', async ({ detail }) => {
-  const { audioBase64, mimeType, language, requestId, model } = detail;
+  const { audioUrl, mimeType, language, requestId, model, initial_prompt } = detail;
   const modelName = model || 'Xenova/whisper-tiny';
-
-  const bytes = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0));
-  const url   = URL.createObjectURL(new Blob([bytes], { type: mimeType || 'audio/webm' }));
 
   try {
     await ensureTranscriber(modelName);
     const opts = { task: 'transcribe', return_timestamps: false };
     if (language && language !== 'auto') opts.language = language;
-    if (detail.initial_prompt) opts.initial_prompt = detail.initial_prompt;
-    const result = await transcriber(url, opts);
+    if (initial_prompt) opts.initial_prompt = initial_prompt;
+    const result = await transcriber(audioUrl, opts);
     window.dispatchEvent(new CustomEvent('__tct_whisper_result', {
       detail: { requestId, ok: true, result: result.text?.trim() ?? '' },
     }));
@@ -75,7 +72,7 @@ window.addEventListener('__tct_whisper_transcribe', async ({ detail }) => {
       detail: { requestId, ok: false, error: err.message },
     }));
   } finally {
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(audioUrl);
   }
 });
 

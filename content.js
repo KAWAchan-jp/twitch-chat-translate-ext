@@ -998,15 +998,15 @@ function ensureWhisperPageScript() {
 
 // 音声チャンクを MAIN world の Whisper スクリプトへ送信
 async function transcribeViaBackground(blob, mimeType, language) {
-  await ensureWhisperPageScript(); // スクリプト準備完了まで待ってからイベント送信
+  await ensureWhisperPageScript();
 
-  const arrayBuffer = await blob.arrayBuffer();
-  const audioBase64 = arrayBufferToBase64(arrayBuffer);
-  const requestId   = Math.random().toString(36).slice(2);
+  const audioUrl   = URL.createObjectURL(blob);
+  const requestId  = Math.random().toString(36).slice(2);
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingTranscriptions.delete(requestId);
+      URL.revokeObjectURL(audioUrl);
       reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
     }, 180000);
 
@@ -1014,18 +1014,9 @@ async function transcribeViaBackground(blob, mimeType, language) {
 
     const initial_prompt = settings.whisper_prompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
     window.dispatchEvent(new CustomEvent('__tct_whisper_transcribe', {
-      detail: { audioBase64, mimeType, language, requestId, model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt },
+      detail: { audioUrl, mimeType, language, requestId, model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt },
     }));
   });
-}
-
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 8192) {
-    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, bytes.length)));
-  }
-  return btoa(binary);
 }
 
 
