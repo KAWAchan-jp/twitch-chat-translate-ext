@@ -24,6 +24,8 @@ function getModelName(value) {
 
 function getModelCachePrefixes(value) {
   if (value === 'large-v3-turbo') return ['onnx-community/whisper-large-v3-turbo'];
+  // medium は量子化版リポジトリ（-ONNX）を WebGPU で使用するため両方を含める
+  if (value === 'medium') return ['Xenova/whisper-medium', 'onnx-community/whisper-medium-ONNX'];
   return [`Xenova/whisper-${value}`, `onnx-community/whisper-${value}`];
 }
 

@@ -89,9 +89,13 @@ async function detectDevice() {
   return (_detectedDevice = 'wasm');
 }
 
-// WebGPU 用は fp16 バリアントを持つ onnx-community モデルを使用
+// WebGPU 用は onnx-community モデルを使用
+// medium は onnx-community/whisper-medium が存在しないため量子化版リポジトリを使用
 function resolveModelId(modelName, device) {
   if (device === 'webgpu') {
+    if (modelName === 'Xenova/whisper-medium') {
+      return 'onnx-community/whisper-medium-ONNX';
+    }
     return modelName.replace('Xenova/', 'onnx-community/');
   }
   return modelName;
@@ -144,9 +148,11 @@ async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
       const mid = resolveModelId(modelName, dev);
       const deviceLabel = dev === 'webgpu' ? 'GPU' : 'CPU';
       postMessage({ type: 'status', text: `Whisper モデル準備中... (${deviceLabel})` });
+      // -ONNX サフィックスのリポジトリ（例: whisper-medium-ONNX）は量子化ファイルを使用
+      const isQuantizedRepo = mid.includes('-ONNX');
       const dtype = dev === 'webgpu'
-        ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
-        : { encoder_model: 'q8',   decoder_model_merged: 'q4' };
+        ? { encoder_model: isQuantizedRepo ? 'q8' : 'fp32', decoder_model_merged: 'q4' }
+        : { encoder_model: 'q8', decoder_model_merged: 'q4' };
 
       let idleTimer = null;
       let shaderInterval = null;
