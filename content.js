@@ -38,6 +38,11 @@ let isSendingChunk     = false;
 let voiceSessionTimer  = null;
 let cableLevel         = 0;
 let isVoiceActive      = false;
+
+// VAD パラメータ
+const VAD_SILENCE_THRESHOLD = 10;   // この % 以下を無音とみなす
+const VAD_SILENCE_MS        = 500;  // 無音がこの ms 続いたら処理開始
+const VAD_MAX_CHUNK_MS      = 5000; // 最大チャンク長（無音なしの場合の上限）
 let subtitleContainer = null;
 let subtitleFadeTimer = null;
 
@@ -779,31 +784,47 @@ async function startVoice() {
       if (!isVoiceActive) return;
       analyser.getByteFrequencyData(buf);
       cableLevel = Math.round(Math.max(...buf) / 255 * 100);
-      if (cableLevel > 10) hadSpeech = true;
-      setTimeout(sampleLevel, 300);
+      if (cableLevel > VAD_SILENCE_THRESHOLD) hadSpeech = true;
+      setTimeout(sampleLevel, 100); // 300ms → 100ms で応答性向上
     };
     sampleLevel();
   } catch (_) {}
 
-  // 3秒ごとに stop/start して完結した WebM ファイルを生成し Groq へ送信
   isSendingChunk = false;
   const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
     ? 'audio/webm;codecs=opus' : 'audio/webm';
 
   function startRecordingCycle() {
     if (!isVoiceActive) return;
-    audioChunks   = [];
+    audioChunks = [];
+    hadSpeech   = false;
     mediaRecorder = new MediaRecorder(voiceStream, { mimeType });
-
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
 
+    // VAD: 発話後に VAD_SILENCE_MS の無音が続いたら即処理
+    let silenceStart = null;
+    let vadTimer     = null;
+    const checkVAD = () => {
+      if (!isVoiceActive || mediaRecorder?.state !== 'recording') return;
+      if (cableLevel > VAD_SILENCE_THRESHOLD) {
+        silenceStart = null; // 音があればリセット
+      } else if (hadSpeech) {
+        if (!silenceStart) silenceStart = Date.now();
+        if (Date.now() - silenceStart >= VAD_SILENCE_MS) {
+          clearTimeout(voiceSessionTimer);
+          mediaRecorder.stop(); // 無音検出 → 即処理
+          return;
+        }
+      }
+      vadTimer = setTimeout(checkVAD, 80);
+    };
+
     mediaRecorder.onstop = async () => {
+      clearTimeout(vadTimer);
       const wasSpeech = hadSpeech;
-      hadSpeech = false;
       if (wasSpeech && audioChunks.length > 0 && !isSendingChunk) {
         isSendingChunk = true;
         showSubtitle('🔄 認識中...', false);
-        // 全チャンクをまとめて完結した WebM ファイルとして Groq へ送る
         const blob = new Blob(audioChunks, { type: 'audio/webm' });
         try {
           const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
@@ -815,13 +836,15 @@ async function startVoice() {
           isSendingChunk = false;
         }
       }
-      startRecordingCycle(); // 次のサイクルへ
+      startRecordingCycle();
     };
 
-    mediaRecorder.start();
+    mediaRecorder.start(100); // 100ms ごとにデータを蓄積
+    checkVAD();
+    // 発話が続く場合の上限（VAD_MAX_CHUNK_MS）
     voiceSessionTimer = setTimeout(() => {
       if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
-    }, 3000);
+    }, VAD_MAX_CHUNK_MS);
   }
   startRecordingCycle();
   showSubtitle('🎤 録音開始', false);
