@@ -181,6 +181,22 @@ whisperNumBeamsEls.forEach(el => {
   });
 });
 
+// ===== 並列ワーカー数 =====
+const whisperWorkerCountEl  = document.getElementById('whisperWorkerCount');
+const whisperWorkerCountVal = document.getElementById('whisperWorkerCountVal');
+
+chrome.storage.local.get('whisper_worker_count', ({ whisper_worker_count }) => {
+  const n = whisper_worker_count ?? 4;
+  whisperWorkerCountEl.value       = n;
+  whisperWorkerCountVal.textContent = n;
+});
+
+whisperWorkerCountEl.addEventListener('input', () => {
+  const n = Number(whisperWorkerCountEl.value);
+  whisperWorkerCountVal.textContent = n;
+  chrome.storage.local.set({ whisper_worker_count: n });
+});
+
 // ===== チャンク最大長 =====
 const whisperMaxChunkMsEl  = document.getElementById('whisperMaxChunkMs');
 const whisperMaxChunkMsVal = document.getElementById('whisperMaxChunkMsVal');

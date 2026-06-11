@@ -16,6 +16,9 @@ const HALLUCINATION_PATTERNS = [
   '(音楽)',
   '[音楽]',
   '♪',
+  '(笑)',
+  '(笑い)',
+  '[笑]',
 ];
 
 function isHallucination(text) {

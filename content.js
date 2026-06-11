@@ -1023,7 +1023,9 @@ function createWhisperSlot() {
 }
 
 async function ensureWhisperWorkers() {
-  while (whisperSlots.length < WHISPER_WORKER_COUNT) whisperSlots.push(createWhisperSlot());
+  const { whisper_worker_count } = await chrome.storage.local.get('whisper_worker_count');
+  const count = Math.min(Math.max(Number(whisper_worker_count) || WHISPER_WORKER_COUNT, 1), 8);
+  while (whisperSlots.length < count) whisperSlots.push(createWhisperSlot());
   await Promise.all(whisperSlots.map(s => s.ready));
 }
 
