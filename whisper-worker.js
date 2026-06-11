@@ -340,6 +340,7 @@ self.addEventListener('message', async (e) => {
       if (!loadError) {
         const msg = err?.message ?? '';
         if (!msg || msg.includes('allocate') || msg.includes('session')) {
+          try { await transcriber?.dispose?.(); } catch (_) {}
           transcriber    = null;
           loadedModelKey = null;
           currentDevice  = null;
