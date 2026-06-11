@@ -150,10 +150,9 @@ async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
       const mid = resolveModelId(modelName, dev);
       const deviceLabel = dev === 'webgpu' ? 'GPU' : 'CPU';
       postMessage({ type: 'status', text: `Whisper モデル準備中... (${deviceLabel})` });
-      // -ONNX サフィックスのリポジトリ（例: whisper-medium-ONNX）は量子化ファイルを使用
-      const isQuantizedRepo = mid.includes('-ONNX');
+      // WebGPU は fp32 エンコーダーを使用（q8 エンコーダーは空出力・低速推論になるケースがある）
       const dtype = dev === 'webgpu'
-        ? { encoder_model: isQuantizedRepo ? 'q8' : 'fp32', decoder_model_merged: 'q4' }
+        ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
         : { encoder_model: 'q8', decoder_model_merged: 'q4' };
 
       let idleTimer = null;
