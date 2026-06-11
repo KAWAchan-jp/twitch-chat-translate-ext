@@ -1063,7 +1063,7 @@ async function ensureSubtitleContainer() {
     'left:50%',
     'transform:translateX(-50%)',
     'z-index:2147483646',
-    'max-width:min(600px,80vw)',
+    'max-width:60vw',
     'min-width:160px',
     'text-align:center',
     'cursor:grab',
