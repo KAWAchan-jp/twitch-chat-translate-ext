@@ -29,6 +29,9 @@ function isHallucination(text) {
     normalized === p.toLowerCase().replace(/[。、！？!?,.\s]/g, '')
   )) return true;
   if (normalized.length < 2) return false;
+  // 音楽記号・波線のみで構成されるテキスト（「♪~♪~」「♫♫♫」等）
+  const noMusicSymbols = normalized.replace(/[♪♫♬♩~～〜ー]/g, '');
+  if (noMusicSymbols.length === 0) return true;
   // 同一文字の繰り返し（「んんんん」等）
   if (normalized.length >= 4) {
     const freq = [...normalized].reduce((m, c) => (m.set(c, (m.get(c) ?? 0) + 1), m), new Map());
