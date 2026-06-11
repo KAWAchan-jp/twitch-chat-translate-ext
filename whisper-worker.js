@@ -66,6 +66,7 @@ self.addEventListener('message', async (e) => {
         return_timestamps: false,
         sampling_rate: sampling_rate ?? 16000,
         num_beams: num_beams ?? 1,
+        temperature: 0,
       };
       if (language && language !== 'auto') opts.language = language;
       // ユーザー設定のプロンプトがあればそれを優先、なければ直前の認識テキストを文脈として使う
