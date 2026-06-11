@@ -107,11 +107,13 @@ function startDownload(value) {
       const fname = data.name ?? '';
       const txt  = document.getElementById(`dl-txt-${value}`);
       const fill = document.getElementById(`dl-fill-${value}`);
-      if (txt)  txt.textContent   = `DL中... ${pct}%　${fname}`;
-      if (fill) fill.style.width  = `${pct}%`;
+      if (txt)  txt.textContent  = `DL中... ${pct}%　${fname}`;
+      if (fill) fill.style.width = `${pct}%`;
     } else if (type === 'status') {
-      const txt = document.getElementById(`dl-txt-${value}`);
-      if (txt && !txt.textContent.startsWith('DL中')) txt.textContent = data.text;
+      const txt  = document.getElementById(`dl-txt-${value}`);
+      const fill = document.getElementById(`dl-fill-${value}`);
+      if (txt)  txt.textContent  = data.text;
+      if (fill) fill.style.width = '100%';
     } else if (type === 'download_complete') {
       worker.terminate();
       activeDownload = null;

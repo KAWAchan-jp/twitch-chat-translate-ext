@@ -141,6 +141,10 @@ async function ensureTranscriber(modelName) {
               postMessage({ type: 'download_progress', progress: pct, name: fname });
             } else if (status === 'loading') {
               postMessage({ type: 'status', text: `読込中: ${fname}` });
+            } else if (status === 'initiate') {
+              postMessage({ type: 'status', text: `取得中: ${fname}` });
+            } else if (status === 'ready') {
+              postMessage({ type: 'status', text: `GPU初期化中... しばらくお待ちください` });
             }
           },
         },
@@ -156,6 +160,7 @@ async function ensureTranscriber(modelName) {
         device  = 'wasm';
         modelId = resolveModelId(modelName, 'wasm');
         key     = `${modelId}:wasm`;
+        postMessage({ type: 'status', text: 'CPUモードで再読込中...' });
         transcriber = await tryLoad('wasm');
       }
     } else {
