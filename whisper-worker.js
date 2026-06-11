@@ -1,10 +1,11 @@
 'use strict';
 
 // libBase は init メッセージで受け取る（import.meta.url は classic worker では使えない）
-let LIB_BASE     = null;
-let transcriber  = null;
-let loadedModel  = null;
-let loadPromise  = null;
+let LIB_BASE          = null;
+let transcriber       = null;
+let loadedModel       = null;
+let loadPromise       = null;
+let lastTranscriptText = ''; // 直前の認識テキスト（condition_on_prev_tokens の代替）
 
 async function ensureTranscriber(modelName) {
   if (transcriber && loadedModel === modelName) return;
@@ -56,16 +57,24 @@ self.addEventListener('message', async (e) => {
   }
 
   if (type === 'transcribe') {
-    const { audioData, sampling_rate, language, requestId, model, initial_prompt } = e.data;
+    const { audioData, sampling_rate, language, requestId, model, initial_prompt, num_beams } = e.data;
     const modelName = model || 'Xenova/whisper-tiny';
     try {
       await ensureTranscriber(modelName);
-      const opts = { task: 'transcribe', return_timestamps: false, sampling_rate: sampling_rate ?? 16000 };
+      const opts = {
+        task: 'transcribe',
+        return_timestamps: false,
+        sampling_rate: sampling_rate ?? 16000,
+        num_beams: num_beams ?? 1,
+      };
       if (language && language !== 'auto') opts.language = language;
-      if (initial_prompt) opts.initial_prompt = initial_prompt;
-      // Float32Array を第1引数に直接渡す（sampling_rate はオプション側）
+      // ユーザー設定のプロンプトがあればそれを優先、なければ直前の認識テキストを文脈として使う
+      const context = initial_prompt || (lastTranscriptText ? lastTranscriptText.slice(-80) : '');
+      if (context) opts.initial_prompt = context;
       const result = await transcriber(audioData, opts);
-      postMessage({ type: 'result', requestId, ok: true, result: result.text?.trim() ?? '' });
+      const text = result.text?.trim() ?? '';
+      lastTranscriptText = text;
+      postMessage({ type: 'result', requestId, ok: true, result: text });
     } catch (err) {
       postMessage({ type: 'result', requestId, ok: false, error: err.message });
     }

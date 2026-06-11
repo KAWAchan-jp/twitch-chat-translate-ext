@@ -87,6 +87,9 @@ input::placeholder { color: #5a5a6a; }
 .hint a:hover { text-decoration: underline; }
 
 .radio-group { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.radio-row { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
+.radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: #efeff1; }
+.radio-row input[type="radio"] { accent-color: #9147ff; width: 15px; height: 15px; cursor: pointer; }
 .radio-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: #efeff1; }
 .radio-label input[type="radio"] { accent-color: #9147ff; width: 15px; height: 15px; cursor: pointer; }
 

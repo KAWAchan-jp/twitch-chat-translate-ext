@@ -169,6 +169,18 @@ minLengthEl.addEventListener('input', () => {
   chrome.storage.local.set({ min_length: Number(minLengthEl.value) });
 });
 
+// ===== Whisper ビーム数 =====
+const whisperNumBeamsEls = document.querySelectorAll('input[name="whisperNumBeams"]');
+chrome.storage.local.get('whisper_num_beams', ({ whisper_num_beams }) => {
+  const val = String(whisper_num_beams ?? 1);
+  whisperNumBeamsEls.forEach(el => { el.checked = el.value === val; });
+});
+whisperNumBeamsEls.forEach(el => {
+  el.addEventListener('change', () => {
+    if (el.checked) chrome.storage.local.set({ whisper_num_beams: Number(el.value) });
+  });
+});
+
 // ===== チャンク最大長 =====
 const whisperMaxChunkMsEl  = document.getElementById('whisperMaxChunkMs');
 const whisperMaxChunkMsVal = document.getElementById('whisperMaxChunkMsVal');

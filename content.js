@@ -47,7 +47,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_max_chunk_ms: 5000 };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1 };
 
 // 音声関連
 let voiceStream        = null;
@@ -245,7 +245,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_max_chunk_ms',
+    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_max_chunk_ms', 'whisper_num_beams',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own',
   ]);
   settings = { ...settings, ...stored };
@@ -353,9 +353,10 @@ function onSettingsChanged(changes) {
   if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
   if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;
-  if (changes.whisper_model)  settings.whisper_model  = changes.whisper_model.newValue;
+  if (changes.whisper_model)         settings.whisper_model         = changes.whisper_model.newValue;
   if (changes.whisper_prompt)        settings.whisper_prompt        = changes.whisper_prompt.newValue;
   if (changes.whisper_max_chunk_ms)  settings.whisper_max_chunk_ms  = changes.whisper_max_chunk_ms.newValue;
+  if (changes.whisper_num_beams)     settings.whisper_num_beams     = changes.whisper_num_beams.newValue;
 }
 
 function notifyBadge(active) {
@@ -1034,7 +1035,8 @@ async function transcribeViaBackground(blob, mimeType, language) {
     const initial_prompt = settings.whisper_prompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
     whisperWorker.postMessage(
       { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
-        model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt },
+        model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
+        num_beams: settings.whisper_num_beams ?? 1 },
       [float32.buffer]
     );
   });
