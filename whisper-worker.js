@@ -17,9 +17,16 @@ const HALLUCINATION_PATTERNS = [
 
 function isHallucination(text) {
   const normalized = text.toLowerCase().replace(/[。、！？!?,.\s]/g, '');
-  return HALLUCINATION_PATTERNS.some(p =>
+  if (HALLUCINATION_PATTERNS.some(p =>
     normalized === p.toLowerCase().replace(/[。、！？!?,.\s]/g, '')
-  );
+  )) return true;
+  // 同一文字の繰り返しを検出（「んんんん」「ahahah」等）
+  if (normalized.length >= 4) {
+    const freq = [...normalized].reduce((m, c) => (m.set(c, (m.get(c) ?? 0) + 1), m), new Map());
+    const maxFreq = Math.max(...freq.values());
+    if (maxFreq / normalized.length > 0.6) return true;
+  }
+  return false;
 }
 
 // libBase は init メッセージで受け取る（import.meta.url は classic worker では使えない）
