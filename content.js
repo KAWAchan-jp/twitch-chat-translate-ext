@@ -862,7 +862,6 @@ async function startVoice() {
     sampleLevel();
   } catch (_) {}
 
-  isSendingChunk = false;
   const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
     ? 'audio/webm;codecs=opus' : 'audio/webm';
 
