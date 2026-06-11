@@ -224,14 +224,25 @@ async function handleTwitchAuth(token) {
   }
 }
 
+const translateCache = new Map();
+const CACHE_MAX = 800;
+
 async function translateText(text, from, to, feature = 'chat') {
+  const cacheKey = `${from}:${to}:${text}`;
+  if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
+
   const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own']);
   const featureFlag = feature === 'voice' ? stored.deepl_voice : feature === 'own' ? stored.deepl_own : stored.deepl_chat;
   const useDeepL = stored.deepl_enabled && stored.deepl_api_key && (featureFlag !== false);
+  let result;
   if (useDeepL) {
-    try { return await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (_) {}
+    try { result = await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (_) {}
   }
-  return translateWithGoogle(text, from, to);
+  if (!result) result = await translateWithGoogle(text, from, to);
+
+  if (translateCache.size >= CACHE_MAX) translateCache.delete(translateCache.keys().next().value);
+  translateCache.set(cacheKey, result);
+  return result;
 }
 
 async function translateWithDeepl(text, from, to, apiKey) {
