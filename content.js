@@ -41,7 +41,8 @@ const EXCLUDED_PATHS = new Set([
 // ===== 状態 =====
 let ws              = null;
 let currentChannel  = '';
-let twitchAutoPrompt = ''; // ページから自動取得したプロンプト
+let twitchAutoPrompt    = ''; // ページから自動取得したプロンプト
+const transcriptHistory = []; // 直近の認識結果（全ワーカー共有コンテキスト用）
 let isActive        = true;
 let isAuthenticated = false;
 let twitchToken     = '';
@@ -954,7 +955,11 @@ async function startVoice() {
             }
             console.log(`[TCT] ← Whisper結果: "${text}"`);
             if (!isVoiceActive) return;
-            if (text?.trim() && text.trim().length >= 3) await handleFinalTranscript(text.trim());
+            if (text?.trim() && text.trim().length >= 3) {
+              transcriptHistory.push(text.trim());
+              if (transcriptHistory.length > 6) transcriptHistory.shift();
+              await handleFinalTranscript(text.trim());
+            }
           } catch (err) {
             if (err.message === 'worker trimmed') return; // WebGPU検出時の想定内キャンセル
             console.warn(`[TCT] Whisperエラー: ${err.message}`);
@@ -1121,7 +1126,9 @@ async function transcribeViaBackground(blob, mimeType, language) {
 
     pendingTranscriptions.set(requestId, { resolve, reject, timer, slot });
 
-    const initial_prompt = settings.whisper_prompt || twitchAutoPrompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
+    const basePrompt    = settings.whisper_prompt || twitchAutoPrompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
+    const historyText   = transcriptHistory.slice(-4).join('');
+    const initial_prompt = historyText ? `${basePrompt} ${historyText}`.trim() : basePrompt;
     console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model} slot=${whisperSlots.indexOf(slot)}`);
     slot.worker.postMessage(
       { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,

@@ -86,7 +86,6 @@ let LIB_BASE          = null;
 let transcriber       = null;
 let loadedModelKey    = null; // "modelId:device"
 let loadPromise       = null;
-let lastTranscriptText = '';
 let currentDevice     = null;
 
 async function ensureTranscriber(modelName) {
@@ -163,8 +162,7 @@ self.addEventListener('message', async (e) => {
         max_new_tokens: 128,
       };
       if (language && language !== 'auto') opts.language = language;
-      const context = initial_prompt || (lastTranscriptText ? lastTranscriptText.slice(-80) : '');
-      if (context) opts.initial_prompt = context;
+      if (initial_prompt) opts.initial_prompt = initial_prompt;
       console.log(`[TCT-W] 推論開始 model=${loadedModelKey} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
       const result = await transcriber(audioData, opts);
       const text = result.text?.trim() ?? '';
@@ -174,7 +172,6 @@ self.addEventListener('message', async (e) => {
         postMessage({ type: 'result', requestId, ok: true, result: '' });
         return;
       }
-      lastTranscriptText = text;
       postMessage({ type: 'result', requestId, ok: true, result: text });
     } catch (err) {
       postMessage({ type: 'result', requestId, ok: false, error: err.message });
