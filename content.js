@@ -24,7 +24,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22 };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500 };
 
 // 音声関連
 let voiceStream        = null;
@@ -39,10 +39,9 @@ let voiceSessionTimer  = null;
 let cableLevel         = 0;
 let isVoiceActive      = false;
 
-// VAD パラメータ
-const VAD_SILENCE_THRESHOLD = 10;   // この % 以下を無音とみなす
-const VAD_SILENCE_MS        = 500;  // 無音がこの ms 続いたら処理開始
-const VAD_MAX_CHUNK_MS      = 5000; // 最大チャンク長（無音なしの場合の上限）
+// VAD パラメータ（settings から動的に読む）
+const VAD_MAX_CHUNK_MS = 5000;
+// settings.vad_threshold と settings.vad_silence_ms を使用
 let subtitleContainer = null;
 let subtitleFadeTimer = null;
 
@@ -233,7 +232,7 @@ async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'groq_api_key',
-    'subtitle_font_size',
+    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms',
   ]);
   settings = { ...settings, ...stored };
 
@@ -330,6 +329,8 @@ function onSettingsChanged(changes) {
   }
   if (changes.src_lang || changes.tgt_lang) { updateInputPlaceholder(); updateLangIndicator(); }
   if (changes.subtitle_font_size) settings.subtitle_font_size = changes.subtitle_font_size.newValue;
+  if (changes.vad_threshold)  settings.vad_threshold  = changes.vad_threshold.newValue;
+  if (changes.vad_silence_ms) settings.vad_silence_ms = changes.vad_silence_ms.newValue;
 }
 
 function notifyBadge(active) {
@@ -811,8 +812,8 @@ async function startVoice() {
       if (!isVoiceActive) return;
       analyser.getByteFrequencyData(buf);
       cableLevel = Math.round(Math.max(...buf) / 255 * 100);
-      if (cableLevel > VAD_SILENCE_THRESHOLD) hadSpeech = true;
-      setTimeout(sampleLevel, 100); // 300ms → 100ms で応答性向上
+      if (cableLevel > (settings.vad_threshold ?? 10)) hadSpeech = true;
+      setTimeout(sampleLevel, 100);
     };
     sampleLevel();
   } catch (_) {}
@@ -833,11 +834,11 @@ async function startVoice() {
     let vadTimer     = null;
     const checkVAD = () => {
       if (!isVoiceActive || mediaRecorder?.state !== 'recording') return;
-      if (cableLevel > VAD_SILENCE_THRESHOLD) {
-        silenceStart = null; // 音があればリセット
+      if (cableLevel > (settings.vad_threshold ?? 10)) {
+        silenceStart = null;
       } else if (hadSpeech) {
         if (!silenceStart) silenceStart = Date.now();
-        if (Date.now() - silenceStart >= VAD_SILENCE_MS) {
+        if (Date.now() - silenceStart >= (settings.vad_silence_ms ?? 500)) {
           clearTimeout(voiceSessionTimer);
           mediaRecorder.stop(); // 無音検出 → 即処理
           return;

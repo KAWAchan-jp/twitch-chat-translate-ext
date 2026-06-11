@@ -50,6 +50,54 @@
       </div>
     </section>
 
+    <section class="card">
+      <h2>DeepL 翻訳</h2>
+      <div class="field">
+        <label class="toggle-label">
+          <span>DeepL を使用する（無効時は Google Translate）</span>
+          <input type="checkbox" id="deeplEnabled">
+          <span class="toggle-switch"></span>
+        </label>
+      </div>
+      <div class="field">
+        <label for="deeplKey">API キー（無料版・有料版どちらも可）</label>
+        <div class="key-row">
+          <input type="password" id="deeplKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx" autocomplete="off" spellcheck="false">
+          <button class="btn-ghost" id="toggleDeeplKey">表示</button>
+        </div>
+        <p class="hint">
+          <a href="https://www.deepl.com/ja/pro-api" target="_blank">deepl.com</a>
+          で取得。無料枠：50万文字/月。無料版のキーは末尾が <code>:fx</code>。
+        </p>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="saveDeeplBtn">保存</button>
+        <span class="save-msg" id="saveDeeplMsg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>VAD 感度</h2>
+      <div class="field">
+        <label for="vadThreshold">無音判定レベル（現在: <span id="vadThresholdVal">10</span>%）</label>
+        <div class="slider-row">
+          <span class="slider-label">敏感</span>
+          <input type="range" id="vadThreshold" min="2" max="30" step="1" value="10">
+          <span class="slider-label">鈍感</span>
+        </div>
+        <p class="hint">値が小さいほど小さな音も「発話中」と判定します。静かな配信では下げる、騒がしい配信では上げるのが目安。</p>
+      </div>
+      <div class="field">
+        <label for="vadSilenceMs">無音継続時間（現在: <span id="vadSilenceMsVal">500</span>ms）</label>
+        <div class="slider-row">
+          <span class="slider-label">即時</span>
+          <input type="range" id="vadSilenceMs" min="200" max="1500" step="100" value="500">
+          <span class="slider-label">遅め</span>
+        </div>
+        <p class="hint">発話が止まってからこの時間が経過すると処理を開始します。短くすると応答が速くなりますが誤検知が増えます。</p>
+      </div>
+    </section>
+
     <section class="card muted">
       <h2>翻訳言語</h2>
       <p class="hint">翻訳元・翻訳先言語は拡張機能アイコンを右クリックして変更できます。チャンネルごとに記憶されます。</p>

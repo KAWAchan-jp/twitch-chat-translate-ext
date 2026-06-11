@@ -225,6 +225,38 @@ async function handleTwitchAuth(token) {
 }
 
 async function translateText(text, from, to) {
+  const { deepl_enabled, deepl_api_key } = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key']);
+  if (deepl_enabled && deepl_api_key) {
+    try { return await translateWithDeepl(text, from, to, deepl_api_key); } catch (_) {}
+  }
+  return translateWithGoogle(text, from, to);
+}
+
+async function translateWithDeepl(text, from, to, apiKey) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  // 無料版（:fx）と有料版でエンドポイントが異なる
+  const host = apiKey.endsWith(':fx') ? 'api-free.deepl.com' : 'api.deepl.com';
+  const srcLang = from === 'auto' ? null : from.toUpperCase().replace('-', '_');
+  const tgtLang = to.toUpperCase().replace('-', '_');
+  try {
+    const body = new URLSearchParams({ text, target_lang: tgtLang });
+    if (srcLang) body.append('source_lang', srcLang);
+    const res = await fetch(`https://${host}/v2/translate`, {
+      method: 'POST',
+      headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`DeepL HTTP ${res.status}`);
+    const data = await res.json();
+    return data.translations?.[0]?.text ?? text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function translateWithGoogle(text, from, to) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {

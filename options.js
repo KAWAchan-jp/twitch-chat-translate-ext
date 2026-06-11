@@ -68,3 +68,67 @@ function showMsg(text, color) {
     setTimeout(() => { saveMsg.textContent = ''; }, 300);
   }, 3000);
 }
+
+// ===== DeepL =====
+const deeplEnabledEl = document.getElementById('deeplEnabled');
+const deeplKeyEl     = document.getElementById('deeplKey');
+const toggleDeeplBtn = document.getElementById('toggleDeeplKey');
+const saveDeeplBtn   = document.getElementById('saveDeeplBtn');
+const saveDeeplMsg   = document.getElementById('saveDeeplMsg');
+
+chrome.storage.local.get(['deepl_enabled', 'deepl_api_key'], ({ deepl_enabled, deepl_api_key }) => {
+  deeplEnabledEl.checked = !!deepl_enabled;
+  if (deepl_api_key) deeplKeyEl.value = deepl_api_key;
+});
+
+toggleDeeplBtn.addEventListener('click', () => {
+  const isHidden = deeplKeyEl.type === 'password';
+  deeplKeyEl.type = isHidden ? 'text' : 'password';
+  toggleDeeplBtn.textContent = isHidden ? '隠す' : '表示';
+});
+
+deeplEnabledEl.addEventListener('change', () => {
+  chrome.storage.local.set({ deepl_enabled: deeplEnabledEl.checked });
+});
+
+saveDeeplBtn.addEventListener('click', async () => {
+  const key = deeplKeyEl.value.trim();
+  if (!key) { showDeeplMsg('⚠ キーを入力してください', '#e84393'); return; }
+  await chrome.storage.local.set({ deepl_api_key: key, deepl_enabled: true });
+  deeplEnabledEl.checked = true;
+  showDeeplMsg('✓ 保存しました', '#00b894');
+});
+
+function showDeeplMsg(text, color) {
+  saveDeeplMsg.textContent = text;
+  saveDeeplMsg.style.color = color;
+  saveDeeplMsg.style.opacity = '1';
+  clearTimeout(showDeeplMsg._timer);
+  showDeeplMsg._timer = setTimeout(() => {
+    saveDeeplMsg.style.opacity = '0';
+    setTimeout(() => { saveDeeplMsg.textContent = ''; }, 300);
+  }, 3000);
+}
+
+// ===== VAD 感度 =====
+const vadThresholdEl    = document.getElementById('vadThreshold');
+const vadThresholdVal   = document.getElementById('vadThresholdVal');
+const vadSilenceMsEl    = document.getElementById('vadSilenceMs');
+const vadSilenceMsVal   = document.getElementById('vadSilenceMsVal');
+
+chrome.storage.local.get(['vad_threshold', 'vad_silence_ms'], ({ vad_threshold, vad_silence_ms }) => {
+  vadThresholdEl.value      = vad_threshold  ?? 10;
+  vadThresholdVal.textContent = vadThresholdEl.value;
+  vadSilenceMsEl.value      = vad_silence_ms ?? 500;
+  vadSilenceMsVal.textContent = vadSilenceMsEl.value;
+});
+
+vadThresholdEl.addEventListener('input', () => {
+  vadThresholdVal.textContent = vadThresholdEl.value;
+  chrome.storage.local.set({ vad_threshold: Number(vadThresholdEl.value) });
+});
+
+vadSilenceMsEl.addEventListener('input', () => {
+  vadSilenceMsVal.textContent = vadSilenceMsEl.value;
+  chrome.storage.local.set({ vad_silence_ms: Number(vadSilenceMsEl.value) });
+});
