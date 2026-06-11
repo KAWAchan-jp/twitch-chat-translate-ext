@@ -31,7 +31,7 @@ function isHallucination(text, customPatterns = []) {
   // ユーザー定義パターン（部分一致）
   if (customPatterns.length > 0 && customPatterns.some(p => p && text.toLowerCase().includes(p.toLowerCase()))) return true;
   if (normalized.length === 0) return true; // 句読点・記号のみ（「。。。。」等）
-  if (normalized.length < 2) return false;
+  if (normalized.length < 2) return true;  // 1文字は発話の断片として破棄
   // Whisper 非音声アノテーション：テキスト全体が (…) または […] で囲まれている
   // 例：(小声) (シャッシュ) (パンッ) (お腹が空いている) (♪) [音楽]
   const trimmed = text.trim();
@@ -99,6 +99,8 @@ async function detectDevice() {
 // WebGPU 用は onnx-community モデルを使用（fp16 量子化・GPU最適化済み）
 // medium は onnx-community/whisper-medium が存在しないため -ONNX サフィックス版を使用
 function resolveModelId(modelName, device) {
+  // onnx-community モデルはそのまま使用（既に最適化済み）
+  if (modelName.startsWith('onnx-community/')) return modelName;
   if (device === 'webgpu') {
     if (modelName === 'Xenova/whisper-medium') {
       return 'onnx-community/whisper-medium-ONNX';

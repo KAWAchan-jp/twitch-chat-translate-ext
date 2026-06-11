@@ -44,6 +44,7 @@ let ws              = null;
 let wsReconnectDelay = 1000;
 let wsReconnectTimer = null;
 let currentChannel  = '';
+let hasChannelSpecificSettings = false; // チャンネル別言語設定が存在するか
 let twitchAutoPrompt    = ''; // ページから自動取得したプロンプト
 const transcriptHistory = []; // 直近の認識結果（全ワーカー共有コンテキスト用）
 let isActive        = true;
@@ -71,7 +72,7 @@ let subtitleContainer = null;
 let subtitleFadeTimer = null;
 
 // ===== Shadow DOM 内のDOM参照 =====
-let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl;
+let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl;
 let authBarEl, loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
 let scrollPaused = false;
 let chatInputEl, sendBtnEl;
@@ -103,14 +104,19 @@ const PANEL_CSS = `
     box-shadow: 0 4px 24px rgba(0,0,0,0.65);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
     position: relative;
+    opacity: var(--panel-opacity, 1);
+    transition: opacity 0.2s;
+  }
+  .panel:hover {
+    opacity: 1 !important;
   }
 
   /* ヘッダー */
   .header {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 10px;
     background: #18181b;
     border-bottom: 1px solid #2d2d2f;
     cursor: grab;
@@ -118,6 +124,10 @@ const PANEL_CSS = `
     flex-shrink: 0;
   }
   .header:active { cursor: grabbing; }
+
+  .header-row {
+    display: flex; align-items: center; gap: 6px; min-width: 0;
+  }
 
   .status-dot {
     width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
@@ -131,9 +141,16 @@ const PANEL_CSS = `
   }
 
   .channel-name {
-    flex: 1; font-size: 12px; font-weight: 700; color: #efeff1;
+    font-size: 12px; font-weight: 700; color: #efeff1;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex-shrink: 0;
   }
+  .game-name {
+    font-size: 10px; color: #7d7d8f;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1;
+  }
+  .header-spacer { flex: 1; }
   .version-badge { font-size: 9px; color: #5a5a6e; flex-shrink: 0; }
 
   .lang-indicator {
@@ -252,7 +269,7 @@ async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_max_chunk_ms', 'whisper_num_beams',
-    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'downloaded_models', 'custom_hallucination_patterns',
+    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'downloaded_models', 'custom_hallucination_patterns', 'panel_opacity',
   ]);
   settings = { ...settings, ...stored };
 
@@ -263,6 +280,7 @@ async function init() {
   }
 
   createPanel();
+  applyPanelOpacity();
   await detectAndConnect();
   hookNavigation();
 
@@ -277,6 +295,11 @@ function getChannelFromUrl() {
 }
 
 async function detectAndConnect() {
+  // SPA ナビゲーションで body が差し替えられた場合にコンテナを再追加
+  if (container && !document.body.contains(container)) {
+    document.body.appendChild(container);
+  }
+
   const ch = getChannelFromUrl();
   if (ch && ch !== currentChannel) {
     disconnect();
@@ -302,16 +325,57 @@ async function detectAndConnect() {
 async function loadChannelSettings(channel) {
   const stored = await chrome.storage.local.get(['src_lang', 'tgt_lang', 'channel_settings']);
   const cs = stored.channel_settings?.[channel];
+  hasChannelSpecificSettings = !!(cs?.src_lang || cs?.tgt_lang);
   settings.src_lang = cs?.src_lang ?? stored.src_lang ?? 'auto';
   settings.tgt_lang = cs?.tgt_lang ?? stored.tgt_lang ?? 'ja';
   updateInputPlaceholder();
   updateLangIndicator();
 }
 
+// Twitch の言語表示名 → 言語コードマッピング
+const TWITCH_LANG_MAP = {
+  'japanese': 'ja', '日本語': 'ja',
+  'english': 'en',
+  'korean': 'ko', '한국어': 'ko',
+  'chinese': 'zh-CN', '中文': 'zh-CN', '普通话': 'zh-CN',
+  'chinese (traditional)': 'zh-TW', '繁體中文': 'zh-TW',
+  'russian': 'ru', 'русский': 'ru',
+  'spanish': 'es', 'español': 'es',
+  'french': 'fr', 'français': 'fr',
+  'german': 'de', 'deutsch': 'de',
+  'portuguese': 'pt', 'português': 'pt',
+  'arabic': 'ar', 'العربية': 'ar',
+  'hindi': 'hi', 'हिन्दी': 'hi',
+  'thai': 'th', 'ภาษาไทย': 'th',
+  'vietnamese': 'vi', 'tiếng việt': 'vi',
+  'indonesian': 'id', 'bahasa indonesia': 'id',
+};
+
+function detectTwitchStreamLang() {
+  // Twitch の言語タグ: aria-label="タグ、日本語" 形式
+  const tagEls = document.querySelectorAll('a[aria-label^="タグ、"]');
+  for (const el of tagEls) {
+    const label = el.getAttribute('aria-label') ?? '';
+    const text = label.replace(/^タグ、/, '').trim().toLowerCase();
+    if (text && TWITCH_LANG_MAP[text]) return TWITCH_LANG_MAP[text];
+  }
+  return null;
+}
+
 function updateTwitchAutoPrompt() {
   const ch = currentChannel || getChannelFromUrl() || '';
   const gameEl = document.querySelector('a[data-a-target="stream-game-link"]');
   const gameName = gameEl?.textContent?.trim() ?? '';
+  if (gameNameEl) gameNameEl.textContent = gameName;
+
+  // TwitchタグからストリームのJの言語を検出して自動設定（検出できた場合のみ上書き）
+  const detectedLang = detectTwitchStreamLang();
+  if (detectedLang) {
+    settings.src_lang = detectedLang;
+    updateLangIndicator();
+    console.log(`[TCT] 配信言語を自動検出: ${detectedLang}`);
+  }
+
   const base = WHISPER_DEFAULT_PROMPTS[settings.src_lang] || WHISPER_DEFAULT_PROMPTS.ja;
   const parts = [base];
   if (ch) parts.push(`配信者: ${ch}。`);
@@ -322,12 +386,29 @@ function updateTwitchAutoPrompt() {
 
 let _gameLinkObserver = null;
 
+// 言語タグが遅れてロードされる場合に備えて最大5回リトライ
+function retryLangDetect(attempt = 0) {
+  if (attempt >= 5) return;
+  setTimeout(() => {
+    const detected = detectTwitchStreamLang();
+    if (detected) {
+      settings.src_lang = detected;
+      updateLangIndicator();
+      updateTwitchAutoPrompt();
+      console.log(`[TCT] 配信言語を遅延検出(${attempt + 1}回目): ${detected}`);
+    } else {
+      retryLangDetect(attempt + 1);
+    }
+  }, 500 * (attempt + 1));
+}
+
 function watchForGameLink() {
   if (_gameLinkObserver) { _gameLinkObserver.disconnect(); _gameLinkObserver = null; }
 
-  // すでに要素があれば即更新して終わり
+  // すでに要素があれば即更新して終わり（言語タグはDOM切替後に取得するため遅延）
   if (document.querySelector('a[data-a-target="stream-game-link"]')) {
     updateTwitchAutoPrompt();
+    setTimeout(() => retryLangDetect(), 1000);
     return;
   }
 
@@ -337,6 +418,8 @@ function watchForGameLink() {
       _gameLinkObserver.disconnect();
       _gameLinkObserver = null;
       updateTwitchAutoPrompt();
+      // 言語タグはゲームリンクより遅れてロードされる場合があるため遅延リトライ
+      setTimeout(() => retryLangDetect(), 1000);
     }
   });
   _gameLinkObserver.observe(document.body, { childList: true, subtree: true });
@@ -368,6 +451,7 @@ function onSettingsChanged(changes) {
   if (changes.channel_settings && currentChannel) {
     const cs = changes.channel_settings.newValue?.[currentChannel];
     if (cs) {
+      hasChannelSpecificSettings = !!(cs.src_lang || cs.tgt_lang);
       if (cs.src_lang !== undefined) settings.src_lang = cs.src_lang;
       if (cs.tgt_lang !== undefined) settings.tgt_lang = cs.tgt_lang;
       updateInputPlaceholder();
@@ -401,7 +485,18 @@ function onSettingsChanged(changes) {
   if (changes.whisper_prompt)        settings.whisper_prompt        = changes.whisper_prompt.newValue;
   if (changes.whisper_max_chunk_ms)  settings.whisper_max_chunk_ms  = changes.whisper_max_chunk_ms.newValue;
   if (changes.whisper_num_beams)     settings.whisper_num_beams     = changes.whisper_num_beams.newValue;
-  if (changes.downloaded_models)     settings.downloaded_models     = changes.downloaded_models.newValue ?? [];
+  if (changes.downloaded_models)          settings.downloaded_models          = changes.downloaded_models.newValue ?? [];
+  if (changes.custom_hallucination_patterns) settings.custom_hallucination_patterns = changes.custom_hallucination_patterns.newValue ?? [];
+  if (changes.panel_opacity) {
+    settings.panel_opacity = changes.panel_opacity.newValue;
+    applyPanelOpacity();
+  }
+}
+
+function applyPanelOpacity() {
+  if (!panel) return;
+  const opacity = settings.panel_opacity ?? 0.8;
+  panel.style.setProperty('--panel-opacity', opacity);
 }
 
 function notifyBadge(active) {
@@ -419,12 +514,18 @@ function createPanel() {
     <style>${PANEL_CSS}</style>
     <div class="panel${settings.show_original ? ' show-original' : ''}" id="panel">
       <div class="header" id="header">
-        <div class="status-dot connecting" id="statusDot"></div>
-        <span class="channel-name" id="channelName">接続待ち</span>
-        <span class="lang-indicator" id="langIndicator"></span>
-        <span class="version-badge" title="バージョン">${chrome.runtime.getManifest().version}</span>
-        <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
-        <button class="close-btn" id="closeBtn" title="閉じる">×</button>
+        <div class="header-row">
+          <div class="status-dot connecting" id="statusDot"></div>
+          <span class="channel-name" id="channelName">接続待ち</span>
+          <span class="game-name" id="gameName"></span>
+        </div>
+        <div class="header-row">
+          <span class="lang-indicator" id="langIndicator"></span>
+          <div class="header-spacer"></div>
+          <span class="version-badge" title="バージョン">${chrome.runtime.getManifest().version}</span>
+          <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
+          <button class="close-btn" id="closeBtn" title="閉じる">×</button>
+        </div>
       </div>
       <div class="auth-bar" id="authBar">
         <button class="login-btn" id="loginBtn">Twitchでログインしてチャット送信を有効化</button>
@@ -448,6 +549,7 @@ function createPanel() {
   panel             = shadowRoot.getElementById('panel');
   statusDotEl       = shadowRoot.getElementById('statusDot');
   channelNameEl     = shadowRoot.getElementById('channelName');
+  gameNameEl        = shadowRoot.getElementById('gameName');
   langIndicatorEl   = shadowRoot.getElementById('langIndicator');
   messagesEl          = shadowRoot.getElementById('messages');
   scrollToBottomBtnEl = shadowRoot.getElementById('scrollToBottomBtn');
@@ -534,6 +636,7 @@ function updateLangIndicator() {
   const tgt = settings.tgt_lang.toUpperCase();
   const engine = (settings.deepl_enabled && settings.deepl_chat) ? 'DeepL' : 'Google';
   langIndicatorEl.textContent = `${src}→${tgt}・${engine}`;
+  langIndicatorEl.style.color = hasChannelSpecificSettings ? '#ff9147' : '';
 }
 
 function getLangName(code) {
@@ -1153,6 +1256,8 @@ async function transcribeViaBackground(blob, mimeType, language) {
       { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
         model: settings.whisper_model === 'large-v3-turbo'
           ? 'onnx-community/whisper-large-v3-turbo'
+          : settings.whisper_model === 'kotoba-v2.2'
+          ? 'onnx-community/kotoba-whisper-v2.2-ONNX'
           : `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
         num_beams: settings.whisper_num_beams ?? 1,
         custom_hallucination_patterns: settings.custom_hallucination_patterns ?? [] },

@@ -5,11 +5,12 @@ document.getElementById('version').textContent =
 
 // ===== モデルテーブル =====
 const MODEL_DEFS = [
-  { value: 'tiny',           label: 'Tiny',           size: '約38MB',  note: '高速・標準精度・CPU可' },
-  { value: 'base',           label: 'Base',           size: '約74MB',  note: 'やや遅い・高精度・CPU可' },
-  { value: 'small',          label: 'Small',          size: '約244MB', note: 'GPU推奨・空きVRAM 1GB以上・⭐ 日本語おすすめ' },
-  { value: 'medium',         label: 'Medium',         size: '約769MB', note: 'GPU必須・空きVRAM 2GB以上・最高精度' },
-  { value: 'large-v3-turbo', label: 'Large-v3-Turbo', size: '約809MB', note: 'GPU必須・空きVRAM 3GB以上・Mediumより高速・高精度' },
+  { value: 'tiny',              label: 'Tiny',                   size: '約38MB',  note: '高速・標準精度・CPU可' },
+  { value: 'base',              label: 'Base',                   size: '約74MB',  note: 'やや遅い・高精度・CPU可' },
+  { value: 'small',             label: 'Small',                  size: '約244MB', note: 'GPU推奨・空きVRAM 1GB以上' },
+  { value: 'medium',            label: 'Medium',                 size: '約769MB', note: 'GPU必須・空きVRAM 2GB以上・最高精度' },
+  { value: 'large-v3-turbo',    label: 'Large-v3-Turbo',         size: '約809MB', note: 'GPU必須・空きVRAM 3GB以上・高速・高精度' },
+  { value: 'kotoba-v2.2',       label: 'Kotoba-Whisper v2.2',    size: '約1.5GB', note: 'GPU必須・空きVRAM 3GB以上・⭐ 日本語特化モデル（高精度）' },
 ];
 
 let selectedModel    = 'tiny';
@@ -17,13 +18,14 @@ let downloadedModels = [];
 let activeDownload   = null;
 
 function getModelName(value) {
-  return value === 'large-v3-turbo'
-    ? 'onnx-community/whisper-large-v3-turbo'
-    : `Xenova/whisper-${value}`;
+  if (value === 'large-v3-turbo') return 'onnx-community/whisper-large-v3-turbo';
+  if (value === 'kotoba-v2.2')    return 'onnx-community/kotoba-whisper-v2.2-ONNX';
+  return `Xenova/whisper-${value}`;
 }
 
 function getModelCachePrefixes(value) {
   if (value === 'large-v3-turbo') return ['onnx-community/whisper-large-v3-turbo'];
+  if (value === 'kotoba-v2.2')    return ['onnx-community/kotoba-whisper-v2.2-ONNX'];
   // medium は量子化版リポジトリ（-ONNX）を WebGPU で使用するため両方を含める
   if (value === 'medium') return ['Xenova/whisper-medium', 'onnx-community/whisper-medium-ONNX'];
   return [`Xenova/whisper-${value}`, `onnx-community/whisper-${value}`];
@@ -378,6 +380,33 @@ whisperMaxChunkMsEl.addEventListener('input', () => {
   const ms = Number(whisperMaxChunkMsEl.value);
   whisperMaxChunkMsVal.textContent = (ms / 1000).toFixed(1).replace('.0', '');
   chrome.storage.local.set({ whisper_max_chunk_ms: ms });
+});
+
+// ===== デフォルト翻訳先言語 =====
+const defaultTgtLangEl = document.getElementById('defaultTgtLang');
+
+chrome.storage.local.get('tgt_lang', ({ tgt_lang }) => {
+  defaultTgtLangEl.value = tgt_lang ?? 'ja';
+});
+
+defaultTgtLangEl.addEventListener('change', () => {
+  chrome.storage.local.set({ tgt_lang: defaultTgtLangEl.value });
+});
+
+// ===== パネル透過率 =====
+const panelOpacityEl    = document.getElementById('panelOpacity');
+const panelOpacityValEl = document.getElementById('panelOpacityVal');
+
+chrome.storage.local.get('panel_opacity', ({ panel_opacity }) => {
+  const v = panel_opacity ?? 0.8;
+  panelOpacityEl.value       = v;
+  panelOpacityValEl.textContent = Math.round(v * 100);
+});
+
+panelOpacityEl.addEventListener('input', () => {
+  const v = Number(panelOpacityEl.value);
+  panelOpacityValEl.textContent = Math.round(v * 100);
+  chrome.storage.local.set({ panel_opacity: v });
 });
 
 // ===== カスタムハルシネーション除外パターン =====
