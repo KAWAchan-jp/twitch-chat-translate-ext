@@ -3,6 +3,7 @@
 // ===== 定数 =====
 const TWITCH_WS_URL = 'wss://irc-ws.chat.twitch.tv:443';
 const MAX_MESSAGES  = 150;
+const WS_RECONNECT_MAX_DELAY_MS = 30000;
 const TRANSLATE_DELAY_MS = 100;
 const TRANSLATE_SKIP_PATTERNS = [
   /^[!\/]/,
@@ -40,6 +41,8 @@ const EXCLUDED_PATHS = new Set([
 
 // ===== 状態 =====
 let ws              = null;
+let wsReconnectDelay = 1000;
+let wsReconnectTimer = null;
 let currentChannel  = '';
 let twitchAutoPrompt    = ''; // ページから自動取得したプロンプト
 const transcriptHistory = []; // 直近の認識結果（全ワーカー共有コンテキスト用）
@@ -658,11 +661,18 @@ function connect() {
   ws.onclose   = () => {
     if (!currentChannel) return;
     setStatus('error');
-    addSystemMessage('接続が切断されました。');
+    addSystemMessage(`接続が切断されました。${wsReconnectDelay / 1000}秒後に再接続します...`);
+    wsReconnectTimer = setTimeout(() => {
+      if (!currentChannel) return;
+      wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_RECONNECT_MAX_DELAY_MS);
+      connect();
+    }, wsReconnectDelay);
   };
 }
 
 function disconnect() {
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  wsReconnectDelay = 1000;
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
 }
 
@@ -679,6 +689,7 @@ function handleIRCLine(line) {
   if (line.startsWith('PING')) { ws?.send('PONG :tmi.twitch.tv'); return; }
   if (line.includes(`JOIN #${currentChannel}`)) {
     setStatus('connected');
+    wsReconnectDelay = 1000;
     const authLabel = isAuthenticated ? ` (${twitchUsername} でログイン中)` : '';
     addSystemMessage(`#${currentChannel} に接続しました！${authLabel}`);
     return;
@@ -697,7 +708,7 @@ function parseIRCMessage(line) {
     }
     const plain = line.match(/:(\w+)!\w+@\S+ PRIVMSG #\w+ :(.+)$/);
     if (plain) return { username: plain[1], text: plain[2], color: null };
-  } catch (_) {}
+  } catch (e) { console.warn('[TCT] IRCメッセージのパース失敗:', e); }
   return null;
 }
 
@@ -894,7 +905,9 @@ async function startVoice() {
     const sampleLevel = () => {
       if (!isVoiceActive) return;
       analyser.getByteFrequencyData(buf);
-      cableLevel = Math.round(Math.max(...buf) / 255 * 100);
+      let maxFreq = 0;
+      for (let i = 0; i < buf.length; i++) if (buf[i] > maxFreq) maxFreq = buf[i];
+      cableLevel = Math.round(maxFreq / 255 * 100);
       if (cableLevel > (settings.vad_threshold ?? 10)) hadSpeech = true;
       setTimeout(sampleLevel, 100);
     };

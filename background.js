@@ -240,7 +240,7 @@ async function translateText(text, from, to, feature = 'chat') {
   const useDeepL = stored.deepl_enabled && stored.deepl_api_key && (featureFlag !== false);
   let result;
   if (useDeepL) {
-    try { result = await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (_) {}
+    try { result = await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (e) { console.warn('[TCT] DeepL翻訳失敗、Googleにフォールバック:', e); }
   }
   if (!result) result = await translateWithGoogle(text, from, to);
 

@@ -39,7 +39,9 @@ function isHallucination(text) {
   // 同一文字の繰り返し（「んんんん」等）
   if (normalized.length >= 4) {
     const freq = [...normalized].reduce((m, c) => (m.set(c, (m.get(c) ?? 0) + 1), m), new Map());
-    if (Math.max(...freq.values()) / normalized.length > 0.6) return true;
+    let maxCount = 0;
+    for (const v of freq.values()) if (v > maxCount) maxCount = v;
+    if (maxCount / normalized.length > 0.6) return true;
   }
   // 短いフレーズの繰り返し（3回以上）—— 2回は「飲んでた、飲んでた」等の正常発話の可能性あり
   for (let len = 2; len <= Math.min(8, Math.floor(normalized.length / 2)); len++) {
