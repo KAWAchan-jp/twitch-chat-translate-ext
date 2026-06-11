@@ -87,6 +87,7 @@ function startDownload(value) {
     <div class="dl-progress-bar"><div class="dl-progress-fill" id="dl-fill-${value}" style="width:0%"></div></div>`);
 
   const worker = new Worker(chrome.runtime.getURL('whisper-worker.js'));
+  let idleTimer = null;
   activeDownload = { value, worker };
 
   worker.addEventListener('error', (e) => {
@@ -109,6 +110,11 @@ function startDownload(value) {
       const fill = document.getElementById(`dl-fill-${value}`);
       if (txt)  txt.textContent  = `DL中... ${pct}%　${fname}`;
       if (fill) fill.style.width = `${pct}%`;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        const t = document.getElementById(`dl-txt-${value}`);
+        if (t) t.textContent = 'GPU初期化中... しばらくお待ちください';
+      }, 1200);
     } else if (type === 'status') {
       const txt  = document.getElementById(`dl-txt-${value}`);
       const fill = document.getElementById(`dl-fill-${value}`);
