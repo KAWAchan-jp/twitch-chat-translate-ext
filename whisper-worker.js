@@ -29,6 +29,10 @@ function isHallucination(text) {
   )) return true;
   if (normalized.length === 0) return true; // 句読点・記号のみ（「。。。。」等）
   if (normalized.length < 2) return false;
+  // Whisper 非音声アノテーション：テキスト全体が (…) または […] で囲まれている
+  // 例：(小声) (シャッシュ) (パンッ) (お腹が空いている) (♪) [音楽]
+  const trimmed = text.trim();
+  if (/^\([^()]+\)$/.test(trimmed) || /^\[[^\[\]]+\]$/.test(trimmed)) return true;
   // 音楽記号・波線のみ（「♪~♪~」「♫♫♫」等）
   const noMusicSymbols = normalized.replace(/[♪♫♬♩~～〜ー]/g, '');
   if (noMusicSymbols.length === 0) return true;
