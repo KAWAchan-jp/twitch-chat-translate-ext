@@ -112,7 +112,7 @@ const PANEL_CSS = `
   .msg-count { font-size: 11px; color: #adadb8; flex-shrink: 0; }
 
   .lang-indicator {
-    font-size: 10px; color: #5a5a6a; background: #1e1e21;
+    font-size: 10px; color: #adadb8; background: #1e1e21;
     padding: 2px 5px; border-radius: 3px; flex-shrink: 0;
     font-family: 'Courier New', monospace; letter-spacing: 0.3px;
   }
