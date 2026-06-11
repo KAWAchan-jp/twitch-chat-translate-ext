@@ -297,7 +297,21 @@ self.addEventListener('message', async (e) => {
       }
       postMessage({ type: 'result', requestId, ok: true, result: text });
     } catch (err) {
-      postMessage({ type: 'result', requestId, ok: false, error: err.message });
+      // ensureTranscriber が失敗した場合は loadError が設定済み。
+      // transcriber() 呼び出し自体が失敗（空エラー・セッション破損など）した場合は
+      // ここで検出してモデルをリセットし、同じモデルへの再試行を止める。
+      if (!loadError) {
+        const msg = err?.message ?? '';
+        if (!msg || msg.includes('allocate') || msg.includes('session')) {
+          transcriber    = null;
+          loadedModelKey = null;
+          currentDevice  = null;
+          const finalMsg = msg || 'VRAM/メモリ不足でモデルをロードできません。より小さいモデル（Small等）に切り替えてください';
+          loadError = { modelName, error: new Error(finalMsg) };
+        }
+      }
+      const errMsg = loadError?.error?.message ?? err?.message ?? '不明なエラー';
+      postMessage({ type: 'result', requestId, ok: false, error: errMsg });
     }
   }
 });
