@@ -293,7 +293,20 @@ self.addEventListener('message', async (e) => {
       if (language && language !== 'auto') opts.language = language;
       if (initial_prompt) opts.initial_prompt = initial_prompt;
       console.log(`[TCT-W] 推論開始 model=${loadedModelKey} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
-      const result = await transcriber(audioData, opts);
+      let result;
+      try {
+        result = await transcriber(audioData, opts);
+      } catch (inferErr) {
+        // token_ids エラーは initial_prompt のトークン化失敗が原因の場合がある
+        // → initial_prompt を除いて再試行
+        if (inferErr?.message?.includes('token_ids') && opts.initial_prompt) {
+          console.warn('[TCT-W] token_ids エラー → initial_prompt なしで再試行');
+          const { initial_prompt: _, ...optsWithout } = opts;
+          result = await transcriber(audioData, optsWithout);
+        } else {
+          throw inferErr;
+        }
+      }
       const text = result.text?.trim() ?? '';
       console.log(`[TCT-W] 推論完了: "${text}"`);
       if (isHallucination(text)) {
