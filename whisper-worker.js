@@ -93,11 +93,11 @@ async function ensureTranscriber(modelName) {
     env.useBrowserCache  = true;
     env.allowLocalModels = false;
 
-    // WebGPU: fp16エンコーダ＋q4デコーダ（速度優先）
+    // WebGPU: q4エンコーダ＋q4デコーダ（fp16は精度不安定のため回避）
     // WASM:   q8エンコーダ＋q4デコーダ（サイズ優先）
     const dtype = device === 'webgpu'
-      ? { encoder_model: 'fp16', decoder_model_merged: 'q4' }
-      : { encoder_model: 'q8',   decoder_model_merged: 'q4' };
+      ? { encoder_model: 'q4', decoder_model_merged: 'q4' }
+      : { encoder_model: 'q8', decoder_model_merged: 'q4' };
 
     transcriber = await pipeline(
       'automatic-speech-recognition',
@@ -137,18 +137,18 @@ self.addEventListener('message', async (e) => {
     const modelName = model || 'Xenova/whisper-tiny';
     try {
       await ensureTranscriber(modelName);
+      const sr = sampling_rate ?? 16000;
       const opts = {
         task: 'transcribe',
         return_timestamps: false,
-        sampling_rate: sampling_rate ?? 16000,
         num_beams: num_beams ?? 1,
-        temperature: 0,
       };
       if (language && language !== 'auto') opts.language = language;
       const context = initial_prompt || (lastTranscriptText ? lastTranscriptText.slice(-80) : '');
       if (context) opts.initial_prompt = context;
       console.log(`[TCT-W] 推論開始 model=${loadedModelKey} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
-      const result = await transcriber(audioData, opts);
+      // v3: { array, sampling_rate } 形式で渡すと確実にサンプルレートが伝わる
+      const result = await transcriber({ array: audioData, sampling_rate: sr }, opts);
       const text = result.text?.trim() ?? '';
       console.log(`[TCT-W] 推論完了: "${text}"`);
       if (isHallucination(text)) {

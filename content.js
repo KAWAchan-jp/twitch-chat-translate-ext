@@ -1039,6 +1039,15 @@ function createWhisperSlot() {
           while (whisperSlots.length > 2) {
             const s = whisperSlots.pop();
             s.worker.terminate();
+            // terminate されたワーカー宛の pending を即キャンセル
+            for (const [reqId, req] of pendingTranscriptions) {
+              if (req.slot === s) {
+                clearTimeout(req.timer);
+                pendingTranscriptions.delete(reqId);
+                req.slot.busy = false;
+                req.reject(new Error('worker trimmed'));
+              }
+            }
           }
         }
         if (isVoiceActive) showSubtitle(`Whisper 準備完了 ✓ (${label})`, false);
