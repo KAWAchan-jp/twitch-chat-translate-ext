@@ -24,7 +24,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500 };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false };
 
 // 音声関連
 let voiceStream        = null;
@@ -232,7 +232,7 @@ async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'groq_api_key',
-    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms',
+    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled',
   ]);
   settings = { ...settings, ...stored };
 
@@ -331,6 +331,7 @@ function onSettingsChanged(changes) {
   if (changes.subtitle_font_size) settings.subtitle_font_size = changes.subtitle_font_size.newValue;
   if (changes.vad_threshold)  settings.vad_threshold  = changes.vad_threshold.newValue;
   if (changes.vad_silence_ms) settings.vad_silence_ms = changes.vad_silence_ms.newValue;
+  if (changes.deepl_enabled)  { settings.deepl_enabled = changes.deepl_enabled.newValue; updateLangIndicator(); }
 }
 
 function notifyBadge(active) {
@@ -455,7 +456,8 @@ function updateLangIndicator() {
   if (!langIndicatorEl) return;
   const src = settings.src_lang === 'auto' ? 'AUTO' : settings.src_lang.toUpperCase();
   const tgt = settings.tgt_lang.toUpperCase();
-  langIndicatorEl.textContent = `${src}→${tgt}`;
+  const engine = settings.deepl_enabled ? 'DeepL' : 'Google';
+  langIndicatorEl.textContent = `${src}→${tgt}・${engine}`;
 }
 
 function getLangName(code) {
