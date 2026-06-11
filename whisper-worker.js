@@ -37,11 +37,24 @@ function isHallucination(text) {
     const freq = [...normalized].reduce((m, c) => (m.set(c, (m.get(c) ?? 0) + 1), m), new Map());
     if (Math.max(...freq.values()) / normalized.length > 0.6) return true;
   }
-  // 短いフレーズの繰り返し（「東京都市の東京都市の...」等）
+  // 短いフレーズの繰り返し（3回以上）—— 2回は「飲んでた、飲んでた」等の正常発話の可能性あり
   for (let len = 2; len <= Math.min(8, Math.floor(normalized.length / 2)); len++) {
+    const repCount = Math.floor(normalized.length / len);
+    if (repCount < 3) continue;
     const phrase = normalized.slice(0, len);
-    const rep = phrase.repeat(Math.floor(normalized.length / len));
+    const rep = phrase.repeat(repCount);
     if (normalized.startsWith(rep) && rep.length / normalized.length > 0.7) return true;
+  }
+  // n-gram高頻度繰り返し（「スッシュッシュッ」等、先頭から始まらない繰り返しも検出）
+  if (normalized.length >= 12) {
+    for (let n = 2; n <= 4; n++) {
+      const grams = new Map();
+      for (let i = 0; i <= normalized.length - n; i++) {
+        const g = normalized.slice(i, i + n);
+        grams.set(g, (grams.get(g) ?? 0) + 1);
+      }
+      if (Math.max(...grams.values()) * n / normalized.length > 0.5) return true;
+    }
   }
   return false;
 }
