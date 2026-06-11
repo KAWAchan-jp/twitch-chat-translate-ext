@@ -1063,8 +1063,8 @@ async function ensureSubtitleContainer() {
     'left:50%',
     'transform:translateX(-50%)',
     'z-index:2147483646',
-    'max-width:80vw',
-    'min-width:200px',
+    'max-width:min(600px,80vw)',
+    'min-width:160px',
     'text-align:center',
     'cursor:grab',
   ].join(';');
@@ -1127,6 +1127,9 @@ function showSubtitle(text, isFinal) {
     textEl = subtitleContainer.querySelector('.tct-sub-text');
     Object.assign(textEl.style, {
       display: 'inline-block',
+      maxWidth: '100%',
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
       background: 'rgba(0,0,0,0.75)',
       fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
       padding: '8px 18px',
