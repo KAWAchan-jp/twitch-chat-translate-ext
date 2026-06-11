@@ -26,8 +26,28 @@ let translateQueue  = Promise.resolve();
 let messageCount    = 0;
 let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true };
 
+// 音声関連
+let voiceStream        = null;
+let voiceAudioCtx      = null;
+let voiceSourceNode    = null; // MediaElementSourceNode（video 要素につき1回だけ作成）
+let voiceDestNode      = null; // MediaStreamDestinationNode（start/stop ごとに再作成）
+let mediaRecorder      = null;
+let audioChunks        = [];
+let hadSpeech          = false;
+let isSendingChunk     = false;
+let voiceSessionTimer  = null;
+let cableLevel         = 0;
+let isVoiceActive      = false;
+
+// VAD パラメータ
+const VAD_SILENCE_THRESHOLD = 10;   // この % 以下を無音とみなす
+const VAD_SILENCE_MS        = 500;  // 無音がこの ms 続いたら処理開始
+const VAD_MAX_CHUNK_MS      = 5000; // 最大チャンク長（無音なしの場合の上限）
+let subtitleContainer = null;
+let subtitleFadeTimer = null;
+
 // ===== Shadow DOM 内のDOM参照 =====
-let container, shadowRoot, panel, messagesEl, statusDotEl, channelNameEl, msgCountEl;
+let container, shadowRoot, panel, messagesEl, statusDotEl, channelNameEl, langIndicatorEl, msgCountEl;
 let authBarEl, loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
 let chatInputEl, sendBtnEl;
 
@@ -90,6 +110,20 @@ const PANEL_CSS = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .msg-count { font-size: 11px; color: #adadb8; flex-shrink: 0; }
+
+  .lang-indicator {
+    font-size: 10px; color: #adadb8; background: #1e1e21;
+    padding: 2px 5px; border-radius: 3px; flex-shrink: 0;
+    font-family: 'Courier New', monospace; letter-spacing: 0.3px;
+  }
+
+  .voice-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0 2px; flex-shrink: 0;
+    opacity: 0.4; transition: opacity 0.2s;
+  }
+  .voice-btn:hover  { opacity: 0.8; }
+  .voice-btn.active { opacity: 1; filter: drop-shadow(0 0 5px #ff4444); }
 
   .close-btn {
     background: none; border: none; color: #adadb8; cursor: pointer;
@@ -170,6 +204,21 @@ const PANEL_CSS = `
   .send-btn:hover:not(:disabled) { background: #772ce8; }
   .send-btn:disabled { background: #3d3d40; cursor: default; }
 
+  /* Groq API キーバー */
+  .groq-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 5px 10px; background: #18181b;
+    border-bottom: 1px solid #2d2d2f; flex-shrink: 0;
+  }
+  .groq-bar.hidden { display: none; }
+  .groq-hint { font-size: 11px; color: #f0b429; flex: 1; }
+  .groq-open-btn {
+    background: #9147ff; border: none; border-radius: 4px;
+    color: #fff; cursor: pointer; font-size: 11px; padding: 4px 10px;
+    flex-shrink: 0; white-space: nowrap;
+  }
+  .groq-open-btn:hover { background: #772ce8; }
+
   /* リサイズハンドル */
   .resize-handle {
     position: absolute; bottom: 0; right: 0; width: 14px; height: 14px;
@@ -183,7 +232,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings',
+    'twitch_token', 'twitch_username', 'channel_settings', 'groq_api_key',
   ]);
   settings = { ...settings, ...stored };
 
@@ -234,17 +283,29 @@ async function loadChannelSettings(channel) {
   settings.src_lang = cs?.src_lang ?? stored.src_lang ?? 'auto';
   settings.tgt_lang = cs?.tgt_lang ?? stored.tgt_lang ?? 'ja';
   updateInputPlaceholder();
+  updateLangIndicator();
 }
 
 function hookNavigation() {
+  // pushState / replaceState のラップ
   ['pushState', 'replaceState'].forEach(method => {
     const orig = history[method].bind(history);
-    history[method] = (...args) => { orig(...args); setTimeout(() => detectAndConnect(), 200); };
+    history[method] = (...args) => { orig(...args); setTimeout(() => detectAndConnect(), 300); };
   });
-  window.addEventListener('popstate', () => setTimeout(() => detectAndConnect(), 200));
+  window.addEventListener('popstate', () => setTimeout(() => detectAndConnect(), 300));
+
+  // <title> の変化を監視（Twitch SPA ナビゲーションの確実な検知）
+  // Twitch はチャンネル移動時に必ずタイトルを書き換えるため pushState より信頼性が高い
+  const titleEl = document.querySelector('title');
+  if (titleEl) {
+    new MutationObserver(() => detectAndConnect()).observe(titleEl, { childList: true });
+  }
 }
 
 function onSettingsChanged(changes) {
+  // Groq キーが設定されたらバーを隠す
+  // groq_api_key は設定ページでのみ使用（ローカル Whisper では不使用）
+
   // チャンネル固有設定が変わった場合、現在のチャンネルの設定を反映
   if (changes.channel_settings && currentChannel) {
     const cs = changes.channel_settings.newValue?.[currentChannel];
@@ -266,7 +327,7 @@ function onSettingsChanged(changes) {
     settings.auto_scroll = changes.auto_scroll.newValue;
     if (settings.auto_scroll) scrollToBottom();
   }
-  if (changes.src_lang || changes.tgt_lang) updateInputPlaceholder();
+  if (changes.src_lang || changes.tgt_lang) { updateInputPlaceholder(); updateLangIndicator(); }
 }
 
 function notifyBadge(active) {
@@ -286,7 +347,9 @@ function createPanel() {
       <div class="header" id="header">
         <div class="status-dot connecting" id="statusDot"></div>
         <span class="channel-name" id="channelName">接続待ち</span>
+        <span class="lang-indicator" id="langIndicator"></span>
         <span class="msg-count" id="msgCount">0 msgs</span>
+        <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
         <button class="close-btn" id="closeBtn" title="閉じる">×</button>
       </div>
       <div class="auth-bar" id="authBar">
@@ -295,6 +358,10 @@ function createPanel() {
           <span class="auth-username" id="authUsername"></span>
           <button class="logout-btn" id="logoutBtn">ログアウト</button>
         </div>
+      </div>
+      <div class="groq-bar hidden" id="groqBar">
+        <span class="groq-hint">⚠ Groq API キー未設定</span>
+        <button class="groq-open-btn" id="groqOpenBtn">設定を開く</button>
       </div>
       <div class="messages" id="messages"></div>
       <div class="input-area" id="inputArea">
@@ -307,10 +374,11 @@ function createPanel() {
 
   document.body.appendChild(container);
 
-  panel          = shadowRoot.getElementById('panel');
-  statusDotEl    = shadowRoot.getElementById('statusDot');
-  channelNameEl  = shadowRoot.getElementById('channelName');
-  msgCountEl     = shadowRoot.getElementById('msgCount');
+  panel             = shadowRoot.getElementById('panel');
+  statusDotEl       = shadowRoot.getElementById('statusDot');
+  channelNameEl     = shadowRoot.getElementById('channelName');
+  langIndicatorEl   = shadowRoot.getElementById('langIndicator');
+  msgCountEl        = shadowRoot.getElementById('msgCount');
   messagesEl     = shadowRoot.getElementById('messages');
   authBarEl      = shadowRoot.getElementById('authBar');
   loginBtnEl     = shadowRoot.getElementById('loginBtn');
@@ -321,6 +389,10 @@ function createPanel() {
   sendBtnEl      = shadowRoot.getElementById('sendBtn');
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
+  shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
+  shadowRoot.getElementById('groqOpenBtn').addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+  });
   loginBtnEl.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'twitch_login' }));
   logoutBtnEl.addEventListener('click', handleLogout);
 
@@ -336,6 +408,7 @@ function createPanel() {
 
   updateAuthUI();
   updateInputPlaceholder();
+  updateLangIndicator();
   makeDraggable(shadowRoot.getElementById('header'));
   makeResizable(shadowRoot.getElementById('resizeHandle'));
 }
@@ -375,6 +448,13 @@ function updateInputPlaceholder() {
   sendBtnEl.disabled      = false;
 }
 
+function updateLangIndicator() {
+  if (!langIndicatorEl) return;
+  const src = settings.src_lang === 'auto' ? 'AUTO' : settings.src_lang.toUpperCase();
+  const tgt = settings.tgt_lang.toUpperCase();
+  langIndicatorEl.textContent = `${src}→${tgt}`;
+}
+
 function getLangName(code) {
   if (code === 'auto') return '自動検出';
   try { return new Intl.DisplayNames(['ja'], { type: 'language' }).of(code) ?? code; }
@@ -398,16 +478,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ active: isActive });
   }
   if (msg.type === 'twitch_auth_complete') {
-    twitchToken     = ''; // background.jsのストレージから再取得
+    twitchToken     = '';
     twitchUsername  = msg.username;
     isAuthenticated = true;
-    // ストレージからトークンを読んで再接続
     chrome.storage.local.get('twitch_token', ({ twitch_token }) => {
       twitchToken = twitch_token || '';
       updateAuthUI();
       addSystemMessage(`ログイン成功: ${msg.username}`);
       if (currentChannel) { disconnect(); connect(); }
     });
+  }
+  if (msg.type === 'whisper_status' && isVoiceActive) {
+    // Whisper モデルのロード進捗を字幕に表示
+    showSubtitle(msg.text, false);
   }
 });
 
@@ -672,6 +755,345 @@ function escapeHtml(str) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ===== 音声認識・字幕オーバーレイ =====
+
+function toggleVoice() {
+  if (isVoiceActive) stopVoice();
+  else startVoice();
+}
+
+async function startVoice() {
+  ensureSubtitleContainer();
+
+  // Web Audio API で <video> 要素から直接音声を取得（タブ共有バナーなし）
+  const videoEl = document.querySelector('video');
+  if (!videoEl) {
+    showSubtitle('⚠ 動画要素が見つかりません。動画が再生中か確認してください', true);
+    return;
+  }
+
+  try {
+    if (!voiceAudioCtx || voiceAudioCtx.state === 'closed') {
+      voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    await voiceAudioCtx.resume();
+
+    // MediaElementSourceNode は同一 video 要素に対して1回だけ作成可能
+    if (!voiceSourceNode) {
+      voiceSourceNode = voiceAudioCtx.createMediaElementSource(videoEl);
+      voiceSourceNode.connect(voiceAudioCtx.destination); // 音声を引き続き再生
+    }
+
+    voiceDestNode = voiceAudioCtx.createMediaStreamDestination();
+    voiceSourceNode.connect(voiceDestNode);
+    voiceStream = voiceDestNode.stream;
+  } catch (e) {
+    showSubtitle(`⚠ 音声取得失敗: ${e.message}`, true);
+    return;
+  }
+
+  isVoiceActive = true;
+  updateVoiceBtn();
+
+  // AudioContext で音量レベルを計測
+  cableLevel = 0;
+  hadSpeech  = false;
+  try {
+    const src      = voiceAudioCtx.createMediaStreamSource(voiceStream);
+    const analyser = voiceAudioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    src.connect(analyser);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const sampleLevel = () => {
+      if (!isVoiceActive) return;
+      analyser.getByteFrequencyData(buf);
+      cableLevel = Math.round(Math.max(...buf) / 255 * 100);
+      if (cableLevel > VAD_SILENCE_THRESHOLD) hadSpeech = true;
+      setTimeout(sampleLevel, 100); // 300ms → 100ms で応答性向上
+    };
+    sampleLevel();
+  } catch (_) {}
+
+  isSendingChunk = false;
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus' : 'audio/webm';
+
+  function startRecordingCycle() {
+    if (!isVoiceActive) return;
+    audioChunks = [];
+    hadSpeech   = false;
+    mediaRecorder = new MediaRecorder(voiceStream, { mimeType });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+
+    // VAD: 発話後に VAD_SILENCE_MS の無音が続いたら即処理
+    let silenceStart = null;
+    let vadTimer     = null;
+    const checkVAD = () => {
+      if (!isVoiceActive || mediaRecorder?.state !== 'recording') return;
+      if (cableLevel > VAD_SILENCE_THRESHOLD) {
+        silenceStart = null; // 音があればリセット
+      } else if (hadSpeech) {
+        if (!silenceStart) silenceStart = Date.now();
+        if (Date.now() - silenceStart >= VAD_SILENCE_MS) {
+          clearTimeout(voiceSessionTimer);
+          mediaRecorder.stop(); // 無音検出 → 即処理
+          return;
+        }
+      }
+      vadTimer = setTimeout(checkVAD, 80);
+    };
+
+    mediaRecorder.onstop = async () => {
+      clearTimeout(vadTimer);
+      const wasSpeech = hadSpeech;
+      if (wasSpeech && audioChunks.length > 0 && !isSendingChunk) {
+        isSendingChunk = true;
+        showSubtitle('🔄 認識中...', false);
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        try {
+          const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
+          if (text?.trim()) await handleFinalTranscript(text.trim());
+          else showSubtitle(`🎤 録音中 (${cableLevel}%)`, false);
+        } catch (err) {
+          showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
+        } finally {
+          isSendingChunk = false;
+        }
+      }
+      startRecordingCycle();
+    };
+
+    mediaRecorder.start(100); // 100ms ごとにデータを蓄積
+    checkVAD();
+    // 発話が続く場合の上限（VAD_MAX_CHUNK_MS）
+    voiceSessionTimer = setTimeout(() => {
+      if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+    }, VAD_MAX_CHUNK_MS);
+  }
+  startRecordingCycle();
+  showSubtitle('🎤 録音開始', false);
+}
+
+function stopVoice() {
+  isVoiceActive = false;
+  updateVoiceBtn();
+  clearTimeout(voiceSessionTimer);
+  voiceSessionTimer = null;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.ondataavailable = null;
+    mediaRecorder.onstop = null; // 再帰呼び出しを防ぐ
+    mediaRecorder.stop();
+  }
+  mediaRecorder = null;
+  audioChunks   = [];
+  hadSpeech     = false;
+  // voiceSourceNode は video 要素と紐づくため再利用する（close しない）
+  // voiceDestNode への接続だけ切断
+  if (voiceSourceNode && voiceDestNode) {
+    try { voiceSourceNode.disconnect(voiceDestNode); } catch (_) {}
+  }
+  voiceDestNode = null;
+  voiceStream   = null;
+  cableLevel = 0;
+  clearSubtitle();
+}
+
+async function handleFinalTranscript(text) {
+  try {
+    const from = (settings.src_lang === 'auto') ? 'auto' : settings.src_lang;
+    const translated = await translateViaBackground(text, from, settings.tgt_lang);
+    showSubtitle(translated, true);
+  } catch {
+    showSubtitle(text, true);
+  }
+}
+
+// ===== Whisper ページスクリプト注入（MAIN world） =====
+let whisperReadyPromise  = null;
+const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer }
+
+function ensureWhisperPageScript() {
+  if (whisperReadyPromise) return whisperReadyPromise;
+
+  whisperReadyPromise = new Promise((resolve, reject) => {
+    // 結果を受信
+    window.addEventListener('__tct_whisper_result', ({ detail }) => {
+      const req = pendingTranscriptions.get(detail.requestId);
+      if (!req) return;
+      pendingTranscriptions.delete(detail.requestId);
+      clearTimeout(req.timer);
+      if (detail.ok) req.resolve(detail.result);
+      else req.reject(new Error(detail.error));
+    });
+
+    // ステータスを受信して字幕に表示
+    window.addEventListener('__tct_whisper_status', ({ detail }) => {
+      if (isVoiceActive) showSubtitle(detail.text, false);
+    });
+
+    // 注入完了を待つ（whisper-injected.js の末尾が __tct_whisper_ready を dispatch する）
+    window.addEventListener('__tct_whisper_ready', () => resolve(), { once: true });
+
+    // whisper-injected.js を MAIN world に注入
+    const script = document.createElement('script');
+    script.type    = 'module';
+    script.src     = chrome.runtime.getURL('whisper-injected.js');
+    script.onerror = () => reject(new Error('whisper-injected.js の読み込みに失敗しました'));
+    document.head.appendChild(script);
+  });
+
+  return whisperReadyPromise;
+}
+
+// 音声チャンクを MAIN world の Whisper スクリプトへ送信
+async function transcribeViaBackground(blob, mimeType, language) {
+  await ensureWhisperPageScript(); // スクリプト準備完了まで待ってからイベント送信
+
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioBase64 = arrayBufferToBase64(arrayBuffer);
+  const requestId   = Math.random().toString(36).slice(2);
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingTranscriptions.delete(requestId);
+      reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
+    }, 180000);
+
+    pendingTranscriptions.set(requestId, { resolve, reject, timer });
+
+    window.dispatchEvent(new CustomEvent('__tct_whisper_transcribe', {
+      detail: { audioBase64, mimeType, language, requestId },
+    }));
+  });
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, bytes.length)));
+  }
+  return btoa(binary);
+}
+
+function showGroqBar() { shadowRoot?.getElementById('groqBar')?.classList.remove('hidden'); }
+function hideGroqBar() { shadowRoot?.getElementById('groqBar')?.classList.add('hidden'); }
+
+function toLangTag(lang) {
+  const map = {
+    'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
+    'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW',
+    'es': 'es-ES', 'fr': 'fr-FR', 'de': 'de-DE',
+    'pt': 'pt-BR', 'ru': 'ru-RU', 'ar': 'ar-SA',
+    'hi': 'hi-IN', 'th': 'th-TH', 'vi': 'vi-VN',
+  };
+  return map[lang] || lang;
+}
+
+// 字幕コンテナを document.body 直下に作成（Shadow DOM外）
+async function ensureSubtitleContainer() {
+  if (subtitleContainer) return;
+  subtitleContainer = document.createElement('div');
+  subtitleContainer.id = 'tct-subtitle';
+  subtitleContainer.style.cssText = [
+    'position:fixed',
+    'bottom:60px',
+    'left:50%',
+    'transform:translateX(-50%)',
+    'z-index:2147483646',
+    'max-width:80vw',
+    'min-width:200px',
+    'text-align:center',
+    'cursor:grab',
+  ].join(';');
+  document.body.appendChild(subtitleContainer);
+  makeSubtitleDraggable(subtitleContainer);
+
+  // 保存済みの位置があれば復元
+  const { subtitle_pos } = await chrome.storage.local.get('subtitle_pos');
+  if (subtitle_pos) {
+    subtitleContainer.style.bottom    = '';
+    subtitleContainer.style.transform = '';
+    subtitleContainer.style.left = subtitle_pos.left + 'px';
+    subtitleContainer.style.top  = subtitle_pos.top  + 'px';
+  }
+}
+
+function makeSubtitleDraggable(el) {
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // bottom/transform → top/left に変換
+    const rect = el.getBoundingClientRect();
+    el.style.bottom    = '';
+    el.style.transform = '';
+    el.style.top  = rect.top  + 'px';
+    el.style.left = rect.left + 'px';
+    el.style.cursor = 'grabbing';
+
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+
+    const onMove = e => {
+      el.style.left = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  e.clientX - offsetX)) + 'px';
+      el.style.top  = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, e.clientY - offsetY)) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      el.style.cursor = 'grab';
+      chrome.storage.local.set({ subtitle_pos: {
+        left: parseFloat(el.style.left),
+        top:  parseFloat(el.style.top),
+      }});
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+  });
+}
+
+function showSubtitle(text, isFinal) {
+  if (!subtitleContainer) return;
+  clearTimeout(subtitleFadeTimer);
+  subtitleContainer.style.opacity   = '1';
+  subtitleContainer.style.transition = 'none';
+  subtitleContainer.innerHTML = `
+    <span style="
+      display:inline-block;
+      background:rgba(0,0,0,0.75);
+      color:${isFinal ? '#ffffff' : '#aaaaaa'};
+      font-size:22px;
+      font-weight:${isFinal ? '700' : '400'};
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+      padding:8px 18px;
+      border-radius:6px;
+      line-height:1.4;
+      font-style:${isFinal ? 'normal' : 'italic'};
+    ">${escapeHtml(text)}</span>
+  `;
+  if (isFinal) {
+    // 確定テキストは4秒後にフェードアウト
+    subtitleFadeTimer = setTimeout(() => {
+      subtitleContainer.style.transition = 'opacity 0.8s';
+      subtitleContainer.style.opacity = '0';
+    }, 4000);
+  }
+}
+
+function clearSubtitle() {
+  if (!subtitleContainer) return;
+  clearTimeout(subtitleFadeTimer);
+  subtitleContainer.innerHTML = '';
+}
+
+function updateVoiceBtn() {
+  const btn = shadowRoot?.getElementById('voiceBtn');
+  if (!btn) return;
+  btn.classList.toggle('active', isVoiceActive);
+  btn.title = isVoiceActive ? '音声字幕 ON（クリックで停止）' : '音声字幕 OFF（クリックで開始）';
+}
 
 // ===== 起動 =====
 init();

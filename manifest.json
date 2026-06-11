@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Twitch Chat Translator",
-  "version": "0.1.9",
+  "version": "0.3.5",
   "description": "Twitchチャットをリアルタイム日本語翻訳",
 
   "permissions": [
@@ -13,12 +13,32 @@
   "host_permissions": [
     "https://translate.googleapis.com/*",
     "https://api.twitch.tv/*",
-    "https://id.twitch.tv/*"
+    "https://id.twitch.tv/*",
+    "https://api.groq.com/*",
+    "https://huggingface.co/*",
+    "https://cdn-lfs.huggingface.co/*",
+    "https://cdn-lfs-us-1.huggingface.co/*",
+    "https://cdn.jsdelivr.net/*"
   ],
+
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
 
   "background": {
     "service_worker": "background.js"
   },
+
+  "web_accessible_resources": [{
+    "resources": [
+      "whisper-injected.js",
+      "lib/transformers.min.js",
+      "lib/ort-wasm-simd.wasm",
+      "lib/ort-wasm.wasm"
+    ],
+    "matches": ["*://www.twitch.tv/*"]
+  }],
 
   "action": {
     "default_icon": {

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Twitch Chat Translator — 設定</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Twitch Chat Translator</h1>
+      <p class="version" id="version"></p>
+    </header>
+
+    <section class="card">
+      <h2>音声字幕 — ローカル Whisper</h2>
+      <p class="hint" style="margin-bottom:14px">
+        Transformers.js + Whisper Tiny を使ってブラウザ内で音声認識を行います。<br>
+        初回起動時にモデル（約20MB）を自動ダウンロードしてキャッシュします。
+      </p>
+      <div class="actions">
+        <button class="btn-primary" id="warmupBtn">モデルをダウンロード（任意・初回の遅延を回避）</button>
+      </div>
+      <p class="hint" id="warmupStatus" style="margin-top:10px"></p>
+    </section>
+
+    <section class="card">
+      <h2>音声字幕 — Groq Whisper API（旧・バックアップ用）</h2>
+      <div class="field">
+        <label for="groqKey">API キー</label>
+        <div class="key-row">
+          <input type="password" id="groqKey" placeholder="gsk_..." autocomplete="off" spellcheck="false">
+          <button class="btn-ghost" id="toggleKey">表示</button>
+        </div>
+        <p class="hint">
+          <a href="https://console.groq.com/keys" target="_blank">console.groq.com</a>
+          で無料取得できます。無料枠：20リクエスト/分・7200秒/日。
+        </p>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="saveBtn">保存</button>
+        <span class="save-msg" id="saveMsg"></span>
+      </div>
+    </section>
+
+    <section class="card muted">
+      <h2>翻訳言語</h2>
+      <p class="hint">翻訳元・翻訳先言語は拡張機能アイコンを右クリックして変更できます。チャンネルごとに記憶されます。</p>
+    </section>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

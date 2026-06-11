@@ -1,0 +1,126 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0e0e10;
+  color: #efeff1;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 36px 24px;
+}
+
+header { margin-bottom: 28px; }
+
+h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #efeff1;
+}
+
+.version {
+  font-size: 12px;
+  color: #adadb8;
+  margin-top: 4px;
+}
+
+.card {
+  background: #18181b;
+  border: 1px solid #2d2d2f;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.card.muted { opacity: 0.6; }
+
+h2 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #efeff1;
+  margin-bottom: 16px;
+  letter-spacing: 0.02em;
+}
+
+.field { margin-bottom: 16px; }
+
+label {
+  display: block;
+  font-size: 12px;
+  color: #adadb8;
+  margin-bottom: 6px;
+  letter-spacing: 0.03em;
+}
+
+.key-row {
+  display: flex;
+  gap: 8px;
+}
+
+input[type="password"],
+input[type="text"] {
+  flex: 1;
+  background: #0e0e10;
+  border: 1px solid #3d3d40;
+  border-radius: 4px;
+  color: #efeff1;
+  font-size: 13px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  padding: 8px 10px;
+  outline: none;
+}
+
+input:focus { border-color: #9147ff; }
+input::placeholder { color: #5a5a6a; }
+
+.hint {
+  font-size: 12px;
+  color: #7d7d8f;
+  margin-top: 8px;
+}
+
+.hint a { color: #9147ff; text-decoration: none; }
+.hint a:hover { text-decoration: underline; }
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-primary {
+  background: #9147ff;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 20px;
+  transition: background 0.15s;
+}
+
+.btn-primary:hover { background: #772ce8; }
+
+.btn-ghost {
+  background: #2d2d2f;
+  border: none;
+  border-radius: 4px;
+  color: #adadb8;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.btn-ghost:hover { color: #efeff1; }
+
+.save-msg {
+  font-size: 13px;
+  transition: opacity 0.3s;
+}
