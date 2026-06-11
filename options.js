@@ -111,6 +111,15 @@ vadSilenceMsEl.addEventListener('input', () => {
   chrome.storage.local.set({ vad_silence_ms: Number(vadSilenceMsEl.value) });
 });
 
+// ===== 言語フィルター =====
+const sameLangFilterEl = document.getElementById('sameLangFilter');
+chrome.storage.local.get('same_lang_filter', ({ same_lang_filter }) => {
+  sameLangFilterEl.checked = !!same_lang_filter;
+});
+sameLangFilterEl.addEventListener('change', () => {
+  chrome.storage.local.set({ same_lang_filter: sameLangFilterEl.checked });
+});
+
 // ===== 最小文字数フィルター =====
 const minLengthEnabledEl = document.getElementById('minLengthEnabled');
 const minLengthEl        = document.getElementById('minLength');

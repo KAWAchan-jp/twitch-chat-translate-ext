@@ -8,6 +8,16 @@ const TRANSLATE_SKIP_PATTERNS = [
   /^[!\/]/,
   /^[^\p{L}\p{N}]+$/u,
 ];
+const LANG_SCRIPT_PATTERNS = {
+  ja:      /[぀-ゟ゠-ヿ]/,
+  ko:      /[가-힯ᄀ-ᇿ]/,
+  'zh-CN': /[一-鿿]/,
+  'zh-TW': /[一-鿿]/,
+  ru:      /[Ѐ-ӿ]/,
+  ar:      /[؀-ۿ]/,
+  th:      /[฀-๿]/,
+  hi:      /[ऀ-ॿ]/,
+};
 const EXCLUDED_PATHS = new Set([
   'directory', 'settings', 'subscriptions', 'inventory',
   'wallet', 'friends', 'messages', 'following', 'browse',
@@ -24,7 +34,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4 };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false };
 
 // 音声関連
 let voiceStream        = null;
@@ -226,7 +236,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length',
+    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own',
   ]);
   settings = { ...settings, ...stored };
@@ -333,6 +343,7 @@ function onSettingsChanged(changes) {
   if (changes.deepl_own)          settings.deepl_own          = changes.deepl_own.newValue;
   if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
+  if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;
 }
 
 function notifyBadge(active) {
@@ -709,6 +720,10 @@ function addSystemMessage(text) {
 function shouldSkipTranslation(text) {
   if (TRANSLATE_SKIP_PATTERNS.some(p => p.test(text))) return true;
   if (settings.min_length_enabled && text.length < (settings.min_length ?? 4)) return true;
+  if (settings.same_lang_filter) {
+    const pattern = LANG_SCRIPT_PATTERNS[settings.tgt_lang];
+    if (pattern?.test(text)) return true;
+  }
   return false;
 }
 
