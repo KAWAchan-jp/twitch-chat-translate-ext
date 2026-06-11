@@ -974,7 +974,7 @@ async function handleFinalTranscript(text) {
 }
 
 // ===== Whisper Web Worker（並列スロット方式） =====
-const WHISPER_WORKER_COUNT  = 3; // 並列数（75%カバー率目安）
+const WHISPER_WORKER_COUNT  = 4; // 並列数（80%カバー率目安）
 const whisperSlots          = []; // { worker, busy, ready }
 const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer, slot }
 
