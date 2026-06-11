@@ -63,15 +63,27 @@ function isHallucination(text) {
   return false;
 }
 
-// WebGPU が使えるか確認
+let _detectedDevice = null;
+
+// WebGPU が使えるか確認（結果をキャッシュ）
 async function detectDevice() {
-  if (typeof navigator !== 'undefined' && navigator.gpu) {
-    try {
-      const adapter = await navigator.gpu.requestAdapter();
-      if (adapter) return 'webgpu';
-    } catch {}
+  if (_detectedDevice) return _detectedDevice;
+  if (typeof navigator === 'undefined' || !navigator.gpu) {
+    console.warn('[TCT-W] WebGPU 不可: navigator.gpu が存在しない');
+    return (_detectedDevice = 'wasm');
   }
-  return 'wasm';
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (adapter) {
+      const info = adapter.info ?? {};
+      console.log(`[TCT-W] WebGPU adapter: ${info.vendor ?? '?'} / ${info.architecture ?? '?'} / ${info.description ?? '?'}`);
+      return (_detectedDevice = 'webgpu');
+    }
+    console.warn('[TCT-W] WebGPU 不可: requestAdapter() が null を返した（GPU ブロックリスト or ドライバ問題）');
+  } catch (e) {
+    console.warn('[TCT-W] WebGPU 不可: requestAdapter() 例外:', e?.message ?? e);
+  }
+  return (_detectedDevice = 'wasm');
 }
 
 // WebGPU 用は fp16 バリアントを持つ onnx-community モデルを使用
@@ -110,7 +122,7 @@ async function ensureTranscriber(modelName) {
     const tryLoad = async (dev) => {
       const mid = resolveModelId(modelName, dev);
       const deviceLabel = dev === 'webgpu' ? 'GPU' : 'CPU';
-      postMessage({ type: 'status', text: `Whisper ロード中... (${deviceLabel})` });
+      postMessage({ type: 'status', text: `Whisper モデル準備中... (${deviceLabel})` });
       // WebGPU: fp32エンコーダ（精度安定。大きすぎて失敗した場合は呼び出し側でWASMにfallback）
       // WASM:   q8エンコーダ
       const dtype = dev === 'webgpu'
@@ -123,8 +135,12 @@ async function ensureTranscriber(modelName) {
           device: dev,
           dtype,
           progress_callback: ({ status, name, progress }) => {
-            if (status === 'downloading') {
-              postMessage({ type: 'status', text: `DL中: ${name ?? ''} (${Math.round(progress ?? 0)}%)` });
+            const fname = (name ?? '').split('/').pop().split('?')[0] || '';
+            if (status === 'downloading' || status === 'progress') {
+              const pct = Math.round(progress ?? 0);
+              postMessage({ type: 'download_progress', progress: pct, name: fname });
+            } else if (status === 'loading') {
+              postMessage({ type: 'status', text: `読込中: ${fname}` });
             }
           },
         },
@@ -163,6 +179,18 @@ self.addEventListener('message', async (e) => {
   if (type === 'init') {
     LIB_BASE = e.data.libBase;
     postMessage({ type: 'ready' });
+    return;
+  }
+
+  if (type === 'download') {
+    const { model } = e.data;
+    const modelName = model || 'Xenova/whisper-tiny';
+    try {
+      await ensureTranscriber(modelName);
+      postMessage({ type: 'download_complete', ok: true });
+    } catch (err) {
+      postMessage({ type: 'download_complete', ok: false, error: err.message });
+    }
     return;
   }
 

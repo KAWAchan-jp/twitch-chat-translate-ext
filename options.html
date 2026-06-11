@@ -16,29 +16,12 @@
       <h2>音声字幕 — ローカル Whisper</h2>
       <p class="hint" style="margin-bottom:14px">
         Transformers.js + Whisper をブラウザ内でローカル実行します。<br>
-        初回起動時にモデルを自動ダウンロードしてキャッシュします。
+        使用前にモデルをダウンロードしてください。一度ダウンロードするとキャッシュされます。
       </p>
       <div class="field">
         <label>認識モデル</label>
-        <div class="radio-group">
-          <label class="radio-label">
-            <input type="radio" name="whisperModel" id="whisperModelTiny" value="tiny">
-            <span><strong>Tiny</strong>（約38MB・高速・標準精度）</span>
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="whisperModel" id="whisperModelBase" value="base">
-            <span><strong>Base</strong>（約74MB・やや遅い・高精度）</span>
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="whisperModel" id="whisperModelSmall" value="small">
-            <span><strong>Small</strong>（約244MB・GPU推奨）⭐ 日本語おすすめ</span>
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="whisperModel" id="whisperModelMedium" value="medium">
-            <span><strong>Medium</strong>（約769MB・GPU必須・最高精度）</span>
-          </label>
-        </div>
-        <p class="hint">モデルを変更したあとは、Twitchページを再読み込みしてください。初回は別途ダウンロードが必要です。</p>
+        <div id="modelTable"></div>
+        <p class="hint">モデルを変更したあとは、Twitchページを再読み込みしてください。</p>
       </div>
       <div class="field">
         <label for="whisperPrompt">認識ヒント（initial_prompt）</label>
@@ -52,10 +35,6 @@
           <span class="slider-value" id="subtitleFontSizeVal">22px</span>
         </div>
       </div>
-      <div class="actions">
-        <button class="btn-primary" id="warmupBtn">モデルをダウンロード（任意・初回の遅延を回避）</button>
-      </div>
-      <p class="hint" id="warmupStatus" style="margin-top:10px"></p>
     </section>
 
     <section class="card">

@@ -3,25 +3,159 @@
 document.getElementById('version').textContent =
   `v${chrome.runtime.getManifest().version}`;
 
-// ===== ローカル Whisper ウォームアップ =====
-const warmupBtn    = document.getElementById('warmupBtn');
-const warmupStatus = document.getElementById('warmupStatus');
+// ===== モデルテーブル =====
+const MODEL_DEFS = [
+  { value: 'tiny',           label: 'Tiny',           size: '約38MB',  note: '高速・標準精度' },
+  { value: 'base',           label: 'Base',           size: '約74MB',  note: 'やや遅い・高精度' },
+  { value: 'small',          label: 'Small',          size: '約244MB', note: 'GPU推奨 ⭐ 日本語おすすめ' },
+  { value: 'medium',         label: 'Medium',         size: '約769MB', note: 'GPU必須・最高精度' },
+  { value: 'large-v3-turbo', label: 'Large-v3-Turbo', size: '約809MB', note: 'GPU必須・Mediumより高速・高精度' },
+];
 
-warmupBtn.addEventListener('click', () => {
-  warmupStatus.textContent = 'Twitch ページで 🎤 ボタンを押すと自動的にモデルがロードされます';
-  warmupStatus.style.color = '#adadb8';
-});
+let selectedModel    = 'tiny';
+let downloadedModels = [];
+let activeDownload   = null;
 
-// ===== Whisper モデル選択 =====
-const whisperModelEls = document.querySelectorAll('input[name="whisperModel"]');
-chrome.storage.local.get('whisper_model', ({ whisper_model }) => {
-  const val = whisper_model ?? 'tiny';
-  whisperModelEls.forEach(el => { el.checked = el.value === val; });
-});
-whisperModelEls.forEach(el => {
-  el.addEventListener('change', () => {
-    if (el.checked) chrome.storage.local.set({ whisper_model: el.value });
+function getModelName(value) {
+  return value === 'large-v3-turbo'
+    ? 'onnx-community/whisper-large-v3-turbo'
+    : `Xenova/whisper-${value}`;
+}
+
+function getModelCachePrefixes(value) {
+  if (value === 'large-v3-turbo') return ['onnx-community/whisper-large-v3-turbo'];
+  return [`Xenova/whisper-${value}`, `onnx-community/whisper-${value}`];
+}
+
+function setModelStatus(value, html) {
+  const el = document.getElementById(`model-status-${value}`);
+  if (el) el.innerHTML = html;
+}
+
+function renderModelTable() {
+  const table = document.getElementById('modelTable');
+  table.innerHTML = '';
+  for (const m of MODEL_DEFS) {
+    const isDownloaded = downloadedModels.includes(m.value);
+    const isSelected   = selectedModel === m.value;
+    const row = document.createElement('div');
+    row.className = 'model-row';
+    row.id = `model-row-${m.value}`;
+    row.innerHTML = `
+      <label class="radio-label model-radio">
+        <input type="radio" name="whisperModel" value="${m.value}"${isSelected ? ' checked' : ''}>
+        <span><strong>${m.label}</strong>（${m.size}・${m.note}）</span>
+      </label>
+      <div class="model-status-area" id="model-status-${m.value}">
+        ${statusHTML(m.value, isDownloaded)}
+      </div>`;
+    table.appendChild(row);
+  }
+
+  table.querySelectorAll('input[name="whisperModel"]').forEach(el => {
+    el.addEventListener('change', () => {
+      if (el.checked) {
+        selectedModel = el.value;
+        chrome.storage.local.set({ whisper_model: el.value });
+      }
+    });
   });
+
+  table.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, model } = btn.dataset;
+    if (action === 'download') startDownload(model);
+    else if (action === 'delete') startDelete(model);
+  });
+}
+
+function statusHTML(value, isDownloaded) {
+  if (isDownloaded) {
+    return `<span class="dl-badge dl-badge--ok">ダウンロード済み ✓</span>
+            <button class="btn-ghost btn-sm" data-action="delete" data-model="${value}">削除</button>`;
+  }
+  return `<span class="dl-badge dl-badge--no">未ダウンロード</span>
+          <button class="btn-primary btn-sm" data-action="download" data-model="${value}">ダウンロード</button>`;
+}
+
+function startDownload(value) {
+  if (activeDownload) return;
+
+  setModelStatus(value, `
+    <span class="dl-badge dl-badge--progress" id="dl-txt-${value}">準備中...</span>
+    <div class="dl-progress-bar"><div class="dl-progress-fill" id="dl-fill-${value}" style="width:0%"></div></div>`);
+
+  const worker = new Worker(chrome.runtime.getURL('whisper-worker.js'));
+  activeDownload = { value, worker };
+
+  worker.addEventListener('error', (e) => {
+    console.error('[TCT-DL] worker error:', e.message, e);
+    worker.terminate();
+    activeDownload = null;
+    setModelStatus(value, `
+      <span class="dl-badge dl-badge--err">エラー: ${e.message ?? 'worker crashed'}</span>
+      <button class="btn-primary btn-sm" data-action="download" data-model="${value}">再試行</button>`);
+  });
+
+  worker.addEventListener('message', async ({ data }) => {
+    const { type } = data;
+    if (type === 'ready') {
+      worker.postMessage({ type: 'download', model: getModelName(value) });
+    } else if (type === 'download_progress') {
+      const pct   = Math.round(data.progress ?? 0);
+      const fname = data.name ?? '';
+      const txt  = document.getElementById(`dl-txt-${value}`);
+      const fill = document.getElementById(`dl-fill-${value}`);
+      if (txt)  txt.textContent   = `DL中... ${pct}%　${fname}`;
+      if (fill) fill.style.width  = `${pct}%`;
+    } else if (type === 'status') {
+      const txt = document.getElementById(`dl-txt-${value}`);
+      if (txt && !txt.textContent.startsWith('DL中')) txt.textContent = data.text;
+    } else if (type === 'download_complete') {
+      worker.terminate();
+      activeDownload = null;
+      if (data.ok) {
+        downloadedModels = [...new Set([...downloadedModels, value])];
+        await chrome.storage.local.set({ downloaded_models: downloadedModels });
+        setModelStatus(value, statusHTML(value, true));
+      } else {
+        setModelStatus(value, `
+          <span class="dl-badge dl-badge--err">エラー</span>
+          <button class="btn-primary btn-sm" data-action="download" data-model="${value}">再試行</button>`);
+      }
+    }
+  });
+
+  worker.postMessage({ type: 'init', libBase: chrome.runtime.getURL('lib/') });
+}
+
+async function startDelete(value) {
+  const m = MODEL_DEFS.find(d => d.value === value);
+  if (!confirm(`「${m?.label}」のキャッシュを削除しますか？`)) return;
+
+  setModelStatus(value, `<span class="dl-badge dl-badge--no">削除中...</span>`);
+
+  const prefixes = getModelCachePrefixes(value);
+  try {
+    const cache = await caches.open('transformers-cache');
+    const keys  = await cache.keys();
+    for (const req of keys) {
+      if (prefixes.some(p => req.url.includes(p))) await cache.delete(req);
+    }
+  } catch (err) {
+    console.warn('[TCT] cache delete error:', err);
+  }
+
+  downloadedModels = downloadedModels.filter(v => v !== value);
+  await chrome.storage.local.set({ downloaded_models: downloadedModels });
+  setModelStatus(value, statusHTML(value, false));
+}
+
+chrome.storage.local.get(['whisper_model', 'downloaded_models'], ({ whisper_model, downloaded_models }) => {
+  selectedModel    = whisper_model     ?? 'tiny';
+  downloadedModels = downloaded_models ?? [];
+  renderModelTable();
 });
 
 // ===== Whisper 認識ヒント =====

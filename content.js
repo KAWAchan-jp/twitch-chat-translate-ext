@@ -49,7 +49,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1 };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1, downloaded_models: [] };
 
 // 音声関連
 let voiceStream        = null;
@@ -68,7 +68,7 @@ let subtitleContainer = null;
 let subtitleFadeTimer = null;
 
 // ===== Shadow DOM 内のDOM参照 =====
-let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, msgCountEl;
+let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl;
 let authBarEl, loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
 let scrollPaused = false;
 let chatInputEl, sendBtnEl;
@@ -131,7 +131,7 @@ const PANEL_CSS = `
     flex: 1; font-size: 12px; font-weight: 700; color: #efeff1;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .msg-count { font-size: 11px; color: #adadb8; flex-shrink: 0; }
+  .version-badge { font-size: 9px; color: #5a5a6e; flex-shrink: 0; }
 
   .lang-indicator {
     font-size: 10px; color: #adadb8; background: #1e1e21;
@@ -249,7 +249,7 @@ async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_max_chunk_ms', 'whisper_num_beams',
-    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own',
+    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'downloaded_models',
   ]);
   settings = { ...settings, ...stored };
 
@@ -398,6 +398,7 @@ function onSettingsChanged(changes) {
   if (changes.whisper_prompt)        settings.whisper_prompt        = changes.whisper_prompt.newValue;
   if (changes.whisper_max_chunk_ms)  settings.whisper_max_chunk_ms  = changes.whisper_max_chunk_ms.newValue;
   if (changes.whisper_num_beams)     settings.whisper_num_beams     = changes.whisper_num_beams.newValue;
+  if (changes.downloaded_models)     settings.downloaded_models     = changes.downloaded_models.newValue ?? [];
 }
 
 function notifyBadge(active) {
@@ -418,7 +419,7 @@ function createPanel() {
         <div class="status-dot connecting" id="statusDot"></div>
         <span class="channel-name" id="channelName">接続待ち</span>
         <span class="lang-indicator" id="langIndicator"></span>
-        <span class="msg-count" id="msgCount">0 msgs</span>
+        <span class="version-badge" title="バージョン">${chrome.runtime.getManifest().version}</span>
         <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
         <button class="close-btn" id="closeBtn" title="閉じる">×</button>
       </div>
@@ -445,7 +446,6 @@ function createPanel() {
   statusDotEl       = shadowRoot.getElementById('statusDot');
   channelNameEl     = shadowRoot.getElementById('channelName');
   langIndicatorEl   = shadowRoot.getElementById('langIndicator');
-  msgCountEl        = shadowRoot.getElementById('msgCount');
   messagesEl          = shadowRoot.getElementById('messages');
   scrollToBottomBtnEl = shadowRoot.getElementById('scrollToBottomBtn');
   authBarEl           = shadowRoot.getElementById('authBar');
@@ -670,7 +670,6 @@ function resetMessages() {
   if (!messagesEl) return;
   messagesEl.innerHTML = '';
   messageCount = 0;
-  if (msgCountEl) msgCountEl.textContent = '0 msgs';
   scrollPaused = false;
   scrollToBottomBtnEl?.classList.remove('visible');
 }
@@ -720,7 +719,6 @@ function addChatMessage(username, text, color) {
   messagesEl.appendChild(el);
   trimMessages();
   messageCount++;
-  msgCountEl.textContent = `${messageCount} msgs`;
   if (settings.auto_scroll) scrollToBottom();
 
   const transEl = el.querySelector('.msg-trans');
@@ -758,7 +756,6 @@ function addOwnMessage(sentText, typedText) {
   messagesEl.appendChild(el);
   trimMessages();
   messageCount++;
-  if (msgCountEl) msgCountEl.textContent = `${messageCount} msgs`;
   if (settings.auto_scroll) scrollToBottom();
 }
 
@@ -1064,7 +1061,7 @@ function createWhisperSlot() {
           req.timer = setTimeout(() => {
             pendingTranscriptions.delete(id);
             req.slot.busy = false;
-            req.reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
+            req.reject(new Error('タイムアウト'));
           }, 180000);
         });
       } else if (data.type === 'result') {
@@ -1097,6 +1094,12 @@ async function ensureWhisperWorkers() {
 // 音声チャンクを Worker へ送信（空きスロットがなければ null を返す）
 // Web Worker 内は AudioContext 不可のためメインスレッドで PCM デコードしてから転送
 async function transcribeViaBackground(blob, mimeType, language) {
+  const modelKey = settings.whisper_model ?? 'tiny';
+  if (!(settings.downloaded_models ?? []).includes(modelKey)) {
+    showSubtitle('⚠ モデル未ダウンロード — 設定ページでDLしてください', false);
+    return null;
+  }
+
   await ensureWhisperWorkers();
 
   const slot = whisperSlots.find(s => !s.busy);
@@ -1132,7 +1135,9 @@ async function transcribeViaBackground(blob, mimeType, language) {
     console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model} slot=${whisperSlots.indexOf(slot)}`);
     slot.worker.postMessage(
       { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
-        model: `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
+        model: settings.whisper_model === 'large-v3-turbo'
+          ? 'onnx-community/whisper-large-v3-turbo'
+          : `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
         num_beams: settings.whisper_num_beams ?? 1 },
       [float32.buffer]
     );
@@ -1150,6 +1155,7 @@ function toLangTag(lang) {
   };
   return map[lang] || lang;
 }
+
 
 // 字幕コンテナを document.body 直下に作成（Shadow DOM外）
 async function ensureSubtitleContainer() {
