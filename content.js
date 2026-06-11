@@ -41,6 +41,7 @@ const EXCLUDED_PATHS = new Set([
 // ===== 状態 =====
 let ws              = null;
 let currentChannel  = '';
+let twitchAutoPrompt = ''; // ページから自動取得したプロンプト
 let isActive        = true;
 let isAuthenticated = false;
 let twitchToken     = '';
@@ -278,6 +279,8 @@ async function detectAndConnect() {
     currentChannel = ch;
     await loadChannelSettings(ch);
     resetMessages();
+    updateTwitchAutoPrompt(); // 即時（チャンネル名だけでも反映）
+    setTimeout(updateTwitchAutoPrompt, 2000); // ゲーム名DOMの読み込み待ち
     if (isActive) connect();
     else {
       if (channelNameEl) channelNameEl.textContent = `#${ch} (停止中)`;
@@ -299,6 +302,22 @@ async function loadChannelSettings(channel) {
   settings.tgt_lang = cs?.tgt_lang ?? stored.tgt_lang ?? 'ja';
   updateInputPlaceholder();
   updateLangIndicator();
+}
+
+function updateTwitchAutoPrompt() {
+  const ch = currentChannel || getChannelFromUrl() || '';
+  // Twitchのゲーム名リンク（DOM変更に備え複数セレクターを試みる）
+  const gameEl =
+    document.querySelector('a[data-a-target="stream-game-link"]') ||
+    document.querySelector('a[href*="/directory/game/"]') ||
+    document.querySelector('a[href*="/directory/category/"]');
+  const gameName = gameEl?.textContent?.trim() ?? '';
+  const base = WHISPER_DEFAULT_PROMPTS[settings.src_lang] || WHISPER_DEFAULT_PROMPTS.ja;
+  const parts = [base];
+  if (ch) parts.push(`配信者: ${ch}。`);
+  if (gameName) parts.push(`ゲーム: ${gameName}。`);
+  twitchAutoPrompt = parts.join('');
+  console.log(`[TCT] auto prompt: "${twitchAutoPrompt}"`);
 }
 
 function hookNavigation() {
@@ -1061,7 +1080,7 @@ async function transcribeViaBackground(blob, mimeType, language) {
 
     pendingTranscriptions.set(requestId, { resolve, reject, timer, slot });
 
-    const initial_prompt = settings.whisper_prompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
+    const initial_prompt = settings.whisper_prompt || twitchAutoPrompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
     console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model} slot=${whisperSlots.indexOf(slot)}`);
     slot.worker.postMessage(
       { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
