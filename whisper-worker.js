@@ -160,6 +160,8 @@ self.addEventListener('message', async (e) => {
         sampling_rate: sampling_rate ?? 16000,
         num_beams: num_beams ?? 1,
         max_new_tokens: 128,
+        // temperature fallback: 低信頼の出力を高温度で再試行（Whisper本来の動作）
+        temperature: [0, 0.2, 0.4, 0.6, 0.8, 1.0],
       };
       if (language && language !== 'auto') opts.language = language;
       if (initial_prompt) opts.initial_prompt = initial_prompt;
