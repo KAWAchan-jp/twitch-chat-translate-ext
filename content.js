@@ -287,11 +287,19 @@ async function loadChannelSettings(channel) {
 }
 
 function hookNavigation() {
+  // pushState / replaceState のラップ
   ['pushState', 'replaceState'].forEach(method => {
     const orig = history[method].bind(history);
-    history[method] = (...args) => { orig(...args); setTimeout(() => detectAndConnect(), 200); };
+    history[method] = (...args) => { orig(...args); setTimeout(() => detectAndConnect(), 300); };
   });
-  window.addEventListener('popstate', () => setTimeout(() => detectAndConnect(), 200));
+  window.addEventListener('popstate', () => setTimeout(() => detectAndConnect(), 300));
+
+  // <title> の変化を監視（Twitch SPA ナビゲーションの確実な検知）
+  // Twitch はチャンネル移動時に必ずタイトルを書き換えるため pushState より信頼性が高い
+  const titleEl = document.querySelector('title');
+  if (titleEl) {
+    new MutationObserver(() => detectAndConnect()).observe(titleEl, { childList: true });
+  }
 }
 
 function onSettingsChanged(changes) {
