@@ -5,11 +5,11 @@ document.getElementById('version').textContent =
 
 // ===== モデルテーブル =====
 const MODEL_DEFS = [
-  { value: 'tiny',           label: 'Tiny',           size: '約38MB',  note: '高速・標準精度' },
-  { value: 'base',           label: 'Base',           size: '約74MB',  note: 'やや遅い・高精度' },
-  { value: 'small',          label: 'Small',          size: '約244MB', note: 'GPU推奨 ⭐ 日本語おすすめ' },
-  { value: 'medium',         label: 'Medium',         size: '約769MB', note: 'GPU必須・最高精度' },
-  { value: 'large-v3-turbo', label: 'Large-v3-Turbo', size: '約809MB', note: 'GPU必須・Mediumより高速・高精度' },
+  { value: 'tiny',           label: 'Tiny',           size: '約38MB',  note: '高速・標準精度・CPU可' },
+  { value: 'base',           label: 'Base',           size: '約74MB',  note: 'やや遅い・高精度・CPU可' },
+  { value: 'small',          label: 'Small',          size: '約244MB', note: 'GPU推奨・空きVRAM 1GB以上・⭐ 日本語おすすめ' },
+  { value: 'medium',         label: 'Medium',         size: '約769MB', note: 'GPU必須・空きVRAM 2GB以上・最高精度' },
+  { value: 'large-v3-turbo', label: 'Large-v3-Turbo', size: '約809MB', note: 'GPU必須・空きVRAM 3GB以上・Mediumより高速・高精度' },
 ];
 
 let selectedModel    = 'tiny';
