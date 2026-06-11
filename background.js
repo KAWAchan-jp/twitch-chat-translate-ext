@@ -187,8 +187,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'translate') {
-    const { text, from, to } = message;
-    translateText(text, from, to)
+    const { text, from, to, feature } = message;
+    translateText(text, from, to, feature)
       .then(result => sendResponse({ ok: true, result }))
       .catch(err  => sendResponse({ ok: false, error: err.message }));
     return true;
@@ -224,10 +224,12 @@ async function handleTwitchAuth(token) {
   }
 }
 
-async function translateText(text, from, to) {
-  const { deepl_enabled, deepl_api_key } = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key']);
-  if (deepl_enabled && deepl_api_key) {
-    try { return await translateWithDeepl(text, from, to, deepl_api_key); } catch (_) {}
+async function translateText(text, from, to, feature = 'chat') {
+  const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own']);
+  const featureFlag = feature === 'voice' ? stored.deepl_voice : feature === 'own' ? stored.deepl_own : stored.deepl_chat;
+  const useDeepL = stored.deepl_enabled && stored.deepl_api_key && (featureFlag !== false);
+  if (useDeepL) {
+    try { return await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (_) {}
   }
   return translateWithGoogle(text, from, to);
 }

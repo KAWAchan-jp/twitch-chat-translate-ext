@@ -71,14 +71,27 @@ function showMsg(text, color) {
 
 // ===== DeepL =====
 const deeplEnabledEl = document.getElementById('deeplEnabled');
+const deeplChatEl    = document.getElementById('deeplChat');
+const deeplVoiceEl   = document.getElementById('deeplVoice');
+const deeplOwnEl     = document.getElementById('deeplOwn');
+const deeplFeaturesEl = document.getElementById('deeplFeatures');
 const deeplKeyEl     = document.getElementById('deeplKey');
 const toggleDeeplBtn = document.getElementById('toggleDeeplKey');
 const saveDeeplBtn   = document.getElementById('saveDeeplBtn');
 const saveDeeplMsg   = document.getElementById('saveDeeplMsg');
 
-chrome.storage.local.get(['deepl_enabled', 'deepl_api_key'], ({ deepl_enabled, deepl_api_key }) => {
-  deeplEnabledEl.checked = !!deepl_enabled;
-  if (deepl_api_key) deeplKeyEl.value = deepl_api_key;
+function updateDeeplFeaturesVisibility() {
+  deeplFeaturesEl.style.opacity = deeplEnabledEl.checked ? '1' : '0.4';
+  deeplFeaturesEl.style.pointerEvents = deeplEnabledEl.checked ? '' : 'none';
+}
+
+chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own'], (s) => {
+  deeplEnabledEl.checked = !!s.deepl_enabled;
+  deeplChatEl.checked    = s.deepl_chat  !== false;
+  deeplVoiceEl.checked   = s.deepl_voice !== false;
+  deeplOwnEl.checked     = s.deepl_own   !== false;
+  if (s.deepl_api_key) deeplKeyEl.value = s.deepl_api_key;
+  updateDeeplFeaturesVisibility();
 });
 
 toggleDeeplBtn.addEventListener('click', () => {
@@ -89,13 +102,19 @@ toggleDeeplBtn.addEventListener('click', () => {
 
 deeplEnabledEl.addEventListener('change', () => {
   chrome.storage.local.set({ deepl_enabled: deeplEnabledEl.checked });
+  updateDeeplFeaturesVisibility();
 });
+
+deeplChatEl.addEventListener('change',  () => chrome.storage.local.set({ deepl_chat:  deeplChatEl.checked }));
+deeplVoiceEl.addEventListener('change', () => chrome.storage.local.set({ deepl_voice: deeplVoiceEl.checked }));
+deeplOwnEl.addEventListener('change',   () => chrome.storage.local.set({ deepl_own:   deeplOwnEl.checked }));
 
 saveDeeplBtn.addEventListener('click', async () => {
   const key = deeplKeyEl.value.trim();
   if (!key) { showDeeplMsg('⚠ キーを入力してください', '#e84393'); return; }
   await chrome.storage.local.set({ deepl_api_key: key, deepl_enabled: true });
   deeplEnabledEl.checked = true;
+  updateDeeplFeaturesVisibility();
   showDeeplMsg('✓ 保存しました', '#00b894');
 });
 

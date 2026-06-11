@@ -54,9 +54,27 @@
       <h2>DeepL 翻訳</h2>
       <div class="field">
         <label class="toggle-label">
-          <span>DeepL を使用する（無効時は Google Translate）</span>
+          <span>DeepL を有効にする（無効時は Google Translate）</span>
           <input type="checkbox" id="deeplEnabled">
           <span class="toggle-switch"></span>
+        </label>
+      </div>
+      <div class="field deepl-features" id="deeplFeatures">
+        <p class="hint" style="margin-bottom:8px">DeepL を使用する機能を選択（無効時は Google Translate にフォールバック）</p>
+        <label class="toggle-label toggle-label-sm">
+          <span>チャット翻訳</span>
+          <input type="checkbox" id="deeplChat">
+          <span class="toggle-switch toggle-switch-sm"></span>
+        </label>
+        <label class="toggle-label toggle-label-sm">
+          <span>音声字幕</span>
+          <input type="checkbox" id="deeplVoice">
+          <span class="toggle-switch toggle-switch-sm"></span>
+        </label>
+        <label class="toggle-label toggle-label-sm">
+          <span>入力したメッセージを翻訳</span>
+          <input type="checkbox" id="deeplOwn">
+          <span class="toggle-switch toggle-switch-sm"></span>
         </label>
       </div>
       <div class="field">

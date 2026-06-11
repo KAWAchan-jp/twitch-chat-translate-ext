@@ -24,7 +24,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true };
 
 // 音声関連
 let voiceStream        = null;
@@ -232,7 +232,7 @@ async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'groq_api_key',
-    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled',
+    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own',
   ]);
   settings = { ...settings, ...stored };
 
@@ -331,7 +331,10 @@ function onSettingsChanged(changes) {
   if (changes.subtitle_font_size) settings.subtitle_font_size = changes.subtitle_font_size.newValue;
   if (changes.vad_threshold)  settings.vad_threshold  = changes.vad_threshold.newValue;
   if (changes.vad_silence_ms) settings.vad_silence_ms = changes.vad_silence_ms.newValue;
-  if (changes.deepl_enabled)  { settings.deepl_enabled = changes.deepl_enabled.newValue; updateLangIndicator(); }
+  if (changes.deepl_enabled) { settings.deepl_enabled = changes.deepl_enabled.newValue; updateLangIndicator(); }
+  if (changes.deepl_chat)    { settings.deepl_chat    = changes.deepl_chat.newValue;    updateLangIndicator(); }
+  if (changes.deepl_voice)   settings.deepl_voice   = changes.deepl_voice.newValue;
+  if (changes.deepl_own)     settings.deepl_own     = changes.deepl_own.newValue;
 }
 
 function notifyBadge(active) {
@@ -456,7 +459,7 @@ function updateLangIndicator() {
   if (!langIndicatorEl) return;
   const src = settings.src_lang === 'auto' ? 'AUTO' : settings.src_lang.toUpperCase();
   const tgt = settings.tgt_lang.toUpperCase();
-  const engine = settings.deepl_enabled ? 'DeepL' : 'Google';
+  const engine = (settings.deepl_enabled && settings.deepl_chat) ? 'DeepL' : 'Google';
   langIndicatorEl.textContent = `${src}→${tgt}・${engine}`;
 }
 
@@ -657,7 +660,7 @@ function addChatMessage(username, text, color) {
 
   translateQueue = translateQueue.then(() =>
     sleep(TRANSLATE_DELAY_MS)
-      .then(() => translateViaBackground(text, settings.src_lang, settings.tgt_lang))
+      .then(() => translateViaBackground(text, settings.src_lang, settings.tgt_lang, 'chat'))
       .then(translated => {
         transEl.textContent = translated;
         transEl.classList.remove('translating');
@@ -719,7 +722,7 @@ async function sendUserMessage() {
     // tgt_lang → src_lang に翻訳してからチャンネルに送信
     let sendText = text;
     if (settings.src_lang !== 'auto') {
-      sendText = await translateViaBackground(text, settings.tgt_lang, settings.src_lang);
+      sendText = await translateViaBackground(text, settings.tgt_lang, settings.src_lang, 'own');
     }
     ws.send(`PRIVMSG #${currentChannel} :${sendText}`);
     // Twitch IRC は自分のメッセージをエコーバックしないので手動でパネルに追加
@@ -734,11 +737,11 @@ async function sendUserMessage() {
 }
 
 // ===== 翻訳リクエスト（background.js経由、リトライあり） =====
-async function translateViaBackground(text, from, to) {
+async function translateViaBackground(text, from, to, feature = 'chat') {
   for (let attempt = 0; attempt <= 2; attempt++) {
     try {
       const res = await Promise.race([
-        chrome.runtime.sendMessage({ type: 'translate', text, from, to }),
+        chrome.runtime.sendMessage({ type: 'translate', text, from, to, feature }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト')), 10000)),
       ]);
       if (!res?.ok) throw new Error(res?.error || 'translate failed');
@@ -907,7 +910,7 @@ function stopVoice() {
 async function handleFinalTranscript(text) {
   try {
     const from = (settings.src_lang === 'auto') ? 'auto' : settings.src_lang;
-    const translated = await translateViaBackground(text, from, settings.tgt_lang);
+    const translated = await translateViaBackground(text, from, settings.tgt_lang, 'voice');
     showSubtitle(translated, true);
   } catch {
     showSubtitle(text, true);
