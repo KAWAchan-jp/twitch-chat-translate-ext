@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Twitch Chat Translator",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Twitchチャットをリアルタイム日本語翻訳",
 
   "permissions": [
@@ -31,7 +31,12 @@
   },
 
   "web_accessible_resources": [{
-    "resources": ["whisper-injected.js", "lib/transformers.web.min.js"],
+    "resources": [
+      "whisper-injected.js",
+      "lib/transformers.min.js",
+      "lib/ort-wasm-simd.wasm",
+      "lib/ort-wasm.wasm"
+    ],
     "matches": ["*://www.twitch.tv/*"]
   }],
 

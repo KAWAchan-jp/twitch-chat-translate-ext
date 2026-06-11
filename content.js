@@ -938,7 +938,7 @@ function toLangTag(lang) {
 }
 
 // 字幕コンテナを document.body 直下に作成（Shadow DOM外）
-function ensureSubtitleContainer() {
+async function ensureSubtitleContainer() {
   if (subtitleContainer) return;
   subtitleContainer = document.createElement('div');
   subtitleContainer.id = 'tct-subtitle';
@@ -951,9 +951,53 @@ function ensureSubtitleContainer() {
     'max-width:80vw',
     'min-width:200px',
     'text-align:center',
-    'pointer-events:none',
+    'cursor:grab',
   ].join(';');
   document.body.appendChild(subtitleContainer);
+  makeSubtitleDraggable(subtitleContainer);
+
+  // 保存済みの位置があれば復元
+  const { subtitle_pos } = await chrome.storage.local.get('subtitle_pos');
+  if (subtitle_pos) {
+    subtitleContainer.style.bottom    = '';
+    subtitleContainer.style.transform = '';
+    subtitleContainer.style.left = subtitle_pos.left + 'px';
+    subtitleContainer.style.top  = subtitle_pos.top  + 'px';
+  }
+}
+
+function makeSubtitleDraggable(el) {
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // bottom/transform → top/left に変換
+    const rect = el.getBoundingClientRect();
+    el.style.bottom    = '';
+    el.style.transform = '';
+    el.style.top  = rect.top  + 'px';
+    el.style.left = rect.left + 'px';
+    el.style.cursor = 'grabbing';
+
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+
+    const onMove = e => {
+      el.style.left = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  e.clientX - offsetX)) + 'px';
+      el.style.top  = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, e.clientY - offsetY)) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      el.style.cursor = 'grab';
+      chrome.storage.local.set({ subtitle_pos: {
+        left: parseFloat(el.style.left),
+        top:  parseFloat(el.style.top),
+      }});
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+  });
 }
 
 function showSubtitle(text, isFinal) {

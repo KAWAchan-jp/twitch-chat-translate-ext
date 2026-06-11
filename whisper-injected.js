@@ -1,11 +1,15 @@
 // Twitch ページの MAIN world で動作するモジュールスクリプト
 // content.js が <script type="module"> として注入する
-// Service Worker / offscreen document 不要
+// @xenova/transformers v2 (自己完結型バンドル、ベアスペシファイアなし)
 
 'use strict';
 
 let transcriber = null;
 let loadPromise  = null;
+
+// import.meta.url = chrome-extension://<id>/whisper-injected.js
+// lib/ は同じ拡張機能ディレクトリ内にある
+const LIB_BASE = new URL('./lib/', import.meta.url).href;
 
 async function ensureTranscriber() {
   if (transcriber) return;
@@ -14,18 +18,22 @@ async function ensureTranscriber() {
   loadPromise = (async () => {
     emitStatus('Whisper モデルをロード中...');
 
-    // import.meta.url = chrome-extension://<id>/whisper-injected.js
-    // → ./lib/ は chrome-extension://<id>/lib/ に解決される
-    const { pipeline, env } = await import('./lib/transformers.web.min.js');
+    const { pipeline, env } = await import(LIB_BASE + 'transformers.min.js');
+
+    // WASM バイナリを拡張機能の lib/ から読み込む（Twitch CSP の影響を受けない）
+    // デフォルトは CDN だが、chrome-extension:// の local WASM に上書き
+    env.backends.onnx.wasm.wasmPaths = LIB_BASE;
+    // スレッドなし = ort-wasm-simd.wasm を使用（SharedArrayBuffer 不要）
+    env.backends.onnx.wasm.numThreads = 1;
+
     env.useBrowserCache  = true;
     env.allowLocalModels = false;
 
     transcriber = await pipeline(
       'automatic-speech-recognition',
-      'onnx-community/whisper-tiny',
+      'Xenova/whisper-tiny',
       {
-        device: 'auto',
-        dtype:  'q4',
+        quantized: true,
         progress_callback: ({ status, name, progress }) => {
           if (status === 'downloading') {
             emitStatus(`DL中: ${name ?? ''} (${Math.round(progress ?? 0)}%)`);
@@ -47,7 +55,6 @@ async function ensureTranscriber() {
 window.addEventListener('__tct_whisper_transcribe', async ({ detail }) => {
   const { audioBase64, mimeType, language, requestId } = detail;
 
-  // WebM blob → Blob URL → Transformers.js が内部でデコード＆リサンプリング
   const bytes = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0));
   const url   = URL.createObjectURL(new Blob([bytes], { type: mimeType || 'audio/webm' }));
 
