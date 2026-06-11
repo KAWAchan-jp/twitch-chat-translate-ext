@@ -141,6 +141,15 @@
         </div>
         <p class="hint">発話が止まってからこの時間が経過すると処理を開始します。短くすると応答が速くなりますが誤検知が増えます。</p>
       </div>
+      <div class="field">
+        <label for="whisperMaxChunkMs">チャンク最大長（現在: <span id="whisperMaxChunkMsVal">5</span>秒）</label>
+        <div class="slider-row">
+          <span class="slider-label">1秒</span>
+          <input type="range" id="whisperMaxChunkMs" min="1000" max="8000" step="500" value="5000">
+          <span class="slider-label">8秒</span>
+        </div>
+        <p class="hint">無音が検出されない場合でもこの時間で強制的に処理します。短くするとラグが減りますが長い発話が途切れます。</p>
+      </div>
     </section>
 
     <section class="card muted">

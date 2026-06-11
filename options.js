@@ -168,3 +168,19 @@ minLengthEl.addEventListener('input', () => {
   minLengthValEl.textContent = minLengthEl.value;
   chrome.storage.local.set({ min_length: Number(minLengthEl.value) });
 });
+
+// ===== チャンク最大長 =====
+const whisperMaxChunkMsEl  = document.getElementById('whisperMaxChunkMs');
+const whisperMaxChunkMsVal = document.getElementById('whisperMaxChunkMsVal');
+
+chrome.storage.local.get('whisper_max_chunk_ms', ({ whisper_max_chunk_ms }) => {
+  const ms = whisper_max_chunk_ms ?? 5000;
+  whisperMaxChunkMsEl.value       = ms;
+  whisperMaxChunkMsVal.textContent = (ms / 1000).toFixed(1).replace('.0', '');
+});
+
+whisperMaxChunkMsEl.addEventListener('input', () => {
+  const ms = Number(whisperMaxChunkMsEl.value);
+  whisperMaxChunkMsVal.textContent = (ms / 1000).toFixed(1).replace('.0', '');
+  chrome.storage.local.set({ whisper_max_chunk_ms: ms });
+});

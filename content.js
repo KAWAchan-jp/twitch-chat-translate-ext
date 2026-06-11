@@ -47,7 +47,7 @@ let twitchToken     = '';
 let twitchUsername  = '';
 let translateQueue  = Promise.resolve();
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '' };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_max_chunk_ms: 5000 };
 
 // 音声関連
 let voiceStream        = null;
@@ -57,13 +57,9 @@ let voiceDestNode      = null; // MediaStreamDestinationNode（start/stop ごと
 let mediaRecorder      = null;
 let audioChunks        = [];
 let hadSpeech          = false;
-let isSendingChunk     = false;
 let voiceSessionTimer  = null;
 let cableLevel         = 0;
 let isVoiceActive      = false;
-
-// VAD パラメータ（settings から動的に読む）
-const VAD_MAX_CHUNK_MS = 5000;
 // settings.vad_threshold と settings.vad_silence_ms を使用
 let subtitleContainer = null;
 let subtitleFadeTimer = null;
@@ -249,7 +245,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt',
+    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_max_chunk_ms',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own',
   ]);
   settings = { ...settings, ...stored };
@@ -358,7 +354,8 @@ function onSettingsChanged(changes) {
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
   if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;
   if (changes.whisper_model)  settings.whisper_model  = changes.whisper_model.newValue;
-  if (changes.whisper_prompt) settings.whisper_prompt = changes.whisper_prompt.newValue;
+  if (changes.whisper_prompt)        settings.whisper_prompt        = changes.whisper_prompt.newValue;
+  if (changes.whisper_max_chunk_ms)  settings.whisper_max_chunk_ms  = changes.whisper_max_chunk_ms.newValue;
 }
 
 function notifyBadge(active) {
@@ -894,32 +891,34 @@ async function startVoice() {
       vadTimer = setTimeout(checkVAD, 80);
     };
 
-    mediaRecorder.onstop = async () => {
+    mediaRecorder.onstop = () => {
       clearTimeout(vadTimer);
-      const wasSpeech = hadSpeech;
-      if (wasSpeech && audioChunks.length > 0 && !isSendingChunk) {
-        isSendingChunk = true;
-        showSubtitle('🔄 認識中...', false);
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
-        try {
-          const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
-          if (text?.trim()) await handleFinalTranscript(text.trim());
-          else showSubtitle(`🎤 録音中 (${cableLevel}%)`, false);
-        } catch (err) {
-          showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
-        } finally {
-          isSendingChunk = false;
-        }
-      }
+      const chunks     = audioChunks;   // 現在のチャンクを捕捉
+      const wasSpeech  = hadSpeech;
+
+      // 次の録音を即座に開始（並列処理）
       startRecordingCycle();
+
+      if (wasSpeech && chunks.length > 0) {
+        showSubtitle('🔄 認識中...', false);
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        (async () => {
+          try {
+            const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
+            if (!isVoiceActive) return; // 停止済みなら捨てる
+            if (text?.trim()) await handleFinalTranscript(text.trim());
+          } catch (err) {
+            if (isVoiceActive) showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
+          }
+        })();
+      }
     };
 
-    mediaRecorder.start(100); // 100ms ごとにデータを蓄積
+    mediaRecorder.start(100);
     checkVAD();
-    // 発話が続く場合の上限（VAD_MAX_CHUNK_MS）
     voiceSessionTimer = setTimeout(() => {
       if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
-    }, VAD_MAX_CHUNK_MS);
+    }, settings.whisper_max_chunk_ms ?? 5000);
   }
   startRecordingCycle();
   showSubtitle('🎤 録音開始', false);
