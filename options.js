@@ -91,6 +91,7 @@ function startDownload(value) {
   activeDownload = { value, worker };
 
   worker.addEventListener('error', (e) => {
+    clearTimeout(idleTimer);
     console.error('[TCT-DL] worker error:', e.message, e);
     worker.terminate();
     activeDownload = null;
@@ -98,6 +99,15 @@ function startDownload(value) {
       <span class="dl-badge dl-badge--err">エラー: ${e.message ?? 'worker crashed'}</span>
       <button class="btn-primary btn-sm" data-action="download" data-model="${value}">再試行</button>`);
   });
+
+  const finishDownload = async () => {
+    clearTimeout(idleTimer);
+    worker.terminate();
+    activeDownload = null;
+    downloadedModels = [...new Set([...downloadedModels, value])];
+    await chrome.storage.local.set({ downloaded_models: downloadedModels });
+    setModelStatus(value, statusHTML(value, true));
+  };
 
   worker.addEventListener('message', async ({ data }) => {
     const { type } = data;
@@ -110,28 +120,19 @@ function startDownload(value) {
       const fill = document.getElementById(`dl-fill-${value}`);
       if (txt)  txt.textContent  = `DL中... ${pct}%　${fname}`;
       if (fill) fill.style.width = `${pct}%`;
+      // 全ファイルDL完了後3秒でワーカー終了（シェーダーコンパイル前に切り上げ）
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        const t = document.getElementById(`dl-txt-${value}`);
-        if (t) t.textContent = 'GPU初期化中... しばらくお待ちください';
-      }, 1200);
+      if (pct >= 100) {
+        idleTimer = setTimeout(finishDownload, 3000);
+      }
     } else if (type === 'status') {
       const txt  = document.getElementById(`dl-txt-${value}`);
       const fill = document.getElementById(`dl-fill-${value}`);
       if (txt)  txt.textContent  = data.text;
       if (fill) fill.style.width = '100%';
     } else if (type === 'download_complete') {
-      worker.terminate();
-      activeDownload = null;
-      if (data.ok) {
-        downloadedModels = [...new Set([...downloadedModels, value])];
-        await chrome.storage.local.set({ downloaded_models: downloadedModels });
-        setModelStatus(value, statusHTML(value, true));
-      } else {
-        setModelStatus(value, `
-          <span class="dl-badge dl-badge--err">エラー</span>
-          <button class="btn-primary btn-sm" data-action="download" data-model="${value}">再試行</button>`);
-      }
+      // 小さいモデルはシェーダーコンパイルまで完了した場合もここに来る
+      await finishDownload();
     }
   });
 
