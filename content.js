@@ -46,8 +46,9 @@ let subtitleContainer = null;
 let subtitleFadeTimer = null;
 
 // ===== Shadow DOM 内のDOM参照 =====
-let container, shadowRoot, panel, messagesEl, statusDotEl, channelNameEl, langIndicatorEl, msgCountEl;
+let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, msgCountEl;
 let authBarEl, loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
+let scrollPaused = false;
 let chatInputEl, sendBtnEl;
 
 // ===== フローティングパネルのCSS =====
@@ -166,6 +167,15 @@ const PANEL_CSS = `
   .messages::-webkit-scrollbar       { width: 4px; }
   .messages::-webkit-scrollbar-track { background: transparent; }
   .messages::-webkit-scrollbar-thumb { background: #3d3d40; border-radius: 2px; }
+
+  .scroll-to-bottom {
+    position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
+    background: #9147ff; color: #fff; border: none; border-radius: 14px;
+    padding: 4px 14px; font-size: 12px; cursor: pointer; white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4); opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .scroll-to-bottom.visible { opacity: 1; pointer-events: auto; }
 
   .msg { font-size: 13px; line-height: 1.45; border-bottom: 1px solid #1e1e21; padding-bottom: 5px; }
   .msg:last-child { border-bottom: none; }
@@ -371,6 +381,7 @@ function createPanel() {
         <button class="groq-open-btn" id="groqOpenBtn">設定を開く</button>
       </div>
       <div class="messages" id="messages"></div>
+      <button class="scroll-to-bottom" id="scrollToBottomBtn">↓ 最新へ</button>
       <div class="input-area" id="inputArea">
         <input type="text" class="chat-input" id="chatInput" autocomplete="off" spellcheck="false">
         <button class="send-btn" id="sendBtn">送信</button>
@@ -386,8 +397,9 @@ function createPanel() {
   channelNameEl     = shadowRoot.getElementById('channelName');
   langIndicatorEl   = shadowRoot.getElementById('langIndicator');
   msgCountEl        = shadowRoot.getElementById('msgCount');
-  messagesEl     = shadowRoot.getElementById('messages');
-  authBarEl      = shadowRoot.getElementById('authBar');
+  messagesEl          = shadowRoot.getElementById('messages');
+  scrollToBottomBtnEl = shadowRoot.getElementById('scrollToBottomBtn');
+  authBarEl           = shadowRoot.getElementById('authBar');
   loginBtnEl     = shadowRoot.getElementById('loginBtn');
   authInfoEl     = shadowRoot.getElementById('authInfo');
   authUsernameEl = shadowRoot.getElementById('authUsername');
@@ -412,6 +424,18 @@ function createPanel() {
   chatInputEl.addEventListener('keypress', e => e.stopPropagation());
 
   sendBtnEl.addEventListener('click', sendUserMessage);
+
+  messagesEl.addEventListener('scroll', () => {
+    const atBottom = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 30;
+    scrollPaused = !atBottom;
+    scrollToBottomBtnEl.classList.toggle('visible', scrollPaused);
+  });
+
+  scrollToBottomBtnEl.addEventListener('click', () => {
+    scrollPaused = false;
+    scrollToBottomBtnEl.classList.remove('visible');
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  });
 
   updateAuthUI();
   updateInputPlaceholder();
@@ -601,6 +625,8 @@ function resetMessages() {
   messagesEl.innerHTML = '';
   messageCount = 0;
   if (msgCountEl) msgCountEl.textContent = '0 msgs';
+  scrollPaused = false;
+  scrollToBottomBtnEl?.classList.remove('visible');
 }
 
 // ===== IRCメッセージ処理 =====
@@ -707,7 +733,10 @@ function trimMessages() {
   while (messagesEl.children.length > MAX_MESSAGES) messagesEl.removeChild(messagesEl.firstChild);
 }
 
-function scrollToBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+function scrollToBottom() {
+  if (scrollPaused) return;
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
 
 // ===== チャット送信（IRC WebSocket 経由） =====
 async function sendUserMessage() {
