@@ -899,15 +899,17 @@ async function startVoice() {
       startRecordingCycle();
 
       if (wasSpeech && chunks.length > 0) {
-        showSubtitle('🔄 認識中...', false);
+        setSubtitleProcessing(true);
         const blob = new Blob(chunks, { type: 'audio/webm' });
         (async () => {
           try {
             const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
-            if (!isVoiceActive) return; // 停止済みなら捨てる
+            if (!isVoiceActive) return;
             if (text?.trim()) await handleFinalTranscript(text.trim());
           } catch (err) {
             if (isVoiceActive) showSubtitle(`⚠ 認識エラー: ${err.message}`, false);
+          } finally {
+            setSubtitleProcessing(false);
           }
         })();
       }
@@ -1104,24 +1106,32 @@ function makeSubtitleDraggable(el) {
 function showSubtitle(text, isFinal) {
   if (!subtitleContainer) return;
   clearTimeout(subtitleFadeTimer);
-  subtitleContainer.style.opacity   = '1';
+  subtitleContainer.style.opacity    = '1';
   subtitleContainer.style.transition = 'none';
-  subtitleContainer.innerHTML = `
-    <span style="
-      display:inline-block;
-      background:rgba(0,0,0,0.75);
-      color:${isFinal ? '#ffffff' : '#aaaaaa'};
-      font-size:${settings.subtitle_font_size ?? 22}px;
-      font-weight:${isFinal ? '700' : '400'};
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-      padding:8px 18px;
-      border-radius:6px;
-      line-height:1.4;
-      font-style:${isFinal ? 'normal' : 'italic'};
-    ">${escapeHtml(text)}</span>
-  `;
+
+  let textEl = subtitleContainer.querySelector('.tct-sub-text');
+  if (!textEl) {
+    subtitleContainer.innerHTML = '<span class="tct-sub-text"></span>';
+    textEl = subtitleContainer.querySelector('.tct-sub-text');
+    Object.assign(textEl.style, {
+      display: 'inline-block',
+      background: 'rgba(0,0,0,0.75)',
+      fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      padding: '8px 18px',
+      borderRadius: '6px',
+      lineHeight: '1.4',
+    });
+  }
+
+  textEl.textContent = text;
+  Object.assign(textEl.style, {
+    color:      isFinal ? '#ffffff' : '#aaaaaa',
+    fontSize:   `${settings.subtitle_font_size ?? 22}px`,
+    fontWeight: isFinal ? '700' : '400',
+    fontStyle:  isFinal ? 'normal' : 'italic',
+  });
+
   if (isFinal) {
-    // 確定テキストは4秒後にフェードアウト
     subtitleFadeTimer = setTimeout(() => {
       subtitleContainer.style.transition = 'opacity 0.8s';
       subtitleContainer.style.opacity = '0';
@@ -1129,10 +1139,39 @@ function showSubtitle(text, isFinal) {
   }
 }
 
+function setSubtitleProcessing(active) {
+  if (!subtitleContainer) return;
+  let dot = subtitleContainer.querySelector('.tct-sub-dot');
+  if (active) {
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'tct-sub-dot';
+      Object.assign(dot.style, {
+        position: 'absolute', top: '2px', right: '6px',
+        width: '7px', height: '7px',
+        background: '#9147ff', borderRadius: '50%',
+        animation: 'tct-pulse 1s infinite',
+      });
+      // アニメーション定義（1回だけ挿入）
+      if (!document.getElementById('tct-sub-style')) {
+        const s = document.createElement('style');
+        s.id = 'tct-sub-style';
+        s.textContent = '@keyframes tct-pulse{0%,100%{opacity:1}50%{opacity:0.2}}';
+        document.head.appendChild(s);
+      }
+      subtitleContainer.style.position = 'fixed'; // dotのabsolute基準
+      subtitleContainer.appendChild(dot);
+    }
+  } else {
+    dot?.remove();
+  }
+}
+
 function clearSubtitle() {
   if (!subtitleContainer) return;
   clearTimeout(subtitleFadeTimer);
   subtitleContainer.innerHTML = '';
+  subtitleContainer.style.opacity = '1';
 }
 
 function updateVoiceBtn() {
