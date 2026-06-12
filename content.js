@@ -532,7 +532,10 @@ function onSettingsChanged(changes) {
   if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
   if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;
-  if (changes.whisper_model)         settings.whisper_model         = changes.whisper_model.newValue;
+  if (changes.whisper_model) {
+    settings.whisper_model = changes.whisper_model.newValue;
+    restartWhisperWorkers(); // 切替時に新旧モデルがVRAMに同居して固まるのを防ぐため、ワーカーごと作り直す
+  }
   if (changes.whisper_prompt)         settings.whisper_prompt         = changes.whisper_prompt.newValue;
   if (changes.whisper_prompt_default) settings.whisper_prompt_default = changes.whisper_prompt_default.newValue;
   if (changes.whisper_max_chunk_ms)  settings.whisper_max_chunk_ms  = changes.whisper_max_chunk_ms.newValue;
@@ -1240,9 +1243,20 @@ async function startVoice() {
             console.log(`[TCT] ← Whisper結果: "${text}"`);
             if (!isVoiceActive) return;
             if (text?.trim() && text.trim().length >= 3) {
+              whisperConsecutiveDiscards = 0;
               transcriptHistory.push(text.trim());
               if (transcriptHistory.length > 6) transcriptHistory.shift();
               await handleFinalTranscript(text.trim());
+            } else {
+              // 発話ありのチャンクが連続で破棄される＝モデルが縮退状態（fp16破損等）の可能性
+              // → ワーカーを再起動して復旧させる
+              whisperConsecutiveDiscards++;
+              if (whisperConsecutiveDiscards >= WHISPER_MAX_CONSECUTIVE_DISCARDS) {
+                console.warn(`[TCT] 連続${whisperConsecutiveDiscards}回破棄 → 認識が不安定なためワーカーを再起動`);
+                whisperConsecutiveDiscards = 0;
+                restartWhisperWorkers();
+                showSubtitle('認識が不安定なため再初期化中...', false);
+              }
             }
           } catch (err) {
             if (err.message === 'worker trimmed') return; // WebGPU検出時の想定内キャンセル
@@ -1318,6 +1332,8 @@ const WHISPER_WORKER_COUNT  = 4; // 並列数（80%カバー率目安）
 const whisperSlots          = []; // { worker, busy, ready }
 const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer, slot }
 let _decodeAudioCtx = null; // PCMデコード用に再利用するAudioContext
+const WHISPER_MAX_CONSECUTIVE_DISCARDS = 8; // 発話チャンクがこの回数連続で破棄されたらワーカー再起動
+let whisperConsecutiveDiscards = 0;
 
 function createWhisperSlot() {
   const scriptUrl = chrome.runtime.getURL('whisper-worker.js');
@@ -1386,6 +1402,22 @@ function createWhisperSlot() {
 
   slot.worker.postMessage({ type: 'init', libBase });
   return slot;
+}
+
+// 全ワーカーを破棄する（モデル切替時のVRAM確実解放用）。次の推論時に新規生成される
+function restartWhisperWorkers() {
+  if (whisperSlots.length === 0) return;
+  console.log('[TCT] モデル変更 → Whisperワーカーを再起動');
+  for (const s of whisperSlots) {
+    try { s.worker.terminate(); } catch (_) {}
+  }
+  whisperSlots.length = 0;
+  // 破棄したワーカー宛の保留中リクエストをキャンセル（'worker trimmed' は呼び出し側で想定内エラー扱い）
+  for (const [reqId, req] of pendingTranscriptions) {
+    clearTimeout(req.timer);
+    req.reject(new Error('worker trimmed'));
+  }
+  pendingTranscriptions.clear();
 }
 
 async function ensureWhisperWorkers() {

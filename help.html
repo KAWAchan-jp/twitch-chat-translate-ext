@@ -124,8 +124,36 @@
     <li>字幕ウィンドウはドラッグで移動可能</li>
   </ol>
   <div class="tip">
-    <strong>日本語配信なら Kotoba-Whisper がおすすめ。</strong>軽量版は GPU 負荷が約 1/3 で映像のカクつきも軽減されます。<br>
+    <strong>モデル選びの目安：</strong><br>
+    ① <strong>初めての方はまず Small</strong> — 軽量（244MB）・多言語対応で、どの配信でも使える万能モデル。動作確認に最適<br>
+    ② <strong>日本語配信メインなら Kotoba-Whisper 軽量版へステップアップ</strong> — 日本語認識率が大幅に向上。GPU 負荷は通常版の約 1/3<br>
+    ③ <strong>GPU がない環境は Tiny / Base</strong> — CPU でも動作します<br><br>
     Small 以上のモデルは初回起動時に GPU シェーダーのコンパイルが行われます（数分かかる場合あり）。2回目以降は高速です。
+  </div>
+
+  <h2>映像がカクつくときは（音声認識使用中）</h2>
+  <p>
+    音声認識は映像の描画と<strong>同じGPUを共有</strong>しています。推論の瞬間（1〜3秒）はGPUが混み合うため、
+    大きいモデルほど映像がカクつきやすくなります。
+  </p>
+  <h3>対策（効果順）</h3>
+  <table>
+    <tr><th>対策</th><th>設定</th><th>トレードオフ</th></tr>
+    <tr>
+      <td><strong>推論の回数を減らす</strong></td>
+      <td>オプションの「チャンク最大長」を <code>5秒 → 8秒</code>、「VAD 無音継続時間」を <code>500ms → 700ms</code></td>
+      <td>字幕の遅延が数秒増える</td>
+    </tr>
+    <tr>
+      <td><strong>軽量なモデルにする</strong></td>
+      <td>Kotoba 通常版 → 軽量版 → Small の順にGPU負荷が下がる</td>
+      <td>認識精度が段階的に下がる</td>
+    </tr>
+  </table>
+  <div class="tip">
+    <strong>豆知識：</strong>Whisper は音声の長さに関係なく1回の処理コストがほぼ一定です（常に30秒分に拡張して処理するため）。
+    そのためチャンクを長くして<strong>回数を減らす</strong>のがコスパの良いカクつき対策になります。
+    逆にチャンクを短くすると字幕は速くなりますがGPU負荷は増えます。
   </div>
 
   <h2>チャット送信</h2>
