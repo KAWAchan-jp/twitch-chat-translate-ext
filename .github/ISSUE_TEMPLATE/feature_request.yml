@@ -1,0 +1,30 @@
+name: 💡 機能要望
+description: 新機能・改善のアイデア
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: やりたいこと
+      description: どんな機能・改善が欲しいか
+      placeholder: 例：字幕の文字色を変えられるようにしてほしい
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 現状の不便な点
+      description: その機能がないことで今どう困っているか
+      placeholder: 例：明るいゲーム画面だと白い字幕が読みにくい
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternative
+    attributes:
+      label: 代替案・補足（任意）
+      placeholder: 例：縁取りを濃くするだけでもよい
+    validations:
+      required: false

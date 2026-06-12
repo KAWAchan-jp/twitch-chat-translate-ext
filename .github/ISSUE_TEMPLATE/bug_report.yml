@@ -1,0 +1,71 @@
+name: 🐛 バグ報告
+description: 動作不良・エラー・期待と違う挙動の報告
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        報告ありがとうございます。先に [トラブルシューティング](https://github.com/KAWAchan-jp/twitch-chat-translate-ext/wiki/トラブルシューティング) と [FAQ](https://github.com/KAWAchan-jp/twitch-chat-translate-ext/wiki/FAQ) に同じ症状がないか確認してもらえると助かります。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 何が起きたか
+      description: 実際に起きたことと、期待していた動作を書いてください
+      placeholder: 例：音声字幕をONにしたが「推論中...」のまま字幕が出ない。以前のバージョンでは出ていた。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      placeholder: |
+        1. ○○のチャンネルを開く
+        2. 🎤ボタンをクリック
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 拡張機能のバージョン
+      description: パネルヘッダー2行目またはオプションページ上部に表示されています
+      placeholder: 例：0.5.4.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model
+    attributes:
+      label: 使用モデル（音声字幕関連の場合）
+      options:
+        - チャット翻訳のみ（音声字幕は未使用）
+        - Tiny
+        - Base
+        - Small
+        - Medium
+        - Large-v3-Turbo
+        - Kotoba-Whisper v2.2
+        - Kotoba-Whisper v2.2 軽量版
+    validations:
+      required: false
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU環境
+      placeholder: 例：RTX 3060 / GPUなし（CPU動作）
+    validations:
+      required: false
+
+  - type: textarea
+    id: console-log
+    attributes:
+      label: コンソールログ
+      description: Twitchページで F12 → Console タブを開き、`[TCT]` で始まる行をコピーして貼ってください。エラー（赤い行）があればそれも含めてください。
+      render: shell
+    validations:
+      required: false

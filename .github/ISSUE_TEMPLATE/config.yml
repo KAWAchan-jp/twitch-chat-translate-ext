@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 トラブルシューティング（Wiki）
+    url: https://github.com/KAWAchan-jp/twitch-chat-translate-ext/wiki/トラブルシューティング
+    about: カクつき・認識不良・固まったときの対処法はこちら
+  - name: ❓ FAQ（Wiki）
+    url: https://github.com/KAWAchan-jp/twitch-chat-translate-ext/wiki/FAQ
+    about: よくある質問はこちら
