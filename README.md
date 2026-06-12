@@ -2,6 +2,9 @@
 
 ![version](https://img.shields.io/badge/version-0.5.4.0-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
+![license](https://img.shields.io/badge/license-MIT-green)
+
+📖 **詳しい使い方・FAQ・トラブルシューティングは [Wiki](https://github.com/KAWAchan-jp/twitch-chat-translate-ext/wiki) へ**（English overview available）
 
 **Twitch の言葉の壁をなくす Chrome 拡張**
 
@@ -284,3 +287,9 @@ Shadow DOM でページの CSS から分離しています（`attachShadow({ mod
 
 Issue や Pull Request を歓迎します。  
 「こんな機能があったら便利」という要望も気軽にどうぞ。
+
+---
+
+## ライセンス
+
+[MIT License](LICENSE)
