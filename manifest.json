@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Twitch Chat Translator",
-  "version": "0.5.3.0",
+  "version": "0.5.4.0",
   "description": "Twitchチャットをリアルタイム日本語翻訳",
 
   "content_security_policy": {
@@ -24,6 +24,7 @@
     "https://huggingface.co/*",
     "https://cdn-lfs.huggingface.co/*",
     "https://cdn-lfs-us-1.huggingface.co/*",
+    "https://cas-bridge.xethub.hf.co/*",
     "https://cdn.jsdelivr.net/*"
   ],
 

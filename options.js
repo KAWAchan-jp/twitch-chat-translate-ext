@@ -11,6 +11,7 @@ const MODEL_DEFS = [
   { value: 'medium',            label: 'Medium',                 size: '約769MB', note: 'GPU必須・空きVRAM 2GB以上・最高精度' },
   { value: 'large-v3-turbo',    label: 'Large-v3-Turbo',         size: '約809MB', note: 'GPU必須・空きVRAM 3GB以上・高速・高精度' },
   { value: 'kotoba-v2.2',       label: 'Kotoba-Whisper v2.2',    size: '約1.5GB', note: 'GPU必須・空きVRAM 3GB以上・⭐ 日本語特化モデル（高精度）' },
+  { value: 'kotoba-v2.2-light', label: 'Kotoba-Whisper v2.2 軽量版', size: '約530MB', note: 'GPU推奨・空きVRAM 1.5GB以上・日本語特化（低負荷・カクつき軽減）' },
 ];
 
 let selectedModel    = 'tiny';
@@ -18,14 +19,16 @@ let downloadedModels = [];
 let activeDownload   = null;
 
 function getModelName(value) {
-  if (value === 'large-v3-turbo') return 'onnx-community/whisper-large-v3-turbo';
-  if (value === 'kotoba-v2.2')    return 'onnx-community/kotoba-whisper-v2.2-ONNX';
+  if (value === 'large-v3-turbo')    return 'onnx-community/whisper-large-v3-turbo';
+  if (value === 'kotoba-v2.2')       return 'onnx-community/kotoba-whisper-v2.2-ONNX';
+  if (value === 'kotoba-v2.2-light') return 'onnx-community/kotoba-whisper-v2.2-ONNX#light'; // #light = q4f16 量子化版
   return `Xenova/whisper-${value}`;
 }
 
 function getModelCachePrefixes(value) {
   if (value === 'large-v3-turbo') return ['onnx-community/whisper-large-v3-turbo'];
-  if (value === 'kotoba-v2.2')    return ['onnx-community/kotoba-whisper-v2.2-ONNX'];
+  // 通常版・軽量版は同じリポジトリのためキャッシュ削除は共通（片方を消すと両方消える）
+  if (value === 'kotoba-v2.2' || value === 'kotoba-v2.2-light') return ['onnx-community/kotoba-whisper-v2.2-ONNX'];
   // medium は量子化版リポジトリ（-ONNX）を WebGPU で使用するため両方を含める
   if (value === 'medium') return ['Xenova/whisper-medium', 'onnx-community/whisper-medium-ONNX'];
   return [`Xenova/whisper-${value}`, `onnx-community/whisper-${value}`];
@@ -193,13 +196,13 @@ chrome.storage.local.get(['whisper_model', 'downloaded_models'], ({ whisper_mode
   renderModelTable();
 });
 
-// ===== Whisper 認識ヒント =====
+// ===== Whisper デフォルト認識ヒント（常時有効・パネルの一時ヒントとは別物） =====
 const whisperPromptEl = document.getElementById('whisperPrompt');
-chrome.storage.local.get('whisper_prompt', ({ whisper_prompt }) => {
-  whisperPromptEl.value = whisper_prompt ?? '';
+chrome.storage.local.get('whisper_prompt_default', ({ whisper_prompt_default }) => {
+  whisperPromptEl.value = whisper_prompt_default ?? '';
 });
 whisperPromptEl.addEventListener('change', () => {
-  chrome.storage.local.set({ whisper_prompt: whisperPromptEl.value.trim() });
+  chrome.storage.local.set({ whisper_prompt_default: whisperPromptEl.value.trim() });
 });
 
 // ===== 字幕フォントサイズ =====

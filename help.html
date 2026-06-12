@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Twitch Chat Translator — 使い方</title>
+  <style>
+    body {
+      background: #0e0e10; color: #efeff1;
+      font-family: "Segoe UI", "Hiragino Sans", "Meiryo", sans-serif;
+      max-width: 760px; margin: 0 auto; padding: 30px 20px 60px;
+      line-height: 1.7;
+    }
+    h1 { color: #9147ff; font-size: 24px; border-bottom: 2px solid #2a2a2e; padding-bottom: 10px; }
+    h2 { color: #bf94ff; font-size: 18px; margin-top: 36px; }
+    h3 { color: #efeff1; font-size: 15px; margin-top: 24px; margin-bottom: 8px; }
+    img { max-width: 100%; border-radius: 6px; border: 1px solid #2a2a2e; margin: 10px 0; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+    th, td { border: 1px solid #2a2a2e; padding: 8px 12px; text-align: left; }
+    th { background: #18181b; color: #bf94ff; }
+    td:first-child { white-space: nowrap; }
+    code { background: #18181b; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+    .tip { background: #18181b; border-left: 3px solid #f0b429; padding: 10px 14px; border-radius: 4px; margin: 12px 0; font-size: 14px; }
+    .orange { color: #ff9147; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Twitch Chat Translator — 使い方</h1>
+
+  <h2>パネルヘッダーの見方</h2>
+  <img src="docs/images/panel-header.png" alt="パネルヘッダー">
+  <table>
+    <tr><th>表示</th><th>説明</th></tr>
+    <tr><td>● ステータスドット</td><td>チャット接続状態（緑＝接続中、黄点滅＝接続処理中、ピンク＝切断・停止）</td></tr>
+    <tr><td><strong>#チャンネル名</strong></td><td>接続中のチャンネル。右側にプレイ中のゲーム名も表示</td></tr>
+    <tr><td><strong>EN→JA・Google</strong></td><td>翻訳方向（翻訳元→翻訳先）と使用エンジン（下記参照）。<span class="orange">オレンジ色</span>のときはこのチャンネル専用の言語設定が保存されています</td></tr>
+    <tr><td>数字（0.5.3.8 など）</td><td>拡張機能のバージョン</td></tr>
+    <tr><td><strong>💡</strong></td><td>認識ヒント入力バーの開閉</td></tr>
+    <tr><td><strong>🎤</strong></td><td>音声字幕の ON / OFF</td></tr>
+    <tr><td><strong>×</strong></td><td>パネルを閉じる（チャット受信・翻訳も停止）</td></tr>
+  </table>
+
+  <h2>翻訳エンジン（Google / DeepL）</h2>
+  <table>
+    <tr><th>エンジン</th><th>説明</th></tr>
+    <tr><td><strong>Google</strong></td><td>Google 翻訳。<strong>デフォルトのエンジン</strong>で、APIキー不要・無料・無制限で使えます</td></tr>
+    <tr><td><strong>DeepL</strong></td><td>より自然な訳文が得られる翻訳サービス。利用には <a href="https://www.deepl.com/ja/pro-api" target="_blank" style="color:#bf94ff">deepl.com</a> で取得した APIキーが必要です（無料枠：50万文字/月）</td></tr>
+  </table>
+  <p>
+    ヘッダーの表示（<code>EN→JA・Google</code> など）は、<strong>チャット翻訳に現在使われているエンジン</strong>を示します。
+    DeepL はオプションページで有効化し、「チャット翻訳・音声字幕・送信メッセージ」のどの機能に使うかを個別に選べます。
+  </p>
+  <div class="tip">
+    DeepL 有効時にエラーが発生した場合や無料枠を使い切った場合は、自動的に Google 翻訳にフォールバックします。
+    無料枠を節約したいときは、機能別トグルで必要な箇所（例：音声字幕のみ）だけ DeepL にするのがおすすめです。
+  </div>
+
+  <h2>💡 認識ヒントバー</h2>
+
+  <h3>なぜ精度が上がるのか</h3>
+  <p>
+    音声認識（Whisper）は「直前の文脈」を参考にしながら音を文字に変換します。
+    ヒントはこの文脈として最初に与えられるため、<strong>ヒントに含まれる単語は聞き取りの候補として優先される</strong>ようになります。
+    特に効果が大きいのは、音だけでは正しく書き取れない固有名詞です。
+  </p>
+  <p>
+    例：ヒントなしだと「すぷらとぅーん」→「スプラ通”ーん」のように崩れることがありますが、
+    ヒントに「スプラトゥーン3」と入れておけば最初から正しい表記で認識されます。
+  </p>
+
+  <h3>何を入れるか</h3>
+  <table>
+    <tr><th>入れると効果的</th><th>例</th></tr>
+    <tr><td>ゲームタイトル・モード名</td><td><code>スプラトゥーン3 ガチエリア サーモンラン</code></td></tr>
+    <tr><td>キャラ名・武器名・アイテム名</td><td><code>クマサン スシコラ トリカラ</code></td></tr>
+    <tr><td>配信者・コラボ相手の名前</td><td><code>しゃか 加藤純一</code></td></tr>
+    <tr><td>大会・イベント名</td><td><code>ワールドカップ 甲子園</code></td></tr>
+    <tr><td>配信内のスラング・定番フレーズ</td><td><code>ナイス キル デス</code></td></tr>
+  </table>
+  <p>単語は<strong>スペース区切り</strong>で並べるだけでOK。文章にする必要はありません。</p>
+  <p>
+    最後に「<strong>。</strong>」を付けておくと、ヒントと実際の発話の境界が明確になり、
+    認識結果（字幕）にも句読点が付きやすくなります（Whisperは直前の文体を引き継ぐ性質があるため）。必須ではありませんが、付けて損はありません。
+  </p>
+
+  <h3>書き換えるタイミング</h3>
+  <ul>
+    <li>ゲームが変わったとき（前のゲームの用語は消してよい）</li>
+    <li>話題が変わったとき（雑談→大会の話、など）</li>
+    <li>字幕で特定の単語が毎回間違っているとき → その単語の正しい表記を追加</li>
+  </ul>
+
+  <h3>注意点</h3>
+  <div class="tip">
+    <ul style="margin:0;padding-left:18px">
+      <li>ヒントは<strong>配信の言語で書く</strong>こと。英語配信なら <code>Hunt Showdown Tarkov</code> のように英語で。日本語のヒントを英語認識に混ぜると、認識言語が引っ張られて逆効果です</li>
+      <li>入力は自動保存され、<strong>次の発話から即反映</strong>。保存ボタンや再起動は不要です</li>
+      <li>ヒントを入力すると、Twitch から自動取得している「配信者名・ゲーム名」の<strong>代わり</strong>に使われます。残したい場合は自分でヒントに含めてください</li>
+      <li>Whisper がヒントとして読むのは<strong>先頭から約224トークンまで</strong>。直近の認識結果（文脈）も後ろに自動連結されるため、長文を入れると文脈が押し出されて逆効果です。<strong>関連する固有名詞 10〜20 個程度</strong>が最も効きます</li>
+      <li>空欄に戻すと自動ヒント（配信者名・ゲーム名）に戻ります。チャンネル移動時も自動でリセットされます</li>
+      <li>オプションページの「<strong>デフォルト認識ヒント</strong>」は別の設定です。あちらは全チャンネルで常時有効・リセットなしで、💡の一時ヒント（または自動ヒント）の前に結合されます</li>
+    </ul>
+  </div>
+
+  <h2>チャット翻訳</h2>
+  <table>
+    <tr><th>操作</th><th>動作</th></tr>
+    <tr><td>アイコンをクリック</td><td>パネルの表示 / 非表示を切り替え</td></tr>
+    <tr><td>アイコンを右クリック</td><td>翻訳元・翻訳先言語の変更、表示設定</td></tr>
+    <tr><td>ヘッダーをドラッグ</td><td>パネルを移動</td></tr>
+    <tr><td>右下のツマミをドラッグ</td><td>パネルをリサイズ</td></tr>
+    <tr><td>上にスクロール</td><td>自動スクロールを一時停止（「↓ 最新へ」で再開）</td></tr>
+  </table>
+  <p>チャンネルごとに言語設定が保存され、別チャンネルに移動すると自動で切り替わります。配信言語は Twitch のタグから自動検出されます。</p>
+
+  <div class="tip">
+    <strong>弾幕モード：</strong>チャットの流れが速いとき（3メッセージ/秒以上）は自動で翻訳を控え、原文のまま表示します。
+    スクロールを止める・パネルにマウスを乗せると、<strong>見えている範囲だけ</strong>翻訳されます。
+  </div>
+
+  <h2>音声字幕（ローカル Whisper）</h2>
+  <ol>
+    <li>オプションページでモデルをダウンロード（初回のみ）</li>
+    <li>パネルの 🎤 ボタンをクリックで開始</li>
+    <li>字幕ウィンドウはドラッグで移動可能</li>
+  </ol>
+  <div class="tip">
+    <strong>日本語配信なら Kotoba-Whisper がおすすめ。</strong>軽量版は GPU 負荷が約 1/3 で映像のカクつきも軽減されます。<br>
+    Small 以上のモデルは初回起動時に GPU シェーダーのコンパイルが行われます（数分かかる場合あり）。2回目以降は高速です。
+  </div>
+
+  <h2>チャット送信</h2>
+  <ol>
+    <li>パネルの「Twitchでログイン」をクリック</li>
+    <li>パネル下部の入力欄に日本語で入力して送信</li>
+    <li>自動翻訳されてチャンネルに投稿されます</li>
+  </ol>
+
+  <h2>ハルシネーション（誤認識）対策</h2>
+  <p>
+    Whisper は無音や聞き取れない音に対して「ご視聴ありがとうございました」のような存在しない言葉を出力することがあります。
+    定番パターンは自動除去されますが、新しいパターンが出たら
+    <strong>オプションページ → ハルシネーション除外パターン</strong>に登録してください（保存後すぐ反映されます）。
+  </p>
+</body>
+</html>

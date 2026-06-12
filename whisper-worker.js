@@ -11,6 +11,7 @@ const HALLUCINATION_PATTERNS = [
   'ご視聴ありがとうございました。',
   'thank you for watching',
   'thanks for watching',
+  'thank you', // 英語版Whisperの定番ハルシネーション（無音時に出る）。完全一致なので長文の本物は残る
   'please subscribe',
   'subscribe to my channel',
   '(音楽)',
@@ -98,16 +99,19 @@ async function detectDevice() {
 
 // WebGPU 用は onnx-community モデルを使用（fp16 量子化・GPU最適化済み）
 // medium は onnx-community/whisper-medium が存在しないため -ONNX サフィックス版を使用
+// モデル名は「リポジトリID#バリアント」形式（例: ...-ONNX#light は q4f16 軽量量子化版）
 function resolveModelId(modelName, device) {
+  const [id, variant] = modelName.split('#');
+  const suffix = variant ? `#${variant}` : '';
   // onnx-community モデルはそのまま使用（既に最適化済み）
-  if (modelName.startsWith('onnx-community/')) return modelName;
+  if (id.startsWith('onnx-community/')) return id + suffix;
   if (device === 'webgpu') {
-    if (modelName === 'Xenova/whisper-medium') {
-      return 'onnx-community/whisper-medium-ONNX';
+    if (id === 'Xenova/whisper-medium') {
+      return 'onnx-community/whisper-medium-ONNX' + suffix;
     }
-    return modelName.replace('Xenova/', 'onnx-community/');
+    return id.replace('Xenova/', 'onnx-community/') + suffix;
   }
-  return modelName;
+  return id + suffix;
 }
 
 let LIB_BASE          = null;
@@ -154,14 +158,17 @@ async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
     env.allowLocalModels = false;
 
     const tryLoad = async (dev, cancelRef = {}) => {
-      const mid = resolveModelId(modelName, dev);
+      const [mid, variant] = resolveModelId(modelName, dev).split('#');
+      const isLight = variant === 'light'; // q4f16 軽量量子化版（GPU負荷・VRAM約1/3）
       const deviceLabel = dev === 'webgpu' ? 'GPU' : 'CPU';
       postMessage({ type: 'status', text: `Whisper モデル準備中... (${deviceLabel})` });
       // onnx-community リポジトリは fp16 エンコーダーを使用（GPU最適化済み）
       // Xenova リポジトリは fp32 エンコーダーを使用
       const isOnnxCommunity = mid.startsWith('onnx-community/');
       const dtype = dev === 'webgpu'
-        ? { encoder_model: isOnnxCommunity ? 'fp16' : 'fp32', decoder_model_merged: 'q4' }
+        ? (isLight
+            ? { encoder_model: 'q4f16', decoder_model_merged: 'q4f16' }
+            : { encoder_model: isOnnxCommunity ? 'fp16' : 'fp32', decoder_model_merged: 'q4' })
         : { encoder_model: 'q8', decoder_model_merged: 'q4' };
 
       let idleTimer = null;
@@ -231,6 +238,19 @@ async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
           transcriber = await gpuLoadPromise;
         }
       } catch (gpuErr) {
+        // ネットワーク一時障害なら GPU で一度だけ再試行（セッション全体がCPUモードに落ちるのを防ぐ）
+        let recovered = false;
+        if (gpuErr?.message !== 'GPU_SHADER_TIMEOUT' && /network/i.test(gpuErr?.message ?? '')) {
+          console.warn('[TCT-W] ネットワークエラー → GPUロードを再試行:', gpuErr.message);
+          postMessage({ type: 'status', text: 'ネットワークエラー → 再試行中...' });
+          try {
+            transcriber = await tryLoad('webgpu');
+            recovered = true;
+          } catch (retryErr) {
+            console.warn('[TCT-W] GPU再試行も失敗:', retryErr?.message ?? retryErr);
+          }
+        }
+        if (!recovered) {
         if (gpuErr?.message === 'GPU_SHADER_TIMEOUT') {
           postMessage({ type: 'status', text: 'GPU初期化がタイムアウト → CPUモードに切り替えます' });
         } else {
@@ -241,6 +261,7 @@ async function ensureTranscriber(modelName, { useTimeout = true } = {}) {
         key     = `${modelId}:wasm`;
         postMessage({ type: 'status', text: 'CPUモードで再読込中...' });
         transcriber = await tryLoad('wasm');
+        }
       }
     } else {
       transcriber = await tryLoad('wasm');

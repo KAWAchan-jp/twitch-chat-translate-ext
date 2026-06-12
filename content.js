@@ -51,9 +51,12 @@ let isActive        = true;
 let isAuthenticated = false;
 let twitchToken     = '';
 let twitchUsername  = '';
-let translateQueue  = Promise.resolve();
+// 翻訳キュー（3並列・FIFO）
+const TRANSLATE_CONCURRENCY = 3;
+let _translateActive  = 0;
+const _translateWaiting = []; // { task, resolve, reject }
 let messageCount    = 0;
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1, downloaded_models: [] };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_prompt_default: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1, downloaded_models: [] };
 
 // 音声関連
 let voiceStream        = null;
@@ -72,7 +75,7 @@ let subtitleContainer = null;
 let subtitleFadeTimer = null;
 
 // ===== Shadow DOM 内のDOM参照 =====
-let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl;
+let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl, hintInputEl;
 let authBarEl, loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
 let scrollPaused = false;
 let chatInputEl, sendBtnEl;
@@ -173,6 +176,23 @@ const PANEL_CSS = `
   }
   .close-btn:hover { color: #efeff1; }
 
+  .hint-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 13px; line-height: 1; padding: 0 2px; flex-shrink: 0;
+    opacity: 0.5;
+  }
+  .hint-btn:hover  { opacity: 0.85; }
+  .hint-btn.active { opacity: 1; filter: drop-shadow(0 0 4px #f0b429); }
+
+  .hint-bar { padding: 4px 8px; background: #131316; border-bottom: 1px solid #2a2a2e; }
+  .hint-input {
+    width: 100%; box-sizing: border-box;
+    background: #1e1e21; border: 1px solid #3a3a3e; border-radius: 4px;
+    color: #efeff1; font-size: 11px; padding: 4px 6px; outline: none;
+  }
+  .hint-input:focus { border-color: #9147ff; }
+  .hint-input.auto  { color: #8a8a92; font-style: italic; } /* 自動ヒント表示中（編集すると通常色＝カスタム扱い） */
+
   /* 認証バー */
   .auth-bar {
     display: flex;
@@ -268,7 +288,7 @@ const PANEL_CSS = `
 async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_max_chunk_ms', 'whisper_num_beams',
+    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_prompt_default', 'whisper_max_chunk_ms', 'whisper_num_beams',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'downloaded_models', 'custom_hallucination_patterns', 'panel_opacity',
   ]);
   settings = { ...settings, ...stored };
@@ -302,8 +322,15 @@ async function detectAndConnect() {
 
   const ch = getChannelFromUrl();
   if (ch && ch !== currentChannel) {
+    const isChannelSwitch = !!currentChannel; // 初回ロードではなくチャンネル移動か
     disconnect();
     currentChannel = ch;
+    // チャンネル移動時はカスタムヒントをリセット（前の配信向けのヒントを持ち越さない）
+    if (isChannelSwitch && settings.whisper_prompt) {
+      settings.whisper_prompt = '';
+      chrome.storage.local.set({ whisper_prompt: '' });
+      console.log('[TCT] チャンネル移動 → カスタムヒントをリセット');
+    }
     await loadChannelSettings(ch);
     resetMessages();
     updateTwitchAutoPrompt(); // 即時（チャンネル名だけでも反映）
@@ -378,10 +405,34 @@ function updateTwitchAutoPrompt() {
 
   const base = WHISPER_DEFAULT_PROMPTS[settings.src_lang] || WHISPER_DEFAULT_PROMPTS.ja;
   const parts = [base];
-  if (ch) parts.push(`配信者: ${ch}。`);
-  if (gameName) parts.push(`ゲーム: ${gameName}。`);
+  // ラベルは認識言語に合わせる（日本語ラベルを英語等の認識に混ぜると言語判定が引っ張られるため）
+  if (settings.src_lang === 'ja') {
+    if (ch) parts.push(`配信者: ${ch}。`);
+    if (gameName) parts.push(`ゲーム: ${gameName}。`);
+  } else {
+    if (ch) parts.push(`Streamer: ${ch}. `);
+    if (gameName) parts.push(`Game: ${gameName}. `);
+  }
   twitchAutoPrompt = parts.join('');
   console.log(`[TCT] auto prompt: "${twitchAutoPrompt}"`);
+
+  // カスタムヒント未設定なら、いま有効な自動ヒントを入力欄にグレー表示（編集中は触らない）
+  if (hintInputEl && !settings.whisper_prompt && shadowRoot?.activeElement !== hintInputEl) {
+    syncHintInput();
+  }
+}
+
+// 入力欄の表示を現在有効なヒントに同期する
+// カスタムヒントあり → 通常色で表示 / なし → 自動ヒントをグレー（イタリック）で表示
+function syncHintInput() {
+  if (!hintInputEl) return;
+  if (settings.whisper_prompt) {
+    hintInputEl.value = settings.whisper_prompt;
+    hintInputEl.classList.remove('auto');
+  } else {
+    hintInputEl.value = twitchAutoPrompt;
+    hintInputEl.classList.add('auto');
+  }
 }
 
 let _gameLinkObserver = null;
@@ -482,7 +533,8 @@ function onSettingsChanged(changes) {
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
   if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;
   if (changes.whisper_model)         settings.whisper_model         = changes.whisper_model.newValue;
-  if (changes.whisper_prompt)        settings.whisper_prompt        = changes.whisper_prompt.newValue;
+  if (changes.whisper_prompt)         settings.whisper_prompt         = changes.whisper_prompt.newValue;
+  if (changes.whisper_prompt_default) settings.whisper_prompt_default = changes.whisper_prompt_default.newValue;
   if (changes.whisper_max_chunk_ms)  settings.whisper_max_chunk_ms  = changes.whisper_max_chunk_ms.newValue;
   if (changes.whisper_num_beams)     settings.whisper_num_beams     = changes.whisper_num_beams.newValue;
   if (changes.downloaded_models)          settings.downloaded_models          = changes.downloaded_models.newValue ?? [];
@@ -523,9 +575,14 @@ function createPanel() {
           <span class="lang-indicator" id="langIndicator"></span>
           <div class="header-spacer"></div>
           <span class="version-badge" title="バージョン">${chrome.runtime.getManifest().version}</span>
+          <button class="hint-btn" id="hintBtn" title="認識ヒント（固有名詞を入れると音声認識の精度が上がります）">💡</button>
           <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
           <button class="close-btn" id="closeBtn" title="閉じる">×</button>
         </div>
+      </div>
+      <div class="hint-bar" id="hintBar" style="display:none">
+        <input type="text" class="hint-input" id="hintInput" autocomplete="off" spellcheck="false"
+               placeholder="認識ヒント: 固有名詞をスペース区切りで（即反映）">
       </div>
       <div class="auth-bar" id="authBar">
         <button class="login-btn" id="loginBtn">Twitchでログインしてチャット送信を有効化</button>
@@ -563,6 +620,33 @@ function createPanel() {
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
+
+  // 認識ヒントバー：💡で開閉、入力は500msデバウンスでストレージ保存（次のチャンクから反映）
+  const hintBtn   = shadowRoot.getElementById('hintBtn');
+  const hintBar   = shadowRoot.getElementById('hintBar');
+  const hintInput = shadowRoot.getElementById('hintInput');
+  hintInputEl     = hintInput; // 自動ヒントのプレースホルダー更新用に保持
+  let hintSaveTimer = null;
+  hintBtn.addEventListener('click', () => {
+    const open = hintBar.style.display === 'none';
+    hintBar.style.display = open ? '' : 'none';
+    hintBtn.classList.toggle('active', open);
+    if (open) {
+      syncHintInput();
+      hintInput.focus();
+    }
+  });
+  hintInput.addEventListener('input', () => {
+    hintInput.classList.remove('auto'); // 編集した時点でカスタムヒント扱い
+    clearTimeout(hintSaveTimer);
+    hintSaveTimer = setTimeout(() => {
+      chrome.storage.local.set({ whisper_prompt: hintInput.value.trim() });
+    }, 500);
+  });
+  // 空のままフォーカスを外したら自動ヒント表示に戻す
+  hintInput.addEventListener('blur', () => {
+    if (!hintInput.value.trim()) syncHintInput();
+  });
   loginBtnEl.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'twitch_login' }));
   logoutBtnEl.addEventListener('click', handleLogout);
 
@@ -580,7 +664,12 @@ function createPanel() {
     const atBottom = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 30;
     scrollPaused = !atBottom;
     scrollToBottomBtnEl.classList.toggle('visible', scrollPaused);
+    scheduleVisibleTranslate(); // スクロールを止めた場所の未翻訳メッセージを翻訳
   });
+
+  // ホバー中は可視範囲の未翻訳メッセージを翻訳（弾幕モード時）
+  panel.addEventListener('mouseenter', () => { _panelHover = true; scheduleVisibleTranslate(); });
+  panel.addEventListener('mouseleave', () => { _panelHover = false; });
 
   scrollToBottomBtnEl.addEventListener('click', () => {
     scrollPaused = false;
@@ -821,8 +910,83 @@ function parseTags(tagStr) {
   return tags;
 }
 
+// ===== 弾幕モード判定 =====
+// 直近3秒の流速を監視し、速すぎるときは「見えているメッセージだけ翻訳」に切り替える
+const DANMAKU_WINDOW_MS   = 3000;
+const DANMAKU_ENTER_RATE  = 3;   // msg/秒 以上で弾幕モードON
+const DANMAKU_EXIT_RATE   = 1.5; // msg/秒 以下で弾幕モードOFF（ヒステリシス）
+const _msgTimestamps = [];
+let danmakuMode = false;
+let _panelHover = false;
+let _visTransTimer = null;
+
+function updateDanmakuMode() {
+  const now = Date.now();
+  _msgTimestamps.push(now);
+  while (_msgTimestamps.length && _msgTimestamps[0] < now - DANMAKU_WINDOW_MS) _msgTimestamps.shift();
+  const rate = _msgTimestamps.length / (DANMAKU_WINDOW_MS / 1000);
+  if (!danmakuMode && rate >= DANMAKU_ENTER_RATE) {
+    danmakuMode = true;
+    console.log('[TCT] 弾幕モード ON（流速が速いため可視範囲のみ翻訳）');
+  } else if (danmakuMode && rate <= DANMAKU_EXIT_RATE) {
+    danmakuMode = false;
+    console.log('[TCT] 弾幕モード OFF');
+  }
+}
+
+// パネル内に見えている未翻訳メッセージを翻訳する（弾幕モード時のスクロール停止・ホバーで発動）
+function translateVisibleMessages() {
+  if (!messagesEl) return;
+  const viewRect = messagesEl.getBoundingClientRect();
+  for (const el of messagesEl.children) {
+    if (!el._rawText || el._translated) continue;
+    const r = el.getBoundingClientRect();
+    if (r.bottom >= viewRect.top && r.top <= viewRect.bottom) {
+      el._translated = true;
+      translateMessageEl(el);
+    }
+  }
+}
+
+function scheduleVisibleTranslate() {
+  clearTimeout(_visTransTimer);
+  _visTransTimer = setTimeout(translateVisibleMessages, 200);
+}
+
+// 翻訳タスクを並列数制限付きで実行する
+function enqueueTranslation(task) {
+  return new Promise((resolve, reject) => {
+    _translateWaiting.push({ task, resolve, reject });
+    pumpTranslateQueue();
+  });
+}
+
+function pumpTranslateQueue() {
+  while (_translateActive < TRANSLATE_CONCURRENCY && _translateWaiting.length > 0) {
+    const { task, resolve, reject } = _translateWaiting.shift();
+    _translateActive++;
+    task().then(resolve, reject).finally(() => {
+      _translateActive--;
+      pumpTranslateQueue();
+    });
+  }
+}
+
+function translateMessageEl(el) {
+  const text    = el._rawText;
+  const transEl = el.querySelector('.msg-trans');
+  if (!text || !transEl) return;
+  enqueueTranslation(() =>
+    sleep(TRANSLATE_DELAY_MS)
+      .then(() => translateViaBackground(text, settings.src_lang, settings.tgt_lang, 'chat'))
+  ).then(translated => { transEl.textContent = translated; })
+   .catch(() => { /* 原文表示のまま */ });
+}
+
 // ===== メッセージ表示・翻訳 =====
 function addChatMessage(username, text, color) {
+  updateDanmakuMode();
+
   const el = document.createElement('div');
   el.className = 'msg';
   el.innerHTML = `
@@ -842,19 +1006,27 @@ function addChatMessage(username, text, color) {
     return;
   }
 
-  translateQueue = translateQueue.then(() =>
+  // 弾幕モード：原文をそのまま表示し、ユーザーがスクロールを止めた／ホバーしたときに可視分だけ翻訳
+  if (danmakuMode) {
+    transEl.textContent = text;
+    transEl.classList.remove('translating');
+    el._rawText = text;
+    if (scrollPaused || _panelHover) scheduleVisibleTranslate();
+    return;
+  }
+
+  // 通常時：受信順にキューイングして3並列で翻訳
+  enqueueTranslation(() =>
     sleep(TRANSLATE_DELAY_MS)
       .then(() => translateViaBackground(text, settings.src_lang, settings.tgt_lang, 'chat'))
-      .then(translated => {
-        transEl.textContent = translated;
-        transEl.classList.remove('translating');
-        if (settings.auto_scroll) scrollToBottom();
-      })
-      .catch(() => {
-        transEl.textContent = text + '（翻訳失敗）';
-        transEl.classList.remove('translating');
-      })
-  ).catch(() => {});
+  ).then(translated => {
+    transEl.textContent = translated;
+    transEl.classList.remove('translating');
+    if (settings.auto_scroll) scrollToBottom();
+  }).catch(() => {
+    transEl.textContent = text + '（翻訳失敗）';
+    transEl.classList.remove('translating');
+  });
 }
 
 // 自分が送信したメッセージをパネルに追加（Twitchはエコーバックしないため手動追加）
@@ -1012,7 +1184,7 @@ async function startVoice() {
       for (let i = 0; i < buf.length; i++) if (buf[i] > maxFreq) maxFreq = buf[i];
       cableLevel = Math.round(maxFreq / 255 * 100);
       if (cableLevel > (settings.vad_threshold ?? 10)) hadSpeech = true;
-      setTimeout(sampleLevel, 100);
+      setTimeout(sampleLevel, 50); // 50ms間隔で発話終了の検知を高速化
     };
     sampleLevel();
   } catch (_) {}
@@ -1042,7 +1214,7 @@ async function startVoice() {
           return;
         }
       }
-      vadTimer = setTimeout(checkVAD, 80);
+      vadTimer = setTimeout(checkVAD, 50); // 50ms間隔で無音判定を高速化
     };
 
     mediaRecorder.onstop = () => {
@@ -1121,19 +1293,31 @@ function stopVoice() {
 }
 
 async function handleFinalTranscript(text) {
+  const from = (settings.src_lang === 'auto') ? 'auto' : settings.src_lang;
+  // 翻訳元と翻訳先が同じなら翻訳不要 → 即表示（ラグ削減）
+  if (from === settings.tgt_lang) {
+    showSubtitle(text, true);
+    return;
+  }
+  // 認識結果をまず表示し、翻訳完了後に置き換える（体感ラグ削減）
+  showSubtitle(text, true);
   try {
-    const from = (settings.src_lang === 'auto') ? 'auto' : settings.src_lang;
     const translated = await translateViaBackground(text, from, settings.tgt_lang, 'voice');
     showSubtitle(translated, true);
-  } catch {
-    showSubtitle(text, true);
-  }
+  } catch { /* 原文表示のまま */ }
 }
 
 // ===== Whisper Web Worker（並列スロット方式） =====
+// 特殊なリポジトリIDを持つモデル（それ以外は Xenova/whisper-{value}）。#light は q4f16 量子化版
+const WHISPER_MODEL_IDS = {
+  'large-v3-turbo':    'onnx-community/whisper-large-v3-turbo',
+  'kotoba-v2.2':       'onnx-community/kotoba-whisper-v2.2-ONNX',
+  'kotoba-v2.2-light': 'onnx-community/kotoba-whisper-v2.2-ONNX#light',
+};
 const WHISPER_WORKER_COUNT  = 4; // 並列数（80%カバー率目安）
 const whisperSlots          = []; // { worker, busy, ready }
 const pendingTranscriptions = new Map(); // requestId → { resolve, reject, timer, slot }
+let _decodeAudioCtx = null; // PCMデコード用に再利用するAudioContext
 
 function createWhisperSlot() {
   const scriptUrl = chrome.runtime.getURL('whisper-worker.js');
@@ -1153,8 +1337,9 @@ function createWhisperSlot() {
         const label = data.device === 'webgpu' ? '🎮 GPU' : '🖥 CPU';
         console.log(`[TCT] Whisper デバイス: ${data.device}`);
         if (data.device === 'webgpu') {
-          // WebGPU は高速なのでワーカー数を2に削減（VRAM節約）
-          while (whisperSlots.length > 2) {
+          // WebGPU は高速なのでワーカー数を1に削減
+          // （複数ワーカーはモデルをVRAMに複数載せてGPUを同時に叩くため、映像描画がカクつく）
+          while (whisperSlots.length > 1) {
             const s = whisperSlots.pop();
             s.worker.terminate();
             // terminate されたワーカー宛の pending を即キャンセル
@@ -1226,15 +1411,16 @@ async function transcribeViaBackground(blob, mimeType, language) {
   slot.busy = true; // await の前に確保（レース防止）
 
   const rawBuffer = await blob.arrayBuffer();
-  const audioCtx  = new AudioContext({ sampleRate: 16000 });
+  // AudioContext は毎回生成せず再利用（生成コスト削減）
+  if (!_decodeAudioCtx || _decodeAudioCtx.state === 'closed') {
+    _decodeAudioCtx = new AudioContext({ sampleRate: 16000 });
+  }
   let decoded;
   try {
-    decoded = await audioCtx.decodeAudioData(rawBuffer);
+    decoded = await _decodeAudioCtx.decodeAudioData(rawBuffer);
   } catch (err) {
     slot.busy = false;
     throw err;
-  } finally {
-    audioCtx.close();
   }
   const float32   = new Float32Array(decoded.getChannelData(0));
   const requestId = Math.random().toString(36).slice(2);
@@ -1248,17 +1434,15 @@ async function transcribeViaBackground(blob, mimeType, language) {
 
     pendingTranscriptions.set(requestId, { resolve, reject, timer, slot });
 
-    const basePrompt    = settings.whisper_prompt || twitchAutoPrompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
+    // デフォルトヒント（常時） + 一時ヒント（💡、なければ自動ヒント） + 直近の認識履歴
+    const sessionPrompt = settings.whisper_prompt || twitchAutoPrompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
+    const basePrompt    = [settings.whisper_prompt_default, sessionPrompt].filter(Boolean).join(' ');
     const historyText   = transcriptHistory.slice(-4).join('');
     const initial_prompt = historyText ? `${basePrompt} ${historyText}`.trim() : basePrompt;
     console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model} slot=${whisperSlots.indexOf(slot)}`);
     slot.worker.postMessage(
       { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
-        model: settings.whisper_model === 'large-v3-turbo'
-          ? 'onnx-community/whisper-large-v3-turbo'
-          : settings.whisper_model === 'kotoba-v2.2'
-          ? 'onnx-community/kotoba-whisper-v2.2-ONNX'
-          : `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
+        model: WHISPER_MODEL_IDS[settings.whisper_model] ?? `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
         num_beams: settings.whisper_num_beams ?? 1,
         custom_hallucination_patterns: settings.custom_hallucination_patterns ?? [] },
       [float32.buffer]

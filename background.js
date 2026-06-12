@@ -49,6 +49,7 @@ async function buildContextMenus() {
 
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: 'open_options', title: '⚙ オプションを開く', contexts: ['action'] });
+    chrome.contextMenus.create({ id: 'open_help', title: '📖 使い方', contexts: ['action'] });
     chrome.contextMenus.create({ id: 'sep0', type: 'separator', contexts: ['action'] });
     chrome.contextMenus.create({ id: 'src_parent', title: '翻訳元言語', contexts: ['action'] });
     SRC_LANGS.forEach(([val, label]) => {
@@ -84,6 +85,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (menuItemId === 'open_options') {
     chrome.runtime.openOptionsPage();
+  } else if (menuItemId === 'open_help') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
   } else if (menuItemId.startsWith('src_')) {
     await saveChannelLangSetting(channel, 'src_lang', menuItemId.replace('src_', ''));
   } else if (menuItemId.startsWith('tgt_')) {

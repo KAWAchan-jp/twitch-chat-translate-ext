@@ -21,13 +21,14 @@
       <div class="field">
         <label>認識モデル</label>
         <div id="modelTable"></div>
-        <p class="hint">モデルを変更したあとは、Twitchページを再読み込みしてください。</p>
+        <p class="hint">✅ モデル変更は<strong>次の発話から自動で反映</strong>されます（リロード不要）。<br>⚠ <strong>音声認識の実行中に大きいモデル同士を切り替える場合のみ</strong>、VRAM節約のためTwitchページの再読み込みをおすすめします。</p>
         <p class="hint" style="margin-top:6px">⚠ Small以上のモデルはTwitchページでの<strong>初回起動時にGPUシェーダーのコンパイル</strong>が行われます（数分かかる場合あり）。パネルに「GPU シェーダー初期化中...」と表示されている間は正常です。2回目以降は高速に起動します。</p>
       </div>
       <div class="field">
-        <label for="whisperPrompt">認識ヒント（initial_prompt）</label>
-        <input type="text" id="whisperPrompt" placeholder="空欄のとき言語に応じた既定値を使用" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box">
-        <p class="hint">Whisperに文脈を伝えるヒント文。空欄のとき「Twitchゲーム実況配信。」のような言語別既定値が使われます。固有名詞（配信者名・ゲームタイトル等）を含めると認識精度が上がります。</p>
+        <label for="whisperPrompt">デフォルト認識ヒント（常時有効）</label>
+        <input type="text" id="whisperPrompt" placeholder="例: よく見るジャンルの用語・名前など（スペース区切り）" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box">
+        <p class="hint">どのチャンネルでも<strong>常に</strong>Whisperへ渡されるヒントです。チャンネル移動でもリセットされません。<br>
+        パネルの💡から入力する一時ヒント（または自動取得の配信者名・ゲーム名）の<strong>前に結合</strong>されます。よく見るジャンルの専門用語・固有名詞を入れておくと全配信で認識精度が上がります。</p>
       </div>
       <div class="field">
         <label for="subtitleFontSize">字幕フォントサイズ</label>
