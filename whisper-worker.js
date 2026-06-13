@@ -22,6 +22,19 @@ const HALLUCINATION_PATTERNS = [
   '[笑]',
   '(字幕を覚えてくれてありがとう!)',
   '(字幕を覚えてくれてありがとう)',
+  // インドネシア語
+  'terima kasih',
+  'terima kasih.',
+  'terima kasih telah menonton',
+  'terima kasih telah menonton!',
+  'terima kasih sudah menonton',
+  'sampai jumpa',
+  // 韓国語
+  '시청해주셔서 감사합니다',
+  '구독과 좋아요',
+  // スペイン語
+  'gracias por ver',
+  'gracias por ver el video',
 ];
 
 function isHallucination(text, customPatterns = []) {
