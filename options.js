@@ -221,6 +221,57 @@ fontSizeEl.addEventListener('input', () => {
   chrome.storage.local.set({ subtitle_font_size: size });
 });
 
+// ===== Groq =====
+const groqEnabledEl = document.getElementById('groqEnabled');
+const groqKeyEl     = document.getElementById('groqKey');
+const toggleGroqBtn = document.getElementById('toggleGroqKey');
+const saveGroqBtn   = document.getElementById('saveGroqBtn');
+const saveGroqMsg   = document.getElementById('saveGroqMsg');
+const groqModelEls  = document.querySelectorAll('input[name="groqModel"]');
+
+chrome.storage.local.get(['groq_enabled', 'groq_api_key', 'groq_model'], (s) => {
+  groqEnabledEl.checked = !!s.groq_enabled;
+  if (s.groq_api_key) groqKeyEl.value = s.groq_api_key;
+  const model = s.groq_model || 'whisper-large-v3-turbo';
+  groqModelEls.forEach(el => { el.checked = el.value === model; });
+});
+
+toggleGroqBtn.addEventListener('click', () => {
+  const isHidden = groqKeyEl.type === 'password';
+  groqKeyEl.type = isHidden ? 'text' : 'password';
+  toggleGroqBtn.textContent = isHidden ? '隠す' : '表示';
+});
+
+groqEnabledEl.addEventListener('change', () => {
+  chrome.storage.local.set({ groq_enabled: groqEnabledEl.checked });
+});
+
+groqModelEls.forEach(el => {
+  el.addEventListener('change', () => {
+    if (el.checked) chrome.storage.local.set({ groq_model: el.value });
+  });
+});
+
+saveGroqBtn.addEventListener('click', async () => {
+  const key = groqKeyEl.value.trim();
+  if (!key) { showGroqMsg('⚠ キーを入力してください', '#e84393'); return; }
+  const model = [...groqModelEls].find(el => el.checked)?.value ?? 'whisper-large-v3-turbo';
+  await chrome.storage.local.set({ groq_api_key: key, groq_enabled: true, groq_model: model });
+  groqEnabledEl.checked = true;
+  showGroqMsg('✓ 保存しました', '#00b894');
+});
+
+function showGroqMsg(text, color) {
+  saveGroqMsg.textContent = text;
+  saveGroqMsg.style.color = color;
+  saveGroqMsg.style.opacity = '1';
+  clearTimeout(showGroqMsg._timer);
+  showGroqMsg._timer = setTimeout(() => {
+    saveGroqMsg.style.opacity = '0';
+    setTimeout(() => { saveGroqMsg.textContent = ''; }, 300);
+  }, 3000);
+}
+
 // ===== DeepL =====
 const deeplEnabledEl = document.getElementById('deeplEnabled');
 const deeplChatEl    = document.getElementById('deeplChat');

@@ -264,6 +264,7 @@ function createPanel() {
       <div class="footer" id="footer">
         <span class="footer-item">チャット入力: <span class="footer-engine" id="footerChat">-</span></span>
         <span class="footer-item">音声: <span class="footer-engine" id="footerVoice">-</span></span>
+        <span class="footer-item">STT: <span class="footer-engine" id="footerSTT">-</span></span>
       </div>
       <div class="resize-handle" id="resizeHandle"></div>
     </div>
@@ -460,6 +461,14 @@ function updateFooter() {
   }
   voiceEl.textContent = voiceEngine;
   voiceEl.className = 'footer-engine' + (voiceEngine === 'Gemini' ? ' gemini' : voiceEngine === 'DeepL' ? ' deepl' : '');
+
+  // STT エンジン
+  const sttEl = shadowRoot?.getElementById('footerSTT');
+  if (sttEl) {
+    const sttEngine = (settings.groq_enabled && settings.groq_api_key) ? 'Groq' : 'Local';
+    sttEl.textContent = sttEngine;
+    sttEl.style.color = sttEngine === 'Groq' ? '#f0971d' : '';
+  }
 }
 
 // ===== ドラッグ移動 =====

@@ -202,6 +202,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'groq_transcribe') {
+    const { audioBase64, mimeType, language } = message;
+    groqTranscribe(audioBase64, mimeType, language)
+      .then(result => sendResponse({ ok: true, result }))
+      .catch(err  => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
   if (message.type === 'twitch_api') {
     const { url, token, clientId } = message;
     fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': clientId } })
@@ -229,6 +237,44 @@ async function handleTwitchAuth(token) {
     }
   } catch (e) {
     console.error('Twitchログイン失敗:', e);
+  }
+}
+
+async function groqTranscribe(audioBase64, mimeType, language) {
+  const stored = await chrome.storage.local.get(['groq_api_key', 'groq_model']);
+  const apiKey = stored.groq_api_key;
+  if (!apiKey) throw new Error('Groq APIキーが未設定です');
+
+  const model = stored.groq_model || 'whisper-large-v3-turbo';
+
+  const binary = atob(audioBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: mimeType });
+
+  const formData = new FormData();
+  formData.append('file', blob, 'audio.webm');
+  formData.append('model', model);
+  if (language) formData.append('language', language);
+  formData.append('response_format', 'json');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      body: formData,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(`Groq HTTP ${res.status}: ${errData.error?.message ?? res.statusText}`);
+    }
+    const data = await res.json();
+    return data.text?.trim() ?? '';
+  } finally {
+    clearTimeout(timer);
   }
 }
 

@@ -40,6 +40,40 @@
     </section>
 
     <section class="card">
+      <h2>Groq Whisper API（高速 STT）</h2>
+      <p class="hint" style="margin-bottom:14px">
+        クラウドの Groq API で音声認識を行います。ローカルより<strong>10〜20倍高速</strong>（約200ms）。<br>
+        有効時はローカル Whisper の代わりに使用されます。無料枠: 7,200秒/日（毎日リセット）。
+      </p>
+      <div class="field">
+        <label class="toggle-label">
+          <span>Groq Whisper を有効にする（ローカル Whisper より優先）</span>
+          <input type="checkbox" id="groqEnabled">
+          <span class="toggle-switch"></span>
+        </label>
+      </div>
+      <div class="field">
+        <label>認識モデル</label>
+        <div class="radio-row">
+          <label><input type="radio" name="groqModel" value="whisper-large-v3-turbo"> Large-v3-Turbo（高速・推奨）</label>
+          <label><input type="radio" name="groqModel" value="whisper-large-v3"> Large-v3（最高精度）</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="groqKey">API キー</label>
+        <div class="key-row">
+          <input type="password" id="groqKey" placeholder="gsk_..." autocomplete="off" spellcheck="false">
+          <button class="btn-ghost" id="toggleGroqKey">表示</button>
+        </div>
+        <p class="hint"><a href="https://console.groq.com/keys" target="_blank">console.groq.com</a> で取得（無料）。</p>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="saveGroqBtn">保存</button>
+        <span class="save-msg" id="saveGroqMsg"></span>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>DeepL 翻訳</h2>
       <div class="field">
         <label class="toggle-label">

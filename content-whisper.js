@@ -118,9 +118,66 @@ async function ensureWhisperWorkers() {
   await Promise.all(whisperSlots.map(s => s.ready));
 }
 
+// Groq STT 用ハルシネーションチェック（基本パターンのみ）
+const GROQ_HALLUCINATION_PATTERNS = [
+  'ご視聴ありがとうございました', 'ご視聴ありがとうございます', 'ありがとうございました',
+  'チャンネル登録よろしくお願いします', 'チャンネル登録お願いします', 'チャンネル登録',
+  '字幕は自動生成されています', 'thank you for watching', 'thanks for watching',
+  'thank you', 'please subscribe', 'subscribe to my channel',
+  '(音楽)', '[音楽]', '♪', '(笑)', '(笑い)', '[笑]',
+  'terima kasih', 'sampai jumpa',
+  '시청해주셔서 감사합니다', '구독과 좋아요',
+  'gracias por ver', 'gracias por ver el video',
+];
+
+function isGroqHallucination(text, customPatterns = []) {
+  const normalized = text.toLowerCase().replace(/[。、！？!?,.\s]/g, '');
+  if (normalized.length === 0 || normalized.length < 2) return true;
+  if (GROQ_HALLUCINATION_PATTERNS.some(p =>
+    normalized === p.toLowerCase().replace(/[。、！？!?,.\s]/g, '')
+  )) return true;
+  if (customPatterns.length > 0 && customPatterns.some(p => p && text.toLowerCase().includes(p.toLowerCase()))) return true;
+  const trimmed = text.trim();
+  if (/^\([^()]+\)$/.test(trimmed) || /^\[[^\[\]]+\]$/.test(trimmed) || /^\*[^*\n]+\*$/.test(trimmed)) return true;
+  if (trimmed.startsWith('(') && !trimmed.endsWith(')')) return true;
+  return false;
+}
+
+async function transcribeViaGroq(blob, language) {
+  showSubtitle('Groq 認識中...', false);
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  // チャンクに分割してスタックオーバーフローを防ぐ
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  const base64 = btoa(binary);
+
+  const response = await chrome.runtime.sendMessage({
+    type: 'groq_transcribe',
+    audioBase64: base64,
+    mimeType: blob.type,
+    language: language === 'auto' ? null : language,
+  });
+  if (!response.ok) throw new Error(response.error);
+
+  const text = response.result?.trim() ?? '';
+  if (isGroqHallucination(text, settings.custom_hallucination_patterns ?? [])) {
+    console.log('[TCT] Groq ハルシネーション検出 → 破棄');
+    return '';
+  }
+  return text;
+}
+
 // 音声チャンクを Worker へ送信（空きスロットがなければ null を返す）
 // Web Worker 内は AudioContext 不可のためメインスレッドで PCM デコードしてから転送
 async function transcribeViaBackground(blob, mimeType, language) {
+  // Groq STT が有効な場合はクラウドAPIを使用
+  if (settings.groq_enabled && settings.groq_api_key) {
+    return await transcribeViaGroq(blob, language);
+  }
+
   const modelKey = settings.whisper_model ?? 'tiny';
   if (!(settings.downloaded_models ?? []).includes(modelKey)) {
     showSubtitle('⚠ モデル未ダウンロード — 設定ページでDLしてください', false);
