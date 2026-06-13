@@ -218,6 +218,68 @@ const PANEL_CSS = `
     border-radius: 0 0 8px 0; z-index: 1;
   }
   .resize-handle:hover { background: linear-gradient(135deg, transparent 50%, #9147ff 50%); }
+
+  /* 利用状況ボタン */
+  .usage-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0 2px; flex-shrink: 0;
+    opacity: 0.4; transition: opacity 0.2s;
+  }
+  .usage-btn:hover  { opacity: 0.8; }
+  .usage-btn.active { opacity: 1; filter: drop-shadow(0 0 4px #f0b429); }
+
+  /* 利用状況パネル */
+  .usage-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 330px;
+    width: 260px;
+    background: #0e0e10;
+    border: 1px solid #2d2d2f;
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.65);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    z-index: 2147483646;
+    display: none;
+    opacity: var(--panel-opacity, 1);
+    transition: opacity 0.2s;
+  }
+  .usage-panel:hover  { opacity: 1 !important; }
+  .usage-panel.visible { display: block; }
+
+  .usage-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px;
+    background: #18181b;
+    border-bottom: 1px solid #2d2d2f;
+    border-radius: 8px 8px 0 0;
+    cursor: grab; user-select: none;
+    font-size: 12px; font-weight: 700; color: #efeff1;
+  }
+  .usage-panel-header:active { cursor: grabbing; }
+
+  .usage-panel-close {
+    background: none; border: none; color: #adadb8; cursor: pointer;
+    font-size: 16px; line-height: 1; padding: 0 2px;
+  }
+  .usage-panel-close:hover { color: #efeff1; }
+
+  .usage-body { padding: 10px 12px; }
+
+  .usage-section { margin-bottom: 10px; }
+  .usage-section:last-child { margin-bottom: 0; }
+
+  .usage-section-title {
+    font-size: 11px; font-weight: 700;
+    margin-bottom: 4px; padding-bottom: 3px;
+    border-bottom: 1px solid #2d2d2f;
+  }
+
+  .usage-row {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: #adadb8; margin: 2px 0;
+  }
+  .usage-val { color: #efeff1; font-family: 'Courier New', monospace; }
 `;
 
 // ===== パネル作成 =====
@@ -243,6 +305,7 @@ function createPanel() {
           <button class="hint-btn" id="hintBtn" title="認識ヒント（固有名詞を入れると音声認識の精度が上がります）">💡</button>
           <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
           <button class="tts-btn" id="ttsBtn" title="翻訳読み上げ ON/OFF">🔊</button>
+          <button class="usage-btn" id="usageBtn" title="利用状況">📊</button>
           <button class="close-btn" id="closeBtn" title="閉じる">×</button>
         </div>
       </div>
@@ -270,6 +333,32 @@ function createPanel() {
       </div>
       <div class="resize-handle" id="resizeHandle"></div>
     </div>
+    <div class="usage-panel" id="usagePanel">
+      <div class="usage-panel-header" id="usagePanelHeader">
+        📊 利用状況
+        <button class="usage-panel-close" id="usagePanelClose" title="閉じる">×</button>
+      </div>
+      <div class="usage-body">
+        <div class="usage-section">
+          <div class="usage-section-title" style="color:#4285f4">🤖 Gemini</div>
+          <div class="usage-row"><span>リクエスト</span><span class="usage-val" id="up-g-cnt">-</span></div>
+          <div class="usage-row"><span>入力</span><span class="usage-val" id="up-g-in">-</span></div>
+          <div class="usage-row"><span>出力</span><span class="usage-val" id="up-g-out">-</span></div>
+        </div>
+        <div class="usage-section">
+          <div class="usage-section-title" style="color:#f0971d">⚡ Groq</div>
+          <div class="usage-row"><span>リクエスト</span><span class="usage-val" id="up-r-cnt">-</span></div>
+          <div class="usage-row"><span>推定音声時間</span><span class="usage-val" id="up-r-sec">-</span></div>
+          <div class="usage-row"><span>出力文字</span><span class="usage-val" id="up-r-out">-</span></div>
+        </div>
+        <div class="usage-section">
+          <div class="usage-section-title" style="color:#00c4a0">🔵 DeepL</div>
+          <div class="usage-row"><span>リクエスト</span><span class="usage-val" id="up-d-cnt">-</span></div>
+          <div class="usage-row"><span>入力</span><span class="usage-val" id="up-d-in">-</span></div>
+          <div class="usage-row"><span>出力</span><span class="usage-val" id="up-d-out">-</span></div>
+        </div>
+      </div>
+    </div>
   `;
 
   document.body.appendChild(container);
@@ -292,6 +381,9 @@ function createPanel() {
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
   shadowRoot.getElementById('ttsBtn').addEventListener('click', toggleTts);
+  shadowRoot.getElementById('usageBtn').addEventListener('click', toggleUsagePanel);
+  shadowRoot.getElementById('usagePanelClose').addEventListener('click', toggleUsagePanel);
+  makeUsagePanelDraggable(shadowRoot.getElementById('usagePanelHeader'));
 
   // 認識ヒントバー：💡で開閉、入力は500msデバウンスでストレージ保存（次のチャンクから反映）
   const hintBtn   = shadowRoot.getElementById('hintBtn');
@@ -418,9 +510,9 @@ function handleLogout() {
 
 // ===== パネル透過率 =====
 function applyPanelOpacity() {
-  if (!panel) return;
+  if (!container) return;
   const opacity = settings.panel_opacity ?? 0.8;
-  panel.style.setProperty('--panel-opacity', opacity);
+  container.style.setProperty('--panel-opacity', opacity);
 }
 
 // ===== 状態ドット =====
@@ -449,6 +541,70 @@ function updateTtsBtn() {
   if (!btn) return;
   btn.classList.toggle('active', isTtsActive);
   btn.title = isTtsActive ? '翻訳読み上げ ON（クリックで停止）' : '翻訳読み上げ OFF（クリックで開始）';
+}
+
+// ===== 利用状況パネル =====
+let isUsagePanelVisible = false;
+
+function toggleUsagePanel() {
+  isUsagePanelVisible = !isUsagePanelVisible;
+  const el  = shadowRoot?.getElementById('usagePanel');
+  const btn = shadowRoot?.getElementById('usageBtn');
+  if (el)  el.classList.toggle('visible', isUsagePanelVisible);
+  if (btn) btn.classList.toggle('active',  isUsagePanelVisible);
+  if (isUsagePanelVisible) loadAndRenderUsagePanel();
+}
+
+function loadAndRenderUsagePanel() {
+  if (!isUsagePanelVisible) return;
+  chrome.storage.local.get([
+    'gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars',
+    'groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars',
+    'deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars',
+  ], renderUsagePanel);
+}
+
+function renderUsagePanel(u) {
+  if (!shadowRoot) return;
+  const $ = id => shadowRoot.getElementById(id);
+  if (!$('up-g-cnt')) return;
+  const fmt = n => (n ?? 0).toLocaleString();
+  const secs = u.groq_usage_secs ?? 0;
+
+  $('up-g-cnt').textContent = fmt(u.gemini_usage_count) + ' 回';
+  $('up-g-in').textContent  = fmt(u.gemini_usage_input_chars) + ' 文字';
+  $('up-g-out').textContent = fmt(u.gemini_usage_output_chars) + ' 文字';
+
+  $('up-r-cnt').textContent = fmt(u.groq_usage_count) + ' 回';
+  $('up-r-sec').textContent = secs >= 60 ? `${Math.floor(secs / 60)}分${secs % 60}秒` : `${secs}秒`;
+  $('up-r-out').textContent = fmt(u.groq_usage_output_chars) + ' 文字';
+
+  $('up-d-cnt').textContent = fmt(u.deepl_usage_count) + ' 回';
+  $('up-d-in').textContent  = fmt(u.deepl_usage_input_chars) + ' 文字';
+  $('up-d-out').textContent = fmt(u.deepl_usage_output_chars) + ' 文字';
+}
+
+function makeUsagePanelDraggable(header) {
+  const el = shadowRoot?.getElementById('usagePanel');
+  if (!el || !header) return;
+  header.addEventListener('mousedown', e => {
+    if (e.target.closest('.usage-panel-close')) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const startX = e.clientX, startY = e.clientY;
+    const startLeft = rect.left, startTop = rect.top;
+    el.style.right = 'auto'; el.style.bottom = 'auto';
+    el.style.left = startLeft + 'px'; el.style.top = startTop + 'px';
+    const onMove = e => {
+      const newLeft = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  startLeft + (e.clientX - startX)));
+      const newTop  = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, startTop  + (e.clientY - startY)));
+      el.style.left = newLeft + 'px';
+      el.style.top  = newTop  + 'px';
+    };
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 }
 
 // ===== フッター更新 =====
