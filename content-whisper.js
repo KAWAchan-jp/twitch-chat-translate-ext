@@ -421,11 +421,28 @@ const TTS_LANG_MAP = {
   hi: 'hi-IN', th: 'th-TH', vi: 'vi-VN', id: 'id-ID',
 };
 
+// 言語コードに合った最良の音声を選ぶ（Natural優先 → 同言語通常音声 → なければスキップ）
+function pickVoice(bcp47) {
+  const voices = speechSynthesis.getVoices();
+  const langPrefix = bcp47.toLowerCase().split('-')[0];
+  const sameLang = voices.filter(v => v.lang.toLowerCase().startsWith(langPrefix));
+  if (sameLang.length === 0) return null; // 対応言語なし → スキップ
+  const neural = sameLang.find(v => /natural|online/i.test(v.name));
+  return neural ?? sameLang[0];
+}
+
 function speakTranslation(text, lang) {
   if (!isTtsActive || !text?.trim()) return;
+  const bcp47 = TTS_LANG_MAP[lang] || lang;
+  const voice = pickVoice(bcp47);
+  if (!voice) {
+    console.log(`[TCT] TTS: ${lang} に対応する音声なし → スキップ`);
+    return;
+  }
   speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
-  utter.lang   = TTS_LANG_MAP[lang] || lang;
+  utter.voice  = voice;
+  utter.lang   = bcp47;
   utter.rate   = settings.tts_rate ?? 1.0;
   utter.volume = 1.0;
   speechSynthesis.speak(utter);
