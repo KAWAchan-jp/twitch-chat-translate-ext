@@ -288,7 +288,7 @@ function onSettingsChanged(changes) {
   if (changes.deepl_enabled) { settings.deepl_enabled = changes.deepl_enabled.newValue; updateLangIndicator(); updateFooter(); }
   if (changes.deepl_chat)    { settings.deepl_chat    = changes.deepl_chat.newValue;    updateLangIndicator(); updateFooter(); }
   if (changes.deepl_voice)   { settings.deepl_voice   = changes.deepl_voice.newValue;   updateFooter(); }
-  if (changes.deepl_own)       settings.deepl_own     = changes.deepl_own.newValue;
+  if (changes.deepl_own)     { settings.deepl_own     = changes.deepl_own.newValue;     updateFooter(); }
   if (changes.gemini_enabled){ settings.gemini_enabled = changes.gemini_enabled.newValue; updateFooter(); }
   if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;

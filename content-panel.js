@@ -208,7 +208,7 @@ const PANEL_CSS = `
   .footer-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .footer-engine { color: #7a7a8e; }
   .footer-engine.gemini { color: #4285f4; }
-  .footer-engine.deepl  { color: #0f2b46; filter: brightness(2.5); }
+  .footer-engine.deepl  { color: #00c4a0; }
 
   /* リサイズハンドル */
   .resize-handle {
@@ -436,8 +436,8 @@ function updateFooter() {
   const voiceEl = shadowRoot?.getElementById('footerVoice');
   if (!chatEl || !voiceEl) return;
 
-  // チャット翻訳エンジン
-  const chatEngine = (settings.deepl_enabled && settings.deepl_chat) ? 'DeepL' : 'Google';
+  // チャット翻訳エンジン（自分が入力したメッセージの翻訳）
+  const chatEngine = (settings.deepl_enabled && settings.deepl_own) ? 'DeepL' : 'Google';
   chatEl.textContent = chatEngine;
   chatEl.className = 'footer-engine' + (chatEngine === 'DeepL' ? ' deepl' : '');
 
