@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.5.4.0-9147ff)
+![version](https://img.shields.io/badge/version-0.5.5.0-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -15,6 +15,7 @@
 | 💬 **Translate chat in real time** | Instantly translate fast-moving chat into Japanese and enjoy foreign-language streams together with the chat |
 | 🎙️ **Show streamer speech as subtitles** | Automatically recognize stream audio and display real-time subtitles. No API key required; all processing is local |
 | ✏️ **Join chat in Japanese** | Type in Japanese and send automatically translated messages, even when the streamer uses another language |
+| 🤖 **Gemini AI translation** | Use Gemini AI for voice subtitles and sent-message translation. It produces natural translations for game terms and slang |
 
 ---
 
@@ -25,6 +26,7 @@
 - **Real-time translation** — Automatically translates messages as they arrive using Google Translate or DeepL, with three-way parallel processing.
 - **High-speed chat mode** — When chat is moving quickly (3 messages/sec or more), translation is automatically reduced and original messages are shown. Pause scrolling or hover to translate only the visible range and save API usage.
 - **Translation engine display** — The header always shows the translation direction and engine, such as `JA→JA・Google`. It turns orange when channel-specific settings are active.
+- **Footer translation engine indicators** — The panel footer always shows the translation engine used for your own messages and voice subtitles (Google / DeepL / Gemini).
 - **Automatic stream language detection** — Reads Twitch tags and automatically sets the source language.
 - **Floating panel** — Stays in the lower-right corner of the page. Drag the header to move it, drag the lower-right handle to resize it, and adjust opacity.
 - **Automatic channel detection** — Detects the channel from the URL and supports Twitch SPA navigation.
@@ -34,6 +36,14 @@
 - **Translate and send** — After logging in to Twitch, send translated messages from the panel input field.
 - **Minimum length filter** — Skips short taunts or emote-like strings. The character count can be adjusted.
 - **Same-language filter** — Skips messages already written in the target language.
+
+### Gemini AI Translation
+
+- **Gemini 2.0 Flash** — Uses Gemini AI for voice subtitles and sent-message translation, producing natural translations for game terms and slang.
+- **Per-feature selection** — Turn Gemini on/off separately for voice subtitles and sent messages. Chat translation remains Google / DeepL because chat volume is high and Google is recommended.
+- **Prompt editing** — Freely customize the translation prompt from the options page. `{lang}` is replaced with the target language and `{text}` with the recognized text.
+- **Fallback** — If Gemini is disabled or fails, the extension automatically falls back in order: DeepL → Google Translate.
+- **Free tier** — 1,500 requests/day and 15 requests/minute. Get an API key from Google AI Studio.
 
 ### Voice Subtitles (Local Whisper)
 
@@ -113,6 +123,19 @@ Before using voice subtitles, download a model from the options page.
 **💡 Recognition hint bar**  
 Edit hints passed to Whisper on the spot. Add proper nouns such as streamer names, character names, or technical terms separated by spaces to improve recognition accuracy. Input is saved automatically and applied from the next utterance. Update it quickly when the topic changes.
 
+### Panel Footer
+
+![Panel footer](docs/images/panel-footer.png)
+
+The panel footer shows the currently used translation engines in real time.
+
+| Display | Description |
+|---------|-------------|
+| **Chat:** | Translation engine for messages you type and send (Google / <span style="color:#00c4a0">DeepL</span>) |
+| **Voice:** | Translation engine for recognized streamer speech (Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>) |
+
+Changes made on the options page are reflected in the footer in real time.
+
 | Action | Behavior |
 |--------|----------|
 | Click the icon | Toggle the panel on/off |
@@ -172,6 +195,9 @@ Open options by right-clicking the extension icon and choosing **Options**.
 | **Enable DeepL** | Use DeepL instead of Google Translate |
 | **DeepL feature selection** | Toggle DeepL separately for chat translation, voice subtitles, and sent messages |
 | **DeepL API key** | Supports both free keys ending in `:fx` and paid keys |
+| **Enable Gemini** | Enables Gemini 2.0 Flash. Per-feature toggles let you choose voice subtitles and sent messages separately |
+| **Gemini API key** | Get one from Google AI Studio. Free tier: 1,500 requests/day and 15 requests/minute |
+| **Gemini prompt** | Customize translation instructions. `{lang}` = target language, `{text}` = recognized text |
 | **Default target language** | Target language used when no channel-specific setting exists |
 | **Same-language filter** | Skip messages already in the target language |
 | **Minimum length filter** | Skip messages shorter than the specified character count |
@@ -183,7 +209,7 @@ Open options by right-clicking the extension icon and choosing **Options**.
 | **Panel opacity** | Panel background opacity: 30-100%, default 80%. The panel becomes opaque on hover |
 | **Hallucination exclusion patterns** | Register Whisper misgeneration phrases to remove them from subtitles automatically |
 
-> The DeepL free tier allows 500,000 characters per month. Use per-feature toggles to enable it only where needed.
+> The DeepL free tier allows 500,000 characters per month. The Gemini free tier allows 1,500 requests/day and 15 requests/minute. Use per-feature toggles to enable them only where needed.
 
 ---
 
@@ -193,7 +219,10 @@ Open options by right-clicking the extension icon and choosing **Options**.
 twitch-chat-translate-ext/
 ├── manifest.json           # Extension settings (Manifest V3)
 ├── background.js           # Service Worker (translation API proxy, cache, OAuth)
-├── content.js              # Content script (panel, IRC, audio recording, VAD)
+├── content.js              # Content script main (constants, state, initialization, settings)
+├── content-panel.js        # Content script (Shadow DOM panel and UI)
+├── content-chat.js         # Content script (IRC, chat translation, high-speed chat)
+├── content-whisper.js      # Content script (Whisper speech recognition and subtitles)
 ├── whisper-worker.js       # Whisper inference script running in Web Workers
 ├── auth-callback.js        # Content script for OAuth callback
 ├── help.html               # Usage page (right-click icon → “📖 Help”)
@@ -216,7 +245,9 @@ twitch-chat-translate-ext/
 
 Direct `fetch` requests to `translate.googleapis.com` are blocked by CORS, so requests are routed from `content.js` through `background.js` (Service Worker).
 
-When DeepL is enabled, the extension prioritizes the DeepL API and automatically falls back to Google Translate on errors. Results for identical text and language pairs are stored in an in-memory LRU cache to skip repeated translations.
+Translation engine priority: **Gemini → DeepL → Google**. Higher-priority engines are used when enabled, and the extension automatically falls back on errors.
+Chat translation supports Google / DeepL only because chat volume is high and Gemini is not recommended for it. Voice subtitles and sent messages can also use Gemini.
+Results for identical text and language pairs are stored in an in-memory LRU cache to skip repeated translations.
 
 ### Chat Receiving and Sending
 
@@ -265,6 +296,7 @@ The panel uses Shadow DOM to isolate it from page CSS: `attachShadow({ mode: 'op
 | Show original text | ON |
 | Auto-scroll | ON |
 | Use DeepL | OFF |
+| Use Gemini | OFF |
 | Same-language filter | OFF |
 | Minimum length filter | OFF (4 characters) |
 | VAD silence threshold | 10% |

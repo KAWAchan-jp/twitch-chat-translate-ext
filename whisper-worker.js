@@ -57,9 +57,19 @@ function isHallucination(text, customPatterns = []) {
     const rep = phrase.repeat(repCount);
     if (normalized.startsWith(rep) && rep.length / normalized.length > 0.7) return true;
   }
+  // *word* 形式アノテーションの繰り返し（例: *giggle* *giggle* *giggle*...）
+  const asteriskAnnotations = text.match(/\*[^*\n]+\*/g) ?? [];
+  if (asteriskAnnotations.length >= 3) {
+    const counts = {};
+    for (const a of asteriskAnnotations) {
+      const key = a.toLowerCase();
+      counts[key] = (counts[key] ?? 0) + 1;
+      if (counts[key] >= 3) return true;
+    }
+  }
   // n-gram高頻度繰り返し（「スッシュッシュッ」等、先頭から始まらない繰り返しも検出）
   if (normalized.length >= 12) {
-    for (let n = 2; n <= 4; n++) {
+    for (let n = 2; n <= 6; n++) {
       const grams = new Map();
       for (let i = 0; i <= normalized.length - n; i++) {
         const g = normalized.slice(i, i + n);
