@@ -20,6 +20,7 @@ const SRC_LANGS = [
   ['hi', 'ヒンディー語'],
   ['th', 'タイ語'],
   ['vi', 'ベトナム語'],
+  ['id', 'インドネシア語'],
 ];
 const TGT_LANGS = SRC_LANGS.filter(([v]) => v !== 'auto');
 
