@@ -64,7 +64,7 @@
 - **APIキー不要** — Whisper を拡張機能内でローカル実行（Transformers.js v3 + ONNX Runtime）
 - **日本語特化モデル対応** — Kotoba-Whisper v2.2（通常版・軽量版）で日本語認識率が大幅向上
 - **WebGPU 対応** — GPU が使用可能な環境では自動的に WebGPU で高速推論。使用不可の場合は CPU（WASM）に自動フォールバック
-- **タブ共有バナーなし** — Web Audio API で `<video>` 要素から直接音声を取得
+- **タブ共有バナーなし** — Web Audio API で `<video>` 要素から直接音声を取得。ボリュームの大小に関わらず音声認識が可能
 - **VAD（無音検出）** — 発話終了後に即座に処理開始（低遅延）
 - **並列ワーカー処理** — 複数の Web Worker で同時推論（CPU 時最大8並列・GPU 時は1ワーカーで映像のカクつきを防止）
 - **コンテキスト引き継ぎ** — 直近の発話をプロンプトとして渡し、文脈を維持した認識
@@ -160,7 +160,7 @@
 
 | 表示 | 説明 |
 |------|------|
-| **チャット入力:** | 自分が入力して送信するメッセージの翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>） |
+| **チャット入力:** | 自分が入力して送信するメッセージの翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>）。</br><span style="color:#e84393">**⚠ 翻訳元言語が「自動検出」の場合は翻訳送信が無効になります**</span> |
 | **音声:** | 配信者の音声認識後の翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>） |
 | **STT:** | 音声認識エンジン（Local = ローカル Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API） |
 
