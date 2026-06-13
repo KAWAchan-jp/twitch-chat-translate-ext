@@ -46,10 +46,10 @@ function isHallucination(text, customPatterns = []) {
   if (customPatterns.length > 0 && customPatterns.some(p => p && text.toLowerCase().includes(p.toLowerCase()))) return true;
   if (normalized.length === 0) return true; // 句読点・記号のみ（「。。。。」等）
   if (normalized.length < 2) return true;  // 1文字は発話の断片として破棄
-  // Whisper 非音声アノテーション：テキスト全体が (…) または […] で囲まれている
-  // 例：(小声) (シャッシュ) (パンッ) (お腹が空いている) (♪) [音楽]
+  // Whisper 非音声アノテーション：テキスト全体が (…) / […] / *…* で囲まれている
+  // 例：(小声) [音楽] *laughs* *giggle*
   const trimmed = text.trim();
-  if (/^\([^()]+\)$/.test(trimmed) || /^\[[^\[\]]+\]$/.test(trimmed)) return true;
+  if (/^\([^()]+\)$/.test(trimmed) || /^\[[^\[\]]+\]$/.test(trimmed) || /^\*[^*\n]+\*$/.test(trimmed)) return true;
   // (で始まるが)で終わらない → Whisper の自己コメント（"(I'm not sure..." 等）
   if (trimmed.startsWith('(') && !trimmed.endsWith(')')) return true;
   // 音楽記号・波線のみ（「♪~♪~」「♫♫♫」等）
