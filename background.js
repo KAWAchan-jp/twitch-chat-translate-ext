@@ -285,7 +285,7 @@ async function translateText(text, from, to, feature = 'chat') {
   const cacheKey = `${from}:${to}:${text}`;
   if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
 
-  const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_api_key', 'gemini_prompt', 'gemini_voice', 'gemini_own']);
+  const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_api_key', 'gemini_prompt', 'gemini_voice', 'gemini_own', 'gemini_model']);
   let result;
 
   // Gemini 優先（音声字幕・入力メッセージ）
@@ -293,7 +293,7 @@ async function translateText(text, from, to, feature = 'chat') {
   const useGemini = stored.gemini_enabled && stored.gemini_api_key &&
     ((feature === 'voice' && geminiVoice) || (feature === 'own' && stored.gemini_own));
   if (useGemini) {
-    try { result = await translateWithGemini(text, from, to, stored.gemini_api_key, stored.gemini_prompt || ''); } catch (e) { console.warn('[TCT] Gemini翻訳失敗、フォールバック:', e); }
+    try { result = await translateWithGemini(text, from, to, stored.gemini_api_key, stored.gemini_prompt || '', stored.gemini_model); } catch (e) { console.warn('[TCT] Gemini翻訳失敗、フォールバック:', e); }
   }
 
   if (!result) {
@@ -321,15 +321,16 @@ const GEMINI_LANG_NAMES = {
 
 const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム字幕翻訳を行います。入力は音声認識結果のため、多少の誤認識や口語表現が含まれる場合があります。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
 
-async function translateWithGemini(text, from, to, apiKey, customPrompt) {
+async function translateWithGemini(text, from, to, apiKey, customPrompt, model) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   const targetLang = GEMINI_LANG_NAMES[to] || to;
   const promptTemplate = customPrompt || GEMINI_DEFAULT_PROMPT;
   const prompt = promptTemplate.replace('{lang}', targetLang).replace('{text}', text);
+  const modelId = model || 'gemini-2.5-flash';
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

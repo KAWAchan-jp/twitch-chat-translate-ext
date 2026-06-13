@@ -344,13 +344,16 @@ const toggleGeminiBtn    = document.getElementById('toggleGeminiKey');
 const resetGeminiPromBtn = document.getElementById('resetGeminiPrompt');
 const saveGeminiBtn      = document.getElementById('saveGeminiBtn');
 const saveGeminiMsg      = document.getElementById('saveGeminiMsg');
+const geminiModelEls     = document.querySelectorAll('input[name="geminiModel"]');
 
-chrome.storage.local.get(['gemini_enabled', 'gemini_voice', 'gemini_own', 'gemini_api_key', 'gemini_prompt'], (s) => {
+chrome.storage.local.get(['gemini_enabled', 'gemini_voice', 'gemini_own', 'gemini_api_key', 'gemini_prompt', 'gemini_model'], (s) => {
   geminiEnabledEl.checked = !!s.gemini_enabled;
   geminiVoiceEl.checked   = s.gemini_voice !== false;
   geminiOwnEl.checked     = !!s.gemini_own;
   if (s.gemini_api_key) geminiKeyEl.value = s.gemini_api_key;
   geminiPromptEl.value = s.gemini_prompt ?? GEMINI_DEFAULT_PROMPT;
+  const model = s.gemini_model || 'gemini-2.5-flash';
+  geminiModelEls.forEach(el => { el.checked = el.value === model; });
 });
 
 toggleGeminiBtn.addEventListener('click', () => {
@@ -361,6 +364,12 @@ toggleGeminiBtn.addEventListener('click', () => {
 
 resetGeminiPromBtn.addEventListener('click', () => {
   geminiPromptEl.value = GEMINI_DEFAULT_PROMPT;
+});
+
+geminiModelEls.forEach(el => {
+  el.addEventListener('change', () => {
+    if (el.checked) chrome.storage.local.set({ gemini_model: el.value });
+  });
 });
 
 geminiEnabledEl.addEventListener('change', () => {
@@ -377,10 +386,11 @@ saveGeminiBtn.addEventListener('click', async () => {
   const key = geminiKeyEl.value.trim();
   if (!key) { showGeminiMsg('⚠ キーを入力してください', '#e84393'); return; }
   const prompt = geminiPromptEl.value.trim();
+  const model = [...geminiModelEls].find(el => el.checked)?.value ?? 'gemini-2.5-flash';
   await chrome.storage.local.set({
     gemini_api_key: key, gemini_enabled: true,
     gemini_voice: geminiVoiceEl.checked, gemini_own: geminiOwnEl.checked,
-    gemini_prompt: prompt,
+    gemini_prompt: prompt, gemini_model: model,
   });
   geminiEnabledEl.checked = true;
   showGeminiMsg('✓ 保存しました', '#00b894');
