@@ -437,13 +437,21 @@ function updateFooter() {
   if (!chatEl || !voiceEl) return;
 
   // チャット翻訳エンジン（自分が入力したメッセージの翻訳）
-  const chatEngine = (settings.deepl_enabled && settings.deepl_own) ? 'DeepL' : 'Google';
+  let chatEngine;
+  if (settings.gemini_enabled && settings.gemini_own) {
+    chatEngine = 'Gemini';
+  } else if (settings.deepl_enabled && settings.deepl_own) {
+    chatEngine = 'DeepL';
+  } else {
+    chatEngine = 'Google';
+  }
   chatEl.textContent = chatEngine;
-  chatEl.className = 'footer-engine' + (chatEngine === 'DeepL' ? ' deepl' : '');
+  chatEl.className = 'footer-engine' + (chatEngine === 'Gemini' ? ' gemini' : chatEngine === 'DeepL' ? ' deepl' : '');
 
   // 音声翻訳エンジン
+  const geminiVoice = settings.gemini_voice !== false;
   let voiceEngine;
-  if (settings.gemini_enabled) {
+  if (settings.gemini_enabled && geminiVoice) {
     voiceEngine = 'Gemini';
   } else if (settings.deepl_enabled && settings.deepl_voice) {
     voiceEngine = 'DeepL';

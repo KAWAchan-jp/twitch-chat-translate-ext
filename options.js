@@ -282,15 +282,24 @@ function showDeeplMsg(text, color) {
 }
 
 // ===== Gemini =====
-const geminiEnabledEl  = document.getElementById('geminiEnabled');
-const geminiKeyEl      = document.getElementById('geminiKey');
-const toggleGeminiBtn  = document.getElementById('toggleGeminiKey');
-const saveGeminiBtn    = document.getElementById('saveGeminiBtn');
-const saveGeminiMsg    = document.getElementById('saveGeminiMsg');
+const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム字幕翻訳を行います。入力は音声認識結果のため、多少の誤認識や口語表現が含まれる場合があります。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
 
-chrome.storage.local.get(['gemini_enabled', 'gemini_api_key'], (s) => {
+const geminiEnabledEl    = document.getElementById('geminiEnabled');
+const geminiVoiceEl      = document.getElementById('geminiVoice');
+const geminiOwnEl        = document.getElementById('geminiOwn');
+const geminiKeyEl        = document.getElementById('geminiKey');
+const geminiPromptEl     = document.getElementById('geminiPrompt');
+const toggleGeminiBtn    = document.getElementById('toggleGeminiKey');
+const resetGeminiPromBtn = document.getElementById('resetGeminiPrompt');
+const saveGeminiBtn      = document.getElementById('saveGeminiBtn');
+const saveGeminiMsg      = document.getElementById('saveGeminiMsg');
+
+chrome.storage.local.get(['gemini_enabled', 'gemini_voice', 'gemini_own', 'gemini_api_key', 'gemini_prompt'], (s) => {
   geminiEnabledEl.checked = !!s.gemini_enabled;
+  geminiVoiceEl.checked   = s.gemini_voice !== false;
+  geminiOwnEl.checked     = !!s.gemini_own;
   if (s.gemini_api_key) geminiKeyEl.value = s.gemini_api_key;
+  geminiPromptEl.value = s.gemini_prompt ?? GEMINI_DEFAULT_PROMPT;
 });
 
 toggleGeminiBtn.addEventListener('click', () => {
@@ -299,14 +308,29 @@ toggleGeminiBtn.addEventListener('click', () => {
   toggleGeminiBtn.textContent = isHidden ? '隠す' : '表示';
 });
 
+resetGeminiPromBtn.addEventListener('click', () => {
+  geminiPromptEl.value = GEMINI_DEFAULT_PROMPT;
+});
+
 geminiEnabledEl.addEventListener('change', () => {
   chrome.storage.local.set({ gemini_enabled: geminiEnabledEl.checked });
+});
+geminiVoiceEl.addEventListener('change', () => {
+  chrome.storage.local.set({ gemini_voice: geminiVoiceEl.checked });
+});
+geminiOwnEl.addEventListener('change', () => {
+  chrome.storage.local.set({ gemini_own: geminiOwnEl.checked });
 });
 
 saveGeminiBtn.addEventListener('click', async () => {
   const key = geminiKeyEl.value.trim();
   if (!key) { showGeminiMsg('⚠ キーを入力してください', '#e84393'); return; }
-  await chrome.storage.local.set({ gemini_api_key: key, gemini_enabled: true });
+  const prompt = geminiPromptEl.value.trim();
+  await chrome.storage.local.set({
+    gemini_api_key: key, gemini_enabled: true,
+    gemini_voice: geminiVoiceEl.checked, gemini_own: geminiOwnEl.checked,
+    gemini_prompt: prompt,
+  });
   geminiEnabledEl.checked = true;
   showGeminiMsg('✓ 保存しました', '#00b894');
 });

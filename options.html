@@ -84,14 +84,27 @@
     </section>
 
     <section class="card">
-      <h2>Gemini 翻訳（音声字幕）</h2>
-      <p class="hint" style="margin-bottom:14px">音声字幕の翻訳に Gemini AI を使用します。ゲーム用語・スラングに強く、Google Translate より自然な翻訳が得られます。<br>
+      <h2>Gemini 翻訳</h2>
+      <p class="hint" style="margin-bottom:14px">ゲーム用語・スラングに強く、Google Translate より自然な翻訳が得られます。<br>
       無効時は DeepL（設定済みの場合）→ Google Translate にフォールバックします。</p>
       <div class="field">
         <label class="toggle-label">
-          <span>音声字幕の翻訳に Gemini を使用する</span>
+          <span>Gemini を有効にする</span>
           <input type="checkbox" id="geminiEnabled">
           <span class="toggle-switch"></span>
+        </label>
+      </div>
+      <div class="field" id="geminiFeaturesField">
+        <p class="hint" style="margin-bottom:8px">Gemini を使用する機能を選択</p>
+        <label class="toggle-label toggle-label-sm">
+          <span>音声字幕</span>
+          <input type="checkbox" id="geminiVoice">
+          <span class="toggle-switch toggle-switch-sm"></span>
+        </label>
+        <label class="toggle-label toggle-label-sm">
+          <span>入力したメッセージを翻訳</span>
+          <input type="checkbox" id="geminiOwn">
+          <span class="toggle-switch toggle-switch-sm"></span>
         </label>
       </div>
       <div class="field">
@@ -101,6 +114,12 @@
           <button class="btn-ghost" id="toggleGeminiKey">表示</button>
         </div>
         <p class="hint"><a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で取得（無料）。Gemini 2.0 Flash を使用します。</p>
+      </div>
+      <div class="field">
+        <label for="geminiPrompt">翻訳プロンプト（<code>{lang}</code> が翻訳先言語名に置き換わります）</label>
+        <textarea id="geminiPrompt" rows="4" style="width:100%;box-sizing:border-box;font-size:12px;padding:6px;border-radius:4px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;resize:vertical;font-family:monospace;" spellcheck="false"></textarea>
+        <button class="btn-ghost" id="resetGeminiPrompt" style="margin-top:4px;font-size:11px;">デフォルトに戻す</button>
+        <p class="hint" style="margin-top:6px"><code>{lang}</code> = 翻訳先言語名、<code>{text}</code> = 認識したテキスト。空欄にするとデフォルトのゲーム配信向けプロンプトが使われます。</p>
       </div>
       <div class="actions">
         <button class="btn-primary" id="saveGeminiBtn">保存</button>

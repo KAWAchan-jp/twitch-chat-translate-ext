@@ -39,19 +39,39 @@
     <tr><td><strong>×</strong></td><td>パネルを閉じる（チャット受信・翻訳も停止）</td></tr>
   </table>
 
-  <h2>翻訳エンジン（Google / DeepL）</h2>
+  <h2>パネルフッターの見方</h2>
+  <img src="docs/images/panel-footer.png" alt="パネルフッター">
+  <p>パネル最下部のフッターに、現在使用中の翻訳エンジンをリアルタイムで表示します。設定変更は即座に反映されます。</p>
+  <table>
+    <tr><th>表示</th><th>説明</th></tr>
+    <tr><td><strong>チャット:</strong></td><td>自分が入力して送信するメッセージの翻訳エンジン</td></tr>
+    <tr><td><strong>音声:</strong></td><td>配信者の音声認識後の翻訳エンジン</td></tr>
+  </table>
+
+  <h2>翻訳エンジン（Google / DeepL / Gemini）</h2>
   <table>
     <tr><th>エンジン</th><th>説明</th></tr>
     <tr><td><strong>Google</strong></td><td>Google 翻訳。<strong>デフォルトのエンジン</strong>で、APIキー不要・無料・無制限で使えます</td></tr>
     <tr><td><strong>DeepL</strong></td><td>より自然な訳文が得られる翻訳サービス。利用には <a href="https://www.deepl.com/ja/pro-api" target="_blank" style="color:#bf94ff">deepl.com</a> で取得した APIキーが必要です（無料枠：50万文字/月）</td></tr>
+    <tr><td><strong>Gemini</strong></td><td>Google の AI 翻訳（Gemini 2.0 Flash）。ゲーム用語・スラングに強く自然な訳文が得られます。<a href="https://aistudio.google.com/apikey" target="_blank" style="color:#bf94ff">Google AI Studio</a> で APIキーを取得（無料）</td></tr>
   </table>
   <p>
-    ヘッダーの表示（<code>EN→JA・Google</code> など）は、<strong>チャット翻訳に現在使われているエンジン</strong>を示します。
-    DeepL はオプションページで有効化し、「チャット翻訳・音声字幕・送信メッセージ」のどの機能に使うかを個別に選べます。
+    ヘッダーの表示（<code>EN→JA・Google</code> など）は、<strong>チャット翻訳に現在使われているエンジン</strong>を示します。<br>
+    各エンジンはオプションページで有効化し、「音声字幕・送信メッセージ」のどの機能に使うかを個別に選べます。
+  </p>
+  <p><strong>優先順位：</strong> Gemini → DeepL → Google（上位が有効なら下位は使われません。エラー時は自動フォールバック）</p>
+  <div class="tip">
+    DeepL・Gemini のどちらも、エラーや枠切れの場合は自動的に Google 翻訳にフォールバックします。<br>
+    DeepL の無料枠を節約したいときは、機能別トグルで必要な箇所だけ有効にするのがおすすめです。
+  </div>
+
+  <h2>🤖 Gemini 翻訳プロンプト</h2>
+  <p>
+    オプションページの Gemini セクションで翻訳プロンプトを自由に編集できます。
+    <code>{lang}</code> が翻訳先言語名、<code>{text}</code> が認識したテキストに置き換わります。
   </p>
   <div class="tip">
-    DeepL 有効時にエラーが発生した場合や無料枠を使い切った場合は、自動的に Google 翻訳にフォールバックします。
-    無料枠を節約したいときは、機能別トグルで必要な箇所（例：音声字幕のみ）だけ DeepL にするのがおすすめです。
+    デフォルトプロンプトはゲーム配信向けに最適化されています。「デフォルトに戻す」ボタンでいつでもリセットできます。
   </div>
 
   <h2>💡 認識ヒントバー</h2>
@@ -162,6 +182,7 @@
     <li>パネル下部の入力欄に日本語で入力して送信</li>
     <li>自動翻訳されてチャンネルに投稿されます</li>
   </ol>
+  <p>翻訳エンジンはオプションで選択できます（Google / DeepL / Gemini）。使用中のエンジンはフッターの「チャット:」に表示されます。</p>
 
   <h2>ハルシネーション（誤認識）対策</h2>
   <p>
