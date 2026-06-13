@@ -412,16 +412,37 @@ function stopVoice() {
   clearSubtitle();
 }
 
+// 翻訳先言語 → BCP-47 言語タグ（speechSynthesis 用）
+const TTS_LANG_MAP = {
+  ja: 'ja-JP', en: 'en-US', ko: 'ko-KR',
+  'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW',
+  es: 'es-ES', fr: 'fr-FR', de: 'de-DE',
+  pt: 'pt-BR', ru: 'ru-RU', ar: 'ar-SA',
+  hi: 'hi-IN', th: 'th-TH', vi: 'vi-VN', id: 'id-ID',
+};
+
+function speakTranslation(text, lang) {
+  if (!isTtsActive || !text?.trim()) return;
+  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang   = TTS_LANG_MAP[lang] || lang;
+  utter.rate   = settings.tts_rate ?? 1.0;
+  utter.volume = 1.0;
+  speechSynthesis.speak(utter);
+}
+
 async function handleFinalTranscript(text) {
   const from = (settings.src_lang === 'auto') ? 'auto' : settings.src_lang;
   if (from === settings.tgt_lang) {
     showSubtitle(text, true);
+    speakTranslation(text, settings.tgt_lang);
     return;
   }
   showSubtitle(text, true);
   try {
     const translated = await translateViaBackground(text, from, settings.tgt_lang, 'voice');
     showSubtitle(translated, true);
+    speakTranslation(translated, settings.tgt_lang);
   } catch { /* 原文表示のまま */ }
 }
 

@@ -53,7 +53,7 @@ let isActive        = true;
 let isAuthenticated = false;
 let twitchToken     = '';
 let twitchUsername  = '';
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, gemini_enabled: false, gemini_voice: true, gemini_own: false, groq_enabled: false, groq_api_key: '', min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_prompt_default: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1, downloaded_models: [] };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, gemini_enabled: false, gemini_voice: true, gemini_own: false, groq_enabled: false, groq_api_key: '', tts_enabled: false, tts_rate: 1.0, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_prompt_default: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1, downloaded_models: [] };
 
 // ===== Shadow DOM 内のDOM参照 =====
 let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl, hintInputEl;
@@ -66,7 +66,7 @@ async function init() {
   const stored = await chrome.storage.local.get([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_prompt_default', 'whisper_max_chunk_ms', 'whisper_num_beams',
-    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_voice', 'gemini_own', 'groq_enabled', 'groq_api_key', 'downloaded_models', 'custom_hallucination_patterns', 'panel_opacity',
+    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_voice', 'gemini_own', 'groq_enabled', 'groq_api_key', 'tts_enabled', 'tts_rate', 'downloaded_models', 'custom_hallucination_patterns', 'panel_opacity',
   ]);
   settings = { ...settings, ...stored };
 
@@ -78,6 +78,8 @@ async function init() {
 
   createPanel();
   applyPanelOpacity();
+  // TTS の有効/無効状態をストレージから復元
+  if (stored.tts_enabled) { isTtsActive = true; updateTtsBtn(); }
   await detectAndConnect();
   hookNavigation();
 
@@ -294,6 +296,7 @@ function onSettingsChanged(changes) {
   if (changes.gemini_own)    { settings.gemini_own     = changes.gemini_own.newValue;     updateFooter(); }
   if (changes.groq_enabled)  { settings.groq_enabled   = changes.groq_enabled.newValue;   updateFooter(); }
   if (changes.groq_api_key)  { settings.groq_api_key   = changes.groq_api_key.newValue; }
+  if (changes.tts_rate)      { settings.tts_rate       = changes.tts_rate.newValue; }
   if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
   if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;

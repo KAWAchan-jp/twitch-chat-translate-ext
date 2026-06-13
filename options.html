@@ -190,6 +190,23 @@
     </section>
 
     <section class="card">
+      <h2>翻訳読み上げ（TTS）</h2>
+      <p class="hint" style="margin-bottom:14px">
+        音声字幕の翻訳結果をブラウザの音声合成で読み上げます。<br>
+        配信音量を絞って🔊ボタンをONにすると、リアルタイム吹き替えとして使えます。
+      </p>
+      <div class="field">
+        <label for="ttsRate">読み上げ速度（現在: <span id="ttsRateVal">1.0</span>倍）</label>
+        <div class="slider-row">
+          <span class="slider-label">0.5×</span>
+          <input type="range" id="ttsRate" min="0.5" max="2.0" step="0.1" value="1.0">
+          <span class="slider-label">2.0×</span>
+        </div>
+        <p class="hint">ON/OFF はパネルの 🔊 ボタンで切り替えます。速度は即時反映されます。</p>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>VAD 感度</h2>
       <div class="field">
         <label for="vadThreshold">無音判定レベル（現在: <span id="vadThresholdVal">10</span>%）</label>

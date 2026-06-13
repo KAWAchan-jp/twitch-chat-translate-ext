@@ -82,13 +82,14 @@ const PANEL_CSS = `
     font-family: 'Courier New', monospace; letter-spacing: 0.3px;
   }
 
-  .voice-btn {
+  .voice-btn, .tts-btn {
     background: none; border: none; cursor: pointer;
     font-size: 14px; line-height: 1; padding: 0 2px; flex-shrink: 0;
     opacity: 0.4; transition: opacity 0.2s;
   }
-  .voice-btn:hover  { opacity: 0.8; }
+  .voice-btn:hover, .tts-btn:hover { opacity: 0.8; }
   .voice-btn.active { opacity: 1; filter: drop-shadow(0 0 5px #ff4444); }
+  .tts-btn.active   { opacity: 1; filter: drop-shadow(0 0 5px #00c4a0); }
 
   .close-btn {
     background: none; border: none; color: #adadb8; cursor: pointer;
@@ -241,6 +242,7 @@ function createPanel() {
           <span class="version-badge" title="バージョン">${chrome.runtime.getManifest().version}</span>
           <button class="hint-btn" id="hintBtn" title="認識ヒント（固有名詞を入れると音声認識の精度が上がります）">💡</button>
           <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
+          <button class="tts-btn" id="ttsBtn" title="翻訳読み上げ ON/OFF">🔊</button>
           <button class="close-btn" id="closeBtn" title="閉じる">×</button>
         </div>
       </div>
@@ -289,6 +291,7 @@ function createPanel() {
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
+  shadowRoot.getElementById('ttsBtn').addEventListener('click', toggleTts);
 
   // 認識ヒントバー：💡で開閉、入力は500msデバウンスでストレージ保存（次のチャンクから反映）
   const hintBtn   = shadowRoot.getElementById('hintBtn');
@@ -429,6 +432,23 @@ function updateVoiceBtn() {
   if (!btn) return;
   btn.classList.toggle('active', isVoiceActive);
   btn.title = isVoiceActive ? '音声字幕 ON（クリックで停止）' : '音声字幕 OFF（クリックで開始）';
+}
+
+// ===== TTS（翻訳読み上げ）ボタン =====
+let isTtsActive = false;
+
+function toggleTts() {
+  isTtsActive = !isTtsActive;
+  if (!isTtsActive) speechSynthesis.cancel();
+  chrome.storage.local.set({ tts_enabled: isTtsActive });
+  updateTtsBtn();
+}
+
+function updateTtsBtn() {
+  const btn = shadowRoot?.getElementById('ttsBtn');
+  if (!btn) return;
+  btn.classList.toggle('active', isTtsActive);
+  btn.title = isTtsActive ? '翻訳読み上げ ON（クリックで停止）' : '翻訳読み上げ OFF（クリックで開始）';
 }
 
 // ===== フッター更新 =====

@@ -397,6 +397,22 @@ function showGeminiMsg(text, color) {
   }, 3000);
 }
 
+// ===== TTS 読み上げ速度 =====
+const ttsRateEl  = document.getElementById('ttsRate');
+const ttsRateVal = document.getElementById('ttsRateVal');
+
+chrome.storage.local.get('tts_rate', ({ tts_rate }) => {
+  const r = tts_rate ?? 1.0;
+  ttsRateEl.value       = r;
+  ttsRateVal.textContent = r.toFixed(1);
+});
+
+ttsRateEl.addEventListener('input', () => {
+  const r = Number(ttsRateEl.value);
+  ttsRateVal.textContent = r.toFixed(1);
+  chrome.storage.local.set({ tts_rate: r });
+});
+
 // ===== VAD 感度 =====
 const vadThresholdEl    = document.getElementById('vadThreshold');
 const vadThresholdVal   = document.getElementById('vadThresholdVal');
