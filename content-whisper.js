@@ -173,9 +173,14 @@ async function transcribeViaGroq(blob, language) {
 // 音声チャンクを Worker へ送信（空きスロットがなければ null を返す）
 // Web Worker 内は AudioContext 不可のためメインスレッドで PCM デコードしてから転送
 async function transcribeViaBackground(blob, mimeType, language) {
-  // Groq STT が有効な場合はクラウドAPIを使用
+  // Groq STT が有効な場合はクラウドAPIを使用（失敗時はローカルWhisperにフォールバック）
   if (settings.groq_enabled && settings.groq_api_key) {
-    return await transcribeViaGroq(blob, language);
+    try {
+      return await transcribeViaGroq(blob, language);
+    } catch (err) {
+      console.warn(`[TCT] Groq失敗 → ローカルWhisperにフォールバック: ${err.message}`);
+      showSubtitle('⚠ Groq失敗 → ローカルで認識中...', false);
+    }
   }
 
   const modelKey = settings.whisper_model ?? 'tiny';

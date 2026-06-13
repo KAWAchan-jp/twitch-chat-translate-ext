@@ -43,7 +43,8 @@
       <h2>Groq Whisper API（高速 STT）</h2>
       <p class="hint" style="margin-bottom:14px">
         クラウドの Groq API で音声認識を行います。ローカルより<strong>10〜20倍高速</strong>（約200ms）。<br>
-        有効時はローカル Whisper の代わりに使用されます。無料枠: 7,200秒/日（毎日リセット）。
+        有効時はローカル Whisper の代わりに使用されます。無料枠: 7,200秒/日（毎日リセット）。<br>
+        上限超過・エラー時は<strong>自動でローカル Whisper にフォールバック</strong>します。
       </p>
       <div class="field">
         <label class="toggle-label">
