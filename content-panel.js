@@ -195,6 +195,21 @@ const PANEL_CSS = `
   .send-btn:hover:not(:disabled) { background: #772ce8; }
   .send-btn:disabled { background: #3d3d40; cursor: default; }
 
+  /* フッター（翻訳エンジン表示） */
+  .footer {
+    display: flex; justify-content: space-between;
+    padding: 3px 8px;
+    background: #0a0a0c;
+    border-top: 1px solid #1e1e21;
+    flex-shrink: 0;
+    font-size: 10px; color: #5a5a6e;
+    font-family: 'Courier New', monospace;
+  }
+  .footer-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .footer-engine { color: #7a7a8e; }
+  .footer-engine.gemini { color: #4285f4; }
+  .footer-engine.deepl  { color: #0f2b46; filter: brightness(2.5); }
+
   /* リサイズハンドル */
   .resize-handle {
     position: absolute; bottom: 0; right: 0; width: 14px; height: 14px;
@@ -245,6 +260,10 @@ function createPanel() {
       <div class="input-area" id="inputArea">
         <input type="text" class="chat-input" id="chatInput" autocomplete="off" spellcheck="false">
         <button class="send-btn" id="sendBtn">送信</button>
+      </div>
+      <div class="footer" id="footer">
+        <span class="footer-item">チャット: <span class="footer-engine" id="footerChat">-</span></span>
+        <span class="footer-item">音声: <span class="footer-engine" id="footerVoice">-</span></span>
       </div>
       <div class="resize-handle" id="resizeHandle"></div>
     </div>
@@ -329,6 +348,7 @@ function createPanel() {
   updateAuthUI();
   updateInputPlaceholder();
   updateLangIndicator();
+  updateFooter();
   makeDraggable(shadowRoot.getElementById('header'));
   makeResizable(shadowRoot.getElementById('resizeHandle'));
 }
@@ -408,6 +428,30 @@ function updateVoiceBtn() {
   if (!btn) return;
   btn.classList.toggle('active', isVoiceActive);
   btn.title = isVoiceActive ? '音声字幕 ON（クリックで停止）' : '音声字幕 OFF（クリックで開始）';
+}
+
+// ===== フッター更新 =====
+function updateFooter() {
+  const chatEl  = shadowRoot?.getElementById('footerChat');
+  const voiceEl = shadowRoot?.getElementById('footerVoice');
+  if (!chatEl || !voiceEl) return;
+
+  // チャット翻訳エンジン
+  const chatEngine = (settings.deepl_enabled && settings.deepl_chat) ? 'DeepL' : 'Google';
+  chatEl.textContent = chatEngine;
+  chatEl.className = 'footer-engine' + (chatEngine === 'DeepL' ? ' deepl' : '');
+
+  // 音声翻訳エンジン
+  let voiceEngine;
+  if (settings.gemini_enabled) {
+    voiceEngine = 'Gemini';
+  } else if (settings.deepl_enabled && settings.deepl_voice) {
+    voiceEngine = 'DeepL';
+  } else {
+    voiceEngine = 'Google';
+  }
+  voiceEl.textContent = voiceEngine;
+  voiceEl.className = 'footer-engine' + (voiceEngine === 'Gemini' ? ' gemini' : voiceEngine === 'DeepL' ? ' deepl' : '');
 }
 
 // ===== ドラッグ移動 =====
