@@ -387,7 +387,15 @@ async function translateWithDeepl(text, from, to, apiKey) {
     });
     if (!res.ok) throw new Error(`DeepL HTTP ${res.status}`);
     const data = await res.json();
-    return data.translations?.[0]?.text ?? text;
+    const output = data.translations?.[0]?.text ?? text;
+    // 利用量を記録
+    const u = await chrome.storage.local.get(['deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars']);
+    await chrome.storage.local.set({
+      deepl_usage_count:        (u.deepl_usage_count        ?? 0) + 1,
+      deepl_usage_input_chars:  (u.deepl_usage_input_chars  ?? 0) + text.length,
+      deepl_usage_output_chars: (u.deepl_usage_output_chars ?? 0) + output.length,
+    });
+    return output;
   } finally {
     clearTimeout(timer);
   }

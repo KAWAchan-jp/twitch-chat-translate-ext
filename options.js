@@ -343,6 +343,25 @@ saveDeeplBtn.addEventListener('click', async () => {
   showDeeplMsg('✓ 保存しました', '#00b894');
 });
 
+// ===== DeepL 利用状況 =====
+function loadDeeplUsage() {
+  chrome.storage.local.get(['deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars', 'deepl_usage_reset_date'], (s) => {
+    document.getElementById('deeplUsageCount').textContent  = (s.deepl_usage_count        ?? 0).toLocaleString() + ' 回';
+    document.getElementById('deeplUsageInput').textContent  = (s.deepl_usage_input_chars  ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('deeplUsageOutput').textContent = (s.deepl_usage_output_chars ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('deeplUsageReset').textContent  = s.deepl_usage_reset_date ?? 'なし';
+  });
+}
+loadDeeplUsage();
+
+document.getElementById('resetDeeplUsage').addEventListener('click', () => {
+  const today = new Date().toLocaleDateString('ja-JP');
+  chrome.storage.local.set({
+    deepl_usage_count: 0, deepl_usage_input_chars: 0,
+    deepl_usage_output_chars: 0, deepl_usage_reset_date: today,
+  }, loadDeeplUsage);
+});
+
 function showDeeplMsg(text, color) {
   saveDeeplMsg.textContent = text;
   saveDeeplMsg.style.color = color;
