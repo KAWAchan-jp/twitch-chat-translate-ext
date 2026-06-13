@@ -261,6 +261,28 @@ saveGroqBtn.addEventListener('click', async () => {
   showGroqMsg('✓ 保存しました', '#00b894');
 });
 
+// ===== Groq 利用状況 =====
+function loadGroqUsage() {
+  chrome.storage.local.get(['groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars', 'groq_usage_reset_date'], (s) => {
+    const secs = s.groq_usage_secs ?? 0;
+    const mins = Math.floor(secs / 60);
+    const secsDisp = mins > 0 ? `${mins}分${secs % 60}秒` : `${secs}秒`;
+    document.getElementById('groqUsageCount').textContent  = (s.groq_usage_count        ?? 0).toLocaleString() + ' 回';
+    document.getElementById('groqUsageSecs').textContent   = secsDisp;
+    document.getElementById('groqUsageOutput').textContent = (s.groq_usage_output_chars ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('groqUsageReset').textContent  = s.groq_usage_reset_date ?? 'なし';
+  });
+}
+loadGroqUsage();
+
+document.getElementById('resetGroqUsage').addEventListener('click', () => {
+  const today = new Date().toLocaleDateString('ja-JP');
+  chrome.storage.local.set({
+    groq_usage_count: 0, groq_usage_secs: 0,
+    groq_usage_output_chars: 0, groq_usage_reset_date: today,
+  }, loadGroqUsage);
+});
+
 function showGroqMsg(text, color) {
   saveGroqMsg.textContent = text;
   saveGroqMsg.style.color = color;
@@ -321,6 +343,25 @@ saveDeeplBtn.addEventListener('click', async () => {
   showDeeplMsg('✓ 保存しました', '#00b894');
 });
 
+// ===== DeepL 利用状況 =====
+function loadDeeplUsage() {
+  chrome.storage.local.get(['deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars', 'deepl_usage_reset_date'], (s) => {
+    document.getElementById('deeplUsageCount').textContent  = (s.deepl_usage_count        ?? 0).toLocaleString() + ' 回';
+    document.getElementById('deeplUsageInput').textContent  = (s.deepl_usage_input_chars  ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('deeplUsageOutput').textContent = (s.deepl_usage_output_chars ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('deeplUsageReset').textContent  = s.deepl_usage_reset_date ?? 'なし';
+  });
+}
+loadDeeplUsage();
+
+document.getElementById('resetDeeplUsage').addEventListener('click', () => {
+  const today = new Date().toLocaleDateString('ja-JP');
+  chrome.storage.local.set({
+    deepl_usage_count: 0, deepl_usage_input_chars: 0,
+    deepl_usage_output_chars: 0, deepl_usage_reset_date: today,
+  }, loadDeeplUsage);
+});
+
 function showDeeplMsg(text, color) {
   saveDeeplMsg.textContent = text;
   saveDeeplMsg.style.color = color;
@@ -344,13 +385,16 @@ const toggleGeminiBtn    = document.getElementById('toggleGeminiKey');
 const resetGeminiPromBtn = document.getElementById('resetGeminiPrompt');
 const saveGeminiBtn      = document.getElementById('saveGeminiBtn');
 const saveGeminiMsg      = document.getElementById('saveGeminiMsg');
+const geminiModelEls     = document.querySelectorAll('input[name="geminiModel"]');
 
-chrome.storage.local.get(['gemini_enabled', 'gemini_voice', 'gemini_own', 'gemini_api_key', 'gemini_prompt'], (s) => {
+chrome.storage.local.get(['gemini_enabled', 'gemini_voice', 'gemini_own', 'gemini_api_key', 'gemini_prompt', 'gemini_model'], (s) => {
   geminiEnabledEl.checked = !!s.gemini_enabled;
   geminiVoiceEl.checked   = s.gemini_voice !== false;
   geminiOwnEl.checked     = !!s.gemini_own;
   if (s.gemini_api_key) geminiKeyEl.value = s.gemini_api_key;
   geminiPromptEl.value = s.gemini_prompt ?? GEMINI_DEFAULT_PROMPT;
+  const model = s.gemini_model || 'gemini-2.5-flash';
+  geminiModelEls.forEach(el => { el.checked = el.value === model; });
 });
 
 toggleGeminiBtn.addEventListener('click', () => {
@@ -361,6 +405,12 @@ toggleGeminiBtn.addEventListener('click', () => {
 
 resetGeminiPromBtn.addEventListener('click', () => {
   geminiPromptEl.value = GEMINI_DEFAULT_PROMPT;
+});
+
+geminiModelEls.forEach(el => {
+  el.addEventListener('change', () => {
+    if (el.checked) chrome.storage.local.set({ gemini_model: el.value });
+  });
 });
 
 geminiEnabledEl.addEventListener('change', () => {
@@ -377,13 +427,33 @@ saveGeminiBtn.addEventListener('click', async () => {
   const key = geminiKeyEl.value.trim();
   if (!key) { showGeminiMsg('⚠ キーを入力してください', '#e84393'); return; }
   const prompt = geminiPromptEl.value.trim();
+  const model = [...geminiModelEls].find(el => el.checked)?.value ?? 'gemini-2.5-flash';
   await chrome.storage.local.set({
     gemini_api_key: key, gemini_enabled: true,
     gemini_voice: geminiVoiceEl.checked, gemini_own: geminiOwnEl.checked,
-    gemini_prompt: prompt,
+    gemini_prompt: prompt, gemini_model: model,
   });
   geminiEnabledEl.checked = true;
   showGeminiMsg('✓ 保存しました', '#00b894');
+});
+
+// ===== Gemini 利用状況 =====
+function loadGeminiUsage() {
+  chrome.storage.local.get(['gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars', 'gemini_usage_reset_date'], (s) => {
+    document.getElementById('geminiUsageCount').textContent  = (s.gemini_usage_count        ?? 0).toLocaleString() + ' 回';
+    document.getElementById('geminiUsageInput').textContent  = (s.gemini_usage_input_chars  ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('geminiUsageOutput').textContent = (s.gemini_usage_output_chars ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('geminiUsageReset').textContent  = s.gemini_usage_reset_date ?? 'なし';
+  });
+}
+loadGeminiUsage();
+
+document.getElementById('resetGeminiUsage').addEventListener('click', () => {
+  const today = new Date().toLocaleDateString('ja-JP');
+  chrome.storage.local.set({
+    gemini_usage_count: 0, gemini_usage_input_chars: 0,
+    gemini_usage_output_chars: 0, gemini_usage_reset_date: today,
+  }, loadGeminiUsage);
 });
 
 function showGeminiMsg(text, color) {

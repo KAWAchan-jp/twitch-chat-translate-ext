@@ -72,6 +72,16 @@
         <button class="btn-primary" id="saveGroqBtn">保存</button>
         <span class="save-msg" id="saveGroqMsg"></span>
       </div>
+      <div class="field" style="margin-top:16px;padding-top:16px;border-top:1px solid #333">
+        <label>利用状況（リセットするまでの累計）</label>
+        <div id="groqUsageStats" style="font-size:13px;color:#aaa;margin-top:8px;line-height:2">
+          <div>リクエスト数:       <strong id="groqUsageCount">-</strong></div>
+          <div>推定音声時間（概算）: <strong id="groqUsageSecs">-</strong></div>
+          <div>出力文字数:         <strong id="groqUsageOutput">-</strong></div>
+          <div>最終リセット:       <strong id="groqUsageReset">-</strong></div>
+        </div>
+        <button class="btn-ghost" id="resetGroqUsage" style="margin-top:8px;font-size:11px;">リセット</button>
+      </div>
     </section>
 
     <section class="card">
@@ -116,6 +126,16 @@
         <button class="btn-primary" id="saveDeeplBtn">保存</button>
         <span class="save-msg" id="saveDeeplMsg"></span>
       </div>
+      <div class="field" style="margin-top:16px;padding-top:16px;border-top:1px solid #333">
+        <label>利用状況（リセットするまでの累計）</label>
+        <div id="deeplUsageStats" style="font-size:13px;color:#aaa;margin-top:8px;line-height:2">
+          <div>リクエスト数: <strong id="deeplUsageCount">-</strong></div>
+          <div>入力文字数:   <strong id="deeplUsageInput">-</strong> <span style="color:#555">（無料枠 500,000文字/月）</span></div>
+          <div>出力文字数:   <strong id="deeplUsageOutput">-</strong></div>
+          <div>最終リセット: <strong id="deeplUsageReset">-</strong></div>
+        </div>
+        <button class="btn-ghost" id="resetDeeplUsage" style="margin-top:8px;font-size:11px;">リセット</button>
+      </div>
     </section>
 
     <section class="card">
@@ -142,13 +162,22 @@
           <span class="toggle-switch toggle-switch-sm"></span>
         </label>
       </div>
+      <div class="field" id="geminiFeaturesField">
+        <label>使用モデル</label>
+        <div class="radio-row">
+          <label><input type="radio" name="geminiModel" value="gemini-2.5-flash"> Gemini 2.5 Flash（推奨・コスパ良）</label>
+          <label><input type="radio" name="geminiModel" value="gemini-3.1-flash-lite"> Gemini 3.1 Flash Lite（最安）</label>
+          <label><input type="radio" name="geminiModel" value="gemini-3-flash"> Gemini 3 Flash（高精度）</label>
+          <label><input type="radio" name="geminiModel" value="gemini-3.5-flash"> Gemini 3.5 Flash（最高精度）</label>
+        </div>
+      </div>
       <div class="field">
         <label for="geminiKey">API キー</label>
         <div class="key-row">
           <input type="password" id="geminiKey" placeholder="AIzaSy..." autocomplete="off" spellcheck="false">
           <button class="btn-ghost" id="toggleGeminiKey">表示</button>
         </div>
-        <p class="hint"><a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で取得（無料）。Gemini 2.0 Flash を使用します。</p>
+        <p class="hint"><a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で取得（無料）。使用モデルは上のモデル選択で変更できます。</p>
       </div>
       <div class="field">
         <label for="geminiPrompt">翻訳プロンプト（<code>{lang}</code> が翻訳先言語名に置き換わります）</label>
@@ -159,6 +188,16 @@
       <div class="actions">
         <button class="btn-primary" id="saveGeminiBtn">保存</button>
         <span class="save-msg" id="saveGeminiMsg"></span>
+      </div>
+      <div class="field" style="margin-top:16px;padding-top:16px;border-top:1px solid #333">
+        <label>利用状況（リセットするまでの累計）</label>
+        <div id="geminiUsageStats" style="font-size:13px;color:#aaa;margin-top:8px;line-height:2">
+          <div>リクエスト数: <strong id="geminiUsageCount">-</strong></div>
+          <div>入力文字数:   <strong id="geminiUsageInput">-</strong></div>
+          <div>出力文字数:   <strong id="geminiUsageOutput">-</strong></div>
+          <div>最終リセット: <strong id="geminiUsageReset">-</strong></div>
+        </div>
+        <button class="btn-ghost" id="resetGeminiUsage" style="margin-top:8px;font-size:11px;">リセット</button>
       </div>
     </section>
 

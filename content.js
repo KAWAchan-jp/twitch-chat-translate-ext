@@ -314,6 +314,13 @@ function onSettingsChanged(changes) {
     settings.panel_opacity = changes.panel_opacity.newValue;
     applyPanelOpacity();
   }
+  // 利用状況パネルのリアルタイム更新
+  const usageKeys = [
+    'gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars',
+    'groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars',
+    'deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars',
+  ];
+  if (usageKeys.some(k => k in changes)) loadAndRenderUsagePanel();
 }
 
 function notifyBadge(active) {

@@ -272,7 +272,16 @@ async function groqTranscribe(audioBase64, mimeType, language) {
       throw new Error(`Groq HTTP ${res.status}: ${errData.error?.message ?? res.statusText}`);
     }
     const data = await res.json();
-    return data.text?.trim() ?? '';
+    const result = data.text?.trim() ?? '';
+    // 利用量を記録（音声時間はバイト数から概算: webm opus ≈ 26000 bytes/sec）
+    const estimatedSecs = Math.round(binary.length / 26000);
+    const u = await chrome.storage.local.get(['groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars']);
+    await chrome.storage.local.set({
+      groq_usage_count:        (u.groq_usage_count        ?? 0) + 1,
+      groq_usage_secs:         (u.groq_usage_secs         ?? 0) + estimatedSecs,
+      groq_usage_output_chars: (u.groq_usage_output_chars ?? 0) + result.length,
+    });
+    return result;
   } finally {
     clearTimeout(timer);
   }
@@ -285,7 +294,7 @@ async function translateText(text, from, to, feature = 'chat') {
   const cacheKey = `${from}:${to}:${text}`;
   if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
 
-  const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_api_key', 'gemini_prompt', 'gemini_voice', 'gemini_own']);
+  const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_api_key', 'gemini_prompt', 'gemini_voice', 'gemini_own', 'gemini_model']);
   let result;
 
   // Gemini 優先（音声字幕・入力メッセージ）
@@ -293,7 +302,7 @@ async function translateText(text, from, to, feature = 'chat') {
   const useGemini = stored.gemini_enabled && stored.gemini_api_key &&
     ((feature === 'voice' && geminiVoice) || (feature === 'own' && stored.gemini_own));
   if (useGemini) {
-    try { result = await translateWithGemini(text, from, to, stored.gemini_api_key, stored.gemini_prompt || ''); } catch (e) { console.warn('[TCT] Gemini翻訳失敗、フォールバック:', e); }
+    try { result = await translateWithGemini(text, from, to, stored.gemini_api_key, stored.gemini_prompt || '', stored.gemini_model); } catch (e) { console.warn('[TCT] Gemini翻訳失敗、フォールバック:', e); }
   }
 
   if (!result) {
@@ -321,20 +330,24 @@ const GEMINI_LANG_NAMES = {
 
 const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム字幕翻訳を行います。入力は音声認識結果のため、多少の誤認識や口語表現が含まれる場合があります。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
 
-async function translateWithGemini(text, from, to, apiKey, customPrompt) {
+async function translateWithGemini(text, from, to, apiKey, customPrompt, model) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   const targetLang = GEMINI_LANG_NAMES[to] || to;
   const promptTemplate = customPrompt || GEMINI_DEFAULT_PROMPT;
-  const prompt = promptTemplate.replace('{lang}', targetLang).replace('{text}', text);
+  const modelId = model || 'gemini-2.5-flash';
+  // {text} の前をシステム指示、{text} 部分を実際のテキストとして分離
+  // → Gemini が指示に返事せず翻訳結果だけを返すようになる
+  const systemInstruction = promptTemplate.replace('{lang}', targetLang).replace(/\{text\}[\s\S]*$/, '').trim();
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          system_instruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: 'user', parts: [{ text }] }],
           generationConfig: { maxOutputTokens: 512, temperature: 0.1 },
         }),
         signal: controller.signal,
@@ -342,7 +355,15 @@ async function translateWithGemini(text, from, to, apiKey, customPrompt) {
     );
     if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? text;
+    const output = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? text;
+    // 利用量を記録
+    const s = await chrome.storage.local.get(['gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars']);
+    await chrome.storage.local.set({
+      gemini_usage_count:        (s.gemini_usage_count        ?? 0) + 1,
+      gemini_usage_input_chars:  (s.gemini_usage_input_chars  ?? 0) + text.length,
+      gemini_usage_output_chars: (s.gemini_usage_output_chars ?? 0) + output.length,
+    });
+    return output;
   } finally {
     clearTimeout(timer);
   }
@@ -366,7 +387,15 @@ async function translateWithDeepl(text, from, to, apiKey) {
     });
     if (!res.ok) throw new Error(`DeepL HTTP ${res.status}`);
     const data = await res.json();
-    return data.translations?.[0]?.text ?? text;
+    const output = data.translations?.[0]?.text ?? text;
+    // 利用量を記録
+    const u = await chrome.storage.local.get(['deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars']);
+    await chrome.storage.local.set({
+      deepl_usage_count:        (u.deepl_usage_count        ?? 0) + 1,
+      deepl_usage_input_chars:  (u.deepl_usage_input_chars  ?? 0) + text.length,
+      deepl_usage_output_chars: (u.deepl_usage_output_chars ?? 0) + output.length,
+    });
+    return output;
   } finally {
     clearTimeout(timer);
   }
