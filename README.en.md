@@ -2,13 +2,17 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.5.5.0-9147ff)
+![version](https://img.shields.io/badge/version-0.5.7.0-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-📖 **For detailed usage, FAQ, and troubleshooting, see the [Wiki](https://github.com/KAWAchan-jp/twitch-chat-translate-ext/wiki)**.
+📖 **For detailed usage, FAQ, and troubleshooting, see the [Wiki](https://github.com/KAWAchan-jp/twitch-chat-translate-ext/wiki)** (English overview available)
 
 **A Chrome extension that removes the language barrier from Twitch**
+
+> *“Sans Babel”* means “without Babel” in French.
+> According to the Book of Genesis, the Tower of Babel caused people’s languages to be confused and created language barriers.
+> This extension was built to remove those barriers.
 
 | | |
 |---|---|
@@ -16,6 +20,9 @@
 | 🎙️ **Show streamer speech as subtitles** | Automatically recognize stream audio and display real-time subtitles. No API key required; all processing is local |
 | ✏️ **Join chat in Japanese** | Type in Japanese and send automatically translated messages, even when the streamer uses another language |
 | 🤖 **Gemini AI translation** | Use Gemini AI for voice subtitles and sent-message translation. It produces natural translations for game terms and slang |
+| ⚡ **Groq Whisper STT** | High-accuracy, fast cloud speech recognition for subtitles. It may recognize speech better than local Whisper in some cases |
+| 🔊 **Translation text-to-speech (TTS)** | Automatically reads translated subtitles aloud so you can listen while understanding the streamer |
+| 📊 **API usage panel** | Shows Gemini, Groq, and DeepL usage in real time to help prevent overuse |
 
 ---
 
@@ -26,7 +33,7 @@
 - **Real-time translation** — Automatically translates messages as they arrive using Google Translate or DeepL, with three-way parallel processing.
 - **High-speed chat mode** — When chat is moving quickly (3 messages/sec or more), translation is automatically reduced and original messages are shown. Pause scrolling or hover to translate only the visible range and save API usage.
 - **Translation engine display** — The header always shows the translation direction and engine, such as `JA→JA・Google`. It turns orange when channel-specific settings are active.
-- **Footer translation engine indicators** — The panel footer always shows the translation engine used for your own messages and voice subtitles (Google / DeepL / Gemini).
+- **Footer translation engine indicators** — The bottom of the panel shows your message translation engine, voice subtitle translation engine, and STT engine in real time.
 - **Automatic stream language detection** — Reads Twitch tags and automatically sets the source language.
 - **Floating panel** — Stays in the lower-right corner of the page. Drag the header to move it, drag the lower-right handle to resize it, and adjust opacity.
 - **Automatic channel detection** — Detects the channel from the URL and supports Twitch SPA navigation.
@@ -39,11 +46,20 @@
 
 ### Gemini AI Translation
 
-- **Gemini 2.0 Flash** — Uses Gemini AI for voice subtitles and sent-message translation, producing natural translations for game terms and slang.
+- **Model selection** — Choose from Gemini 2.5 Flash (recommended), 3.1 Flash Lite, 3 Flash, and 3.5 Flash.
 - **Per-feature selection** — Turn Gemini on/off separately for voice subtitles and sent messages. Chat translation remains Google / DeepL because chat volume is high and Google is recommended.
 - **Prompt editing** — Freely customize the translation prompt from the options page. `{lang}` is replaced with the target language and `{text}` with the recognized text.
 - **Fallback** — If Gemini is disabled or fails, the extension automatically falls back in order: DeepL → Google Translate.
 - **Free tier** — 1,500 requests/day and 15 requests/minute. Get an API key from Google AI Studio.
+
+### Groq Whisper STT (Optional)
+
+- **Cloud speech recognition** — Runs Whisper Large-v3-Turbo / Large-v3 on Groq’s high-speed inference platform. It can be more accurate than local processing in some environments.
+- **Automatic fallback** — If Groq fails because of rate limits or an error, the extension automatically switches back to local Whisper.
+- **Free tier available** — Monthly reset with a $0.00/month free tier. After the limit is reached, local Whisper continues to work.
+- **API key only** — Enable it simply by entering a Groq API key on the options page.
+
+> You can get a Groq API key for free at [console.groq.com](https://console.groq.com).
 
 ### Voice Subtitles (Local Whisper)
 
@@ -58,6 +74,17 @@
 - **Hallucination countermeasures** — Automatically removes Whisper-specific repetitions, silence annotations, and common boilerplate. Custom exclusion patterns can also be registered.
 - **Recognition hints (two layers)** — Improve recognition with “default hints” in options and temporary hints from the panel 💡. When empty, the streamer name and game name are used automatically.
 - **Subtitle overlay** — Shows subtitles over the stream. The overlay can be dragged to any position.
+
+### Translation Text-to-Speech (TTS)
+
+- **Web Speech API** — Reads translated text aloud with the browser’s built-in speech synthesis engine.
+- **Automatic voice selection** — Prioritizes neural voices with natural pronunciation, then falls back to standard voices in the same language.
+- **Three-step fallback** — Natural/online voice → same-language voice → skip unsupported languages.
+- **Speed control** — Adjust playback speed on the options page (0.5x to 2.0x).
+- **Supported languages** — Japanese, English, Korean, Chinese, Spanish, French, German, Portuguese, Russian, Arabic, Hindi, Thai, Vietnamese, and Indonesian.
+
+> On Windows 11, installing neural voices such as Nanami and Keita improves audio quality.
+> Add them from Settings → Time & language → Speech → Add voices.
 
 ---
 
@@ -115,9 +142,11 @@ Before using voice subtitles, download a model from the options page.
 | ● Status dot | Chat connection status: green = connected, blinking yellow = connecting, pink = disconnected/stopped |
 | **#channel name** | Connected channel. The game being played is also shown on the right |
 | **EN→JA・Google** | Translation direction and engine. **Orange** means channel-specific language settings are saved |
-| Number such as 0.5.3.8 | Extension version |
+| Number such as 0.5.7.0 | Extension version |
 | **💡** | Opens/closes the recognition hint input bar |
 | **🎤** | Toggles voice subtitles on/off |
+| **🔊** | Toggles translation text-to-speech (TTS) on/off |
+| **📊** | Shows/hides the API usage panel |
 | **×** | Closes the panel and stops chat receiving/translation |
 
 **💡 Recognition hint bar**  
@@ -131,8 +160,9 @@ The panel footer shows the currently used translation engines in real time.
 
 | Display | Description |
 |---------|-------------|
-| **Chat:** | Translation engine for messages you type and send (Google / <span style="color:#00c4a0">DeepL</span>) |
+| **Chat input:** | Translation engine for messages you type and send (Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>) |
 | **Voice:** | Translation engine for recognized streamer speech (Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>) |
+| **STT:** | Speech recognition engine (Local = local Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API) |
 
 Changes made on the options page are reflected in the footer in real time.
 
@@ -146,6 +176,23 @@ Changes made on the options page are reflected in the footer in real time.
 | “↓ Latest” button | Move to the bottom and resume auto-scroll |
 
 Language settings are saved per channel. They switch automatically when you move to another channel.
+
+### Usage Panel
+
+![Usage panel](docs/images/panel-usage.png)
+
+A translucent floating panel that can be opened from the header **📊** button. It shows Gemini, Groq, and DeepL API usage in real time.
+
+| Item | Description |
+|------|-------------|
+| **🤖 Gemini requests** | Number of translation requests |
+| **🤖 Gemini input/output** | Number of characters sent and received |
+| **⚡ Groq requests** | Number of speech recognition requests |
+| **⚡ Groq estimated audio time** | Total recognized audio time in seconds |
+| **🔵 DeepL requests** | Number of translation requests |
+| **🔵 DeepL input/output** | Number of characters sent and received |
+
+Usage counters can be reset from the options page. The panel can be dragged to any position.
 
 ### Sending Chat
 
@@ -161,6 +208,14 @@ Language settings are saved per channel. They switch automatically when you move
 3. Drag the subtitle window to your preferred position.
 
 > The recognition language follows the channel source-language setting. If it is set to `Auto detect`, Whisper detects the language automatically.
+
+### Translation Text-to-Speech
+
+1. Click the **🔊 button** in the panel header to turn it on.
+2. When the streamer’s speech is recognized and translated, it is read aloud automatically.
+3. Click again to stop.
+
+> Lowering the streamer’s volume or using headphones is recommended.
 
 ---
 
@@ -192,12 +247,17 @@ Open options by right-clicking the extension icon and choosing **Options**.
 | **Recognition model** | Download, delete, and select models. Changes apply automatically from the next utterance |
 | **Default recognition hints** | Always-on hints for all channels. These are combined before the temporary panel 💡 hints |
 | **Subtitle font size** | Voice subtitle text size (14-56 px) |
+| **Enable Groq STT** | Recognize speech with the Groq Whisper API. Automatically falls back to local Whisper on failure |
+| **Groq model** | Choose Large-v3-Turbo (fast) or Large-v3 (high accuracy) |
+| **Groq API key** | Get one from [console.groq.com](https://console.groq.com) for free |
 | **Enable DeepL** | Use DeepL instead of Google Translate |
 | **DeepL feature selection** | Toggle DeepL separately for chat translation, voice subtitles, and sent messages |
 | **DeepL API key** | Supports both free keys ending in `:fx` and paid keys |
-| **Enable Gemini** | Enables Gemini 2.0 Flash. Per-feature toggles let you choose voice subtitles and sent messages separately |
+| **Enable Gemini** | Enables Gemini AI. Per-feature toggles let you choose voice subtitles and sent messages separately |
+| **Gemini model** | 2.5 Flash (recommended) / 3.1 Flash Lite / 3 Flash / 3.5 Flash |
 | **Gemini API key** | Get one from Google AI Studio. Free tier: 1,500 requests/day and 15 requests/minute |
 | **Gemini prompt** | Customize translation instructions. `{lang}` = target language, `{text}` = recognized text |
+| **Translation TTS speed** | TTS playback speed (0.5x to 2.0x) |
 | **Default target language** | Target language used when no channel-specific setting exists |
 | **Same-language filter** | Skip messages already in the target language |
 | **Minimum length filter** | Skip messages shorter than the specified character count |
@@ -222,18 +282,18 @@ twitch-chat-translate-ext/
 ├── content.js              # Content script main (constants, state, initialization, settings)
 ├── content-panel.js        # Content script (Shadow DOM panel and UI)
 ├── content-chat.js         # Content script (IRC, chat translation, high-speed chat)
-├── content-whisper.js      # Content script (Whisper speech recognition and subtitles)
+├── content-whisper.js      # Content script (Whisper speech recognition, subtitles, TTS)
 ├── whisper-worker.js       # Whisper inference script running in Web Workers
 ├── auth-callback.js        # Content script for OAuth callback
 ├── help.html               # Usage page (right-click icon → “📖 Help”)
 ├── options.html / options.js / options.css
 ├── docs/images/            # Documentation images
 ├── lib/
-│   ├── transformers.min.js               # Transformers.js v3 (Whisper inference engine)
-│   ├── ort-wasm-simd-threaded.jsep.wasm  # ONNX Runtime (WebGPU support)
-│   ├── ort-wasm-simd-threaded.jsep.mjs   # ONNX Runtime (WebGPU support)
-│   ├── ort-wasm-simd.wasm                # ONNX Runtime WASM (SIMD support)
-│   └── ort-wasm.wasm                     # ONNX Runtime WASM (fallback)
+│   ├── transformers.min.js                 # Transformers.js v3 (Whisper inference engine)
+│   ├── ort-wasm-simd-threaded.jsep.wasm    # ONNX Runtime (WebGPU support)
+│   ├── ort-wasm-simd-threaded.jsep.mjs     # ONNX Runtime (WebGPU support)
+│   ├── ort-wasm-simd.wasm                  # ONNX Runtime WASM (SIMD support)
+│   └── ort-wasm.wasm                       # ONNX Runtime WASM (fallback)
 └── icons/
 ```
 
@@ -261,8 +321,13 @@ The extension connects directly to Twitch IRC over WebSocket: `wss://irc-ws.chat
 **Capture:**  
 Instead of `getDisplayMedia()` (tab sharing, which shows a banner), the extension uses the Web Audio API. It taps audio directly from the Twitch `<video>` element with `AudioContext.createMediaElementSource(<video>)`.
 
-**Inference:**  
+**Inference (local):**
 [Transformers.js](https://github.com/huggingface/transformers.js) v3 + ONNX Runtime Web run inside Web Workers. When GPU is available, WebGPU-optimized `onnx-community` models are used (fp16 encoder + q4 decoder; q4f16 for lightweight models). If GPU is unavailable, the extension automatically falls back to WASM models (q8 encoder + q4 decoder).
+
+**Inference (Groq):**
+Audio data is Base64-encoded and sent to `api.groq.com` through `background.js` (Service Worker).
+This avoids CORS restrictions while running Whisper Large-v3-Turbo / Large-v3 in the cloud.
+If Groq fails, the extension automatically falls back to local Whisper.
 
 **WebGPU shader compilation:**  
 On first launch, ONNX Runtime compiles GPU shaders. Larger models take longer. Compiled shaders are cached in Chrome IndexedDB, so later launches are faster.
@@ -284,6 +349,7 @@ Twitch Implicit Grant flow is used.
 ### Panel
 
 The panel uses Shadow DOM to isolate it from page CSS: `attachShadow({ mode: 'open' })`.
+The usage panel is independently positioned with `position: fixed` in the same Shadow DOM and shares the main panel opacity setting.
 
 ---
 
@@ -295,8 +361,12 @@ The panel uses Shadow DOM to isolate it from page CSS: `attachShadow({ mode: 'op
 | Target language | Japanese |
 | Show original text | ON |
 | Auto-scroll | ON |
+| Groq STT | OFF |
 | Use DeepL | OFF |
 | Use Gemini | OFF |
+| Gemini model | 2.5 Flash |
+| Translation text-to-speech (TTS) | OFF |
+| TTS speed | 1.0x |
 | Same-language filter | OFF |
 | Minimum length filter | OFF (4 characters) |
 | VAD silence threshold | 10% |
