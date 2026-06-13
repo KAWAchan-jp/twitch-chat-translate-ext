@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.5.4.8-9147ff)
+![version](https://img.shields.io/badge/version-0.5.5.0-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -15,7 +15,7 @@
 | 💬 **チャットをリアルタイム翻訳** | 流れるチャットを即座に日本語へ。外国語配信もチャットごと楽しめる |
 | 🎙️ **配信者の声を字幕表示** | 配信音声を自動認識してリアルタイム字幕。APIキー不要・完全ローカル処理 |
 | ✏️ **日本語でチャットに参加** | 日本語で入力すると自動翻訳して送信。言語が違っても配信者と話せる |
-| 🤖 **Gemini で音声翻訳** | 音声字幕の翻訳に Gemini AI を使用。ゲーム用語・スラングにも強い自然な翻訳 |
+| 🤖 **Gemini AI 翻訳** | 音声字幕・送信メッセージの翻訳に Gemini AI を使用。ゲーム用語・スラングにも強い自然な翻訳 |
 
 ---
 
@@ -36,11 +36,13 @@
 - **最小文字数フィルター** — 短い煽り・スタンプ文字列をスキップ（文字数は調整可能）
 - **同一言語フィルター** — 翻訳先と同じ言語のメッセージをスキップ
 
-### Gemini 翻訳（音声字幕）
+### Gemini AI 翻訳
 
-- **Gemini 2.0 Flash** — 音声字幕の翻訳に Gemini AI を使用。ゲーム用語・スラングの自然な翻訳が得られる
+- **Gemini 2.0 Flash** — 音声字幕・送信メッセージの翻訳に Gemini AI を使用。ゲーム用語・スラングの自然な翻訳が得られる
+- **機能別選択** — 音声字幕・送信メッセージを個別に ON/OFF。チャット翻訳は Google / DeepL のまま（量が多いため Google 推奨）
+- **プロンプト編集** — オプションページで翻訳プロンプトを自由にカスタマイズ可能。`{lang}` が翻訳先言語、`{text}` が認識テキストに置き換わる
 - **フォールバック** — Gemini が無効または失敗した場合、DeepL → Google Translate の順に自動フォールバック
-- **音声専用** — チャット翻訳は DeepL / Google のまま。音声字幕だけ Gemini に切り替えられる
+- **無料枠** — 1,500リクエスト/日・15リクエスト/分（Google AI Studio で APIキー取得）
 
 ### 音声字幕（ローカル Whisper）
 - **APIキー不要** — Whisper を拡張機能内でローカル実行（Transformers.js v3 + ONNX Runtime）
@@ -193,8 +195,9 @@
 | **DeepL を有効にする** | Google Translate の代わりに DeepL を使用 |
 | **DeepL 使用機能の選択** | チャット翻訳・音声字幕・送信メッセージを個別に ON/OFF |
 | **DeepL API キー** | 無料版（末尾 `:fx`）・有料版どちらも対応 |
-| **Gemini を有効にする** | 音声字幕・送信メッセージの翻訳に Gemini 2.0 Flash を使用（ゲーム用語・スラングに強い） |
+| **Gemini を有効にする** | Gemini 2.0 Flash を有効化。機能別トグルで音声字幕・送信メッセージを個別に選択 |
 | **Gemini API キー** | Google AI Studio で取得。無料枠：1,500リクエスト/日・15リクエスト/分 |
+| **Gemini プロンプト** | 翻訳指示を自由にカスタマイズ。`{lang}` = 翻訳先言語、`{text}` = 認識テキスト |
 | **デフォルト翻訳先言語** | チャンネル別設定がない場合の翻訳先言語 |
 | **同一言語フィルター** | 翻訳先と同じ言語のメッセージをスキップ |
 | **最小文字数フィルター** | 指定文字数未満のメッセージをスキップ |
@@ -216,7 +219,10 @@
 twitch-chat-translate-ext/
 ├── manifest.json           # 拡張の設定（Manifest V3）
 ├── background.js           # Service Worker（翻訳APIプロキシ、キャッシュ、OAuth）
-├── content.js              # コンテンツスクリプト（パネル、IRC、音声録音、VAD）
+├── content.js              # コンテンツスクリプト メイン（定数・状態・初期化・設定）
+├── content-panel.js        # コンテンツスクリプト（Shadow DOM パネル・UI）
+├── content-chat.js         # コンテンツスクリプト（IRC・チャット翻訳・弾幕）
+├── content-whisper.js      # コンテンツスクリプト（Whisper 音声認識・字幕）
 ├── whisper-worker.js       # Web Worker で動作する Whisper 推論スクリプト
 ├── auth-callback.js        # OAuth コールバック用コンテンツスクリプト
 ├── help.html               # 使い方ページ（アイコン右クリック →「📖 使い方」）
@@ -240,7 +246,8 @@ twitch-chat-translate-ext/
 `translate.googleapis.com` への直接 fetch は CORS で弾かれるため、  
 content.js → background.js（Service Worker）経由でリクエストしています。
 
-DeepL が有効な場合は DeepL API を優先し、エラー時は自動的に Google Translate にフォールバックします。  
+翻訳エンジンの優先順位：**Gemini → DeepL → Google**（上位が有効なら下位は使われず、エラー時は自動フォールバック）。  
+チャット翻訳は Google / DeepL のみ対応（量が多いため Gemini は非推奨）。音声字幕・送信メッセージは Gemini も選択可能。  
 同一テキスト・言語ペアの結果はメモリ上のキャッシュ（LRU 方式）に保存され、再翻訳をスキップします。
 
 ### チャット受信・送信
@@ -295,7 +302,7 @@ Shadow DOM でページの CSS から分離しています（`attachShadow({ mod
 | 原文を表示 | ON |
 | 自動スクロール | ON |
 | DeepL を使用 | OFF |
-| Gemini を使用（音声字幕） | OFF |
+| Gemini を使用 | OFF |
 | 同一言語フィルター | OFF |
 | 最小文字数フィルター | OFF（4文字） |
 | VAD 無音判定レベル | 10% |
