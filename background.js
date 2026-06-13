@@ -326,8 +326,10 @@ async function translateWithGemini(text, from, to, apiKey, customPrompt, model) 
   const timer = setTimeout(() => controller.abort(), 10000);
   const targetLang = GEMINI_LANG_NAMES[to] || to;
   const promptTemplate = customPrompt || GEMINI_DEFAULT_PROMPT;
-  const prompt = promptTemplate.replace('{lang}', targetLang).replace('{text}', text);
   const modelId = model || 'gemini-2.5-flash';
+  // {text} の前をシステム指示、{text} 部分を実際のテキストとして分離
+  // → Gemini が指示に返事せず翻訳結果だけを返すようになる
+  const systemInstruction = promptTemplate.replace('{lang}', targetLang).replace(/\{text\}[\s\S]*$/, '').trim();
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
@@ -335,7 +337,8 @@ async function translateWithGemini(text, from, to, apiKey, customPrompt, model) 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          system_instruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: 'user', parts: [{ text }] }],
           generationConfig: { maxOutputTokens: 512, temperature: 0.1 },
         }),
         signal: controller.signal,
