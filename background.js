@@ -239,18 +239,60 @@ async function translateText(text, from, to, feature = 'chat') {
   const cacheKey = `${from}:${to}:${text}`;
   if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
 
-  const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own']);
-  const featureFlag = feature === 'voice' ? stored.deepl_voice : feature === 'own' ? stored.deepl_own : stored.deepl_chat;
-  const useDeepL = stored.deepl_enabled && stored.deepl_api_key && (featureFlag !== false);
+  const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_api_key']);
   let result;
-  if (useDeepL) {
-    try { result = await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (e) { console.warn('[TCT] DeepL翻訳失敗、Googleにフォールバック:', e); }
+
+  // 音声字幕のみ Gemini を優先使用
+  if (feature === 'voice' && stored.gemini_enabled && stored.gemini_api_key) {
+    try { result = await translateWithGemini(text, from, to, stored.gemini_api_key); } catch (e) { console.warn('[TCT] Gemini翻訳失敗、フォールバック:', e); }
   }
+
+  if (!result) {
+    const featureFlag = feature === 'voice' ? stored.deepl_voice : feature === 'own' ? stored.deepl_own : stored.deepl_chat;
+    const useDeepL = stored.deepl_enabled && stored.deepl_api_key && (featureFlag !== false);
+    if (useDeepL) {
+      try { result = await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (e) { console.warn('[TCT] DeepL翻訳失敗、Googleにフォールバック:', e); }
+    }
+  }
+
   if (!result) result = await translateWithGoogle(text, from, to);
 
   if (translateCache.size >= CACHE_MAX) translateCache.delete(translateCache.keys().next().value);
   translateCache.set(cacheKey, result);
   return result;
+}
+
+// 翻訳先言語コード → Gemini プロンプト用の言語名
+const GEMINI_LANG_NAMES = {
+  ja: 'Japanese', en: 'English', ko: 'Korean',
+  'zh-CN': 'Simplified Chinese', 'zh-TW': 'Traditional Chinese',
+  es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese',
+  ru: 'Russian', ar: 'Arabic', hi: 'Hindi', th: 'Thai', vi: 'Vietnamese', id: 'Indonesian',
+};
+
+async function translateWithGemini(text, from, to, apiKey) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  const targetLang = GEMINI_LANG_NAMES[to] || to;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `Translate to ${targetLang}. Output only the translation:\n${text}` }] }],
+          generationConfig: { maxOutputTokens: 512, temperature: 0.1 },
+        }),
+        signal: controller.signal,
+      }
+    );
+    if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? text;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function translateWithDeepl(text, from, to, apiKey) {

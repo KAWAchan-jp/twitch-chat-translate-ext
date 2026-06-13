@@ -84,6 +84,31 @@
     </section>
 
     <section class="card">
+      <h2>Gemini 翻訳（音声字幕）</h2>
+      <p class="hint" style="margin-bottom:14px">音声字幕の翻訳に Gemini AI を使用します。ゲーム用語・スラングに強く、Google Translate より自然な翻訳が得られます。<br>
+      無効時は DeepL（設定済みの場合）→ Google Translate にフォールバックします。</p>
+      <div class="field">
+        <label class="toggle-label">
+          <span>音声字幕の翻訳に Gemini を使用する</span>
+          <input type="checkbox" id="geminiEnabled">
+          <span class="toggle-switch"></span>
+        </label>
+      </div>
+      <div class="field">
+        <label for="geminiKey">API キー</label>
+        <div class="key-row">
+          <input type="password" id="geminiKey" placeholder="AIzaSy..." autocomplete="off" spellcheck="false">
+          <button class="btn-ghost" id="toggleGeminiKey">表示</button>
+        </div>
+        <p class="hint"><a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で取得（無料）。Gemini 2.0 Flash を使用します。</p>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="saveGeminiBtn">保存</button>
+        <span class="save-msg" id="saveGeminiMsg"></span>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>チャット翻訳フィルター</h2>
       <div class="field">
         <label class="toggle-label">

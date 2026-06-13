@@ -281,6 +281,47 @@ function showDeeplMsg(text, color) {
   }, 3000);
 }
 
+// ===== Gemini =====
+const geminiEnabledEl  = document.getElementById('geminiEnabled');
+const geminiKeyEl      = document.getElementById('geminiKey');
+const toggleGeminiBtn  = document.getElementById('toggleGeminiKey');
+const saveGeminiBtn    = document.getElementById('saveGeminiBtn');
+const saveGeminiMsg    = document.getElementById('saveGeminiMsg');
+
+chrome.storage.local.get(['gemini_enabled', 'gemini_api_key'], (s) => {
+  geminiEnabledEl.checked = !!s.gemini_enabled;
+  if (s.gemini_api_key) geminiKeyEl.value = s.gemini_api_key;
+});
+
+toggleGeminiBtn.addEventListener('click', () => {
+  const isHidden = geminiKeyEl.type === 'password';
+  geminiKeyEl.type = isHidden ? 'text' : 'password';
+  toggleGeminiBtn.textContent = isHidden ? '隠す' : '表示';
+});
+
+geminiEnabledEl.addEventListener('change', () => {
+  chrome.storage.local.set({ gemini_enabled: geminiEnabledEl.checked });
+});
+
+saveGeminiBtn.addEventListener('click', async () => {
+  const key = geminiKeyEl.value.trim();
+  if (!key) { showGeminiMsg('⚠ キーを入力してください', '#e84393'); return; }
+  await chrome.storage.local.set({ gemini_api_key: key, gemini_enabled: true });
+  geminiEnabledEl.checked = true;
+  showGeminiMsg('✓ 保存しました', '#00b894');
+});
+
+function showGeminiMsg(text, color) {
+  saveGeminiMsg.textContent = text;
+  saveGeminiMsg.style.color = color;
+  saveGeminiMsg.style.opacity = '1';
+  clearTimeout(showGeminiMsg._timer);
+  showGeminiMsg._timer = setTimeout(() => {
+    saveGeminiMsg.style.opacity = '0';
+    setTimeout(() => { saveGeminiMsg.textContent = ''; }, 300);
+  }, 3000);
+}
+
 // ===== VAD 感度 =====
 const vadThresholdEl    = document.getElementById('vadThreshold');
 const vadThresholdVal   = document.getElementById('vadThresholdVal');
