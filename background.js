@@ -272,7 +272,16 @@ async function groqTranscribe(audioBase64, mimeType, language) {
       throw new Error(`Groq HTTP ${res.status}: ${errData.error?.message ?? res.statusText}`);
     }
     const data = await res.json();
-    return data.text?.trim() ?? '';
+    const result = data.text?.trim() ?? '';
+    // 利用量を記録（音声時間はバイト数から概算: webm opus ≈ 26000 bytes/sec）
+    const estimatedSecs = Math.round(binary.length / 26000);
+    const u = await chrome.storage.local.get(['groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars']);
+    await chrome.storage.local.set({
+      groq_usage_count:        (u.groq_usage_count        ?? 0) + 1,
+      groq_usage_secs:         (u.groq_usage_secs         ?? 0) + estimatedSecs,
+      groq_usage_output_chars: (u.groq_usage_output_chars ?? 0) + result.length,
+    });
+    return result;
   } finally {
     clearTimeout(timer);
   }

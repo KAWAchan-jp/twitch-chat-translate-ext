@@ -261,6 +261,28 @@ saveGroqBtn.addEventListener('click', async () => {
   showGroqMsg('✓ 保存しました', '#00b894');
 });
 
+// ===== Groq 利用状況 =====
+function loadGroqUsage() {
+  chrome.storage.local.get(['groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars', 'groq_usage_reset_date'], (s) => {
+    const secs = s.groq_usage_secs ?? 0;
+    const mins = Math.floor(secs / 60);
+    const secsDisp = mins > 0 ? `${mins}分${secs % 60}秒` : `${secs}秒`;
+    document.getElementById('groqUsageCount').textContent  = (s.groq_usage_count        ?? 0).toLocaleString() + ' 回';
+    document.getElementById('groqUsageSecs').textContent   = secsDisp;
+    document.getElementById('groqUsageOutput').textContent = (s.groq_usage_output_chars ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('groqUsageReset').textContent  = s.groq_usage_reset_date ?? 'なし';
+  });
+}
+loadGroqUsage();
+
+document.getElementById('resetGroqUsage').addEventListener('click', () => {
+  const today = new Date().toLocaleDateString('ja-JP');
+  chrome.storage.local.set({
+    groq_usage_count: 0, groq_usage_secs: 0,
+    groq_usage_output_chars: 0, groq_usage_reset_date: today,
+  }, loadGroqUsage);
+});
+
 function showGroqMsg(text, color) {
   saveGroqMsg.textContent = text;
   saveGroqMsg.style.color = color;
