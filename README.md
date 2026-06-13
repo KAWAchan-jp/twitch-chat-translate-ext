@@ -135,7 +135,7 @@
 
 | 表示 | 説明 |
 |------|------|
-| **チャット:** | 自分が入力して送信するメッセージの翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span>） |
+| **チャット入力:** | 自分が入力して送信するメッセージの翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span>） |
 | **音声:** | 配信者の音声認識後の翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>） |
 
 オプションの設定変更はフッターにリアルタイム反映されます。

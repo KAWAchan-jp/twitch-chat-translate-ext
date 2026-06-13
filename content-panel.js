@@ -262,7 +262,7 @@ function createPanel() {
         <button class="send-btn" id="sendBtn">送信</button>
       </div>
       <div class="footer" id="footer">
-        <span class="footer-item">チャット: <span class="footer-engine" id="footerChat">-</span></span>
+        <span class="footer-item">チャット入力: <span class="footer-engine" id="footerChat">-</span></span>
         <span class="footer-item">音声: <span class="footer-engine" id="footerVoice">-</span></span>
       </div>
       <div class="resize-handle" id="resizeHandle"></div>
