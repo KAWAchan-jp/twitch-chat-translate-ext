@@ -346,7 +346,15 @@ async function translateWithGemini(text, from, to, apiKey, customPrompt, model) 
     );
     if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? text;
+    const output = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? text;
+    // 利用量を記録
+    const s = await chrome.storage.local.get(['gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars']);
+    await chrome.storage.local.set({
+      gemini_usage_count:        (s.gemini_usage_count        ?? 0) + 1,
+      gemini_usage_input_chars:  (s.gemini_usage_input_chars  ?? 0) + text.length,
+      gemini_usage_output_chars: (s.gemini_usage_output_chars ?? 0) + output.length,
+    });
+    return output;
   } finally {
     clearTimeout(timer);
   }

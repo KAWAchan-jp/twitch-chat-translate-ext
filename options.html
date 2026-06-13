@@ -169,6 +169,16 @@
         <button class="btn-primary" id="saveGeminiBtn">保存</button>
         <span class="save-msg" id="saveGeminiMsg"></span>
       </div>
+      <div class="field" style="margin-top:16px;padding-top:16px;border-top:1px solid #333">
+        <label>利用状況（リセットするまでの累計）</label>
+        <div id="geminiUsageStats" style="font-size:13px;color:#aaa;margin-top:8px;line-height:2">
+          <div>リクエスト数: <strong id="geminiUsageCount">-</strong></div>
+          <div>入力文字数:   <strong id="geminiUsageInput">-</strong></div>
+          <div>出力文字数:   <strong id="geminiUsageOutput">-</strong></div>
+          <div>最終リセット: <strong id="geminiUsageReset">-</strong></div>
+        </div>
+        <button class="btn-ghost" id="resetGeminiUsage" style="margin-top:8px;font-size:11px;">リセット</button>
+      </div>
     </section>
 
     <section class="card">

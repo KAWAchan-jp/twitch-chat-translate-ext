@@ -396,6 +396,25 @@ saveGeminiBtn.addEventListener('click', async () => {
   showGeminiMsg('✓ 保存しました', '#00b894');
 });
 
+// ===== Gemini 利用状況 =====
+function loadGeminiUsage() {
+  chrome.storage.local.get(['gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars', 'gemini_usage_reset_date'], (s) => {
+    document.getElementById('geminiUsageCount').textContent  = (s.gemini_usage_count        ?? 0).toLocaleString() + ' 回';
+    document.getElementById('geminiUsageInput').textContent  = (s.gemini_usage_input_chars  ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('geminiUsageOutput').textContent = (s.gemini_usage_output_chars ?? 0).toLocaleString() + ' 文字';
+    document.getElementById('geminiUsageReset').textContent  = s.gemini_usage_reset_date ?? 'なし';
+  });
+}
+loadGeminiUsage();
+
+document.getElementById('resetGeminiUsage').addEventListener('click', () => {
+  const today = new Date().toLocaleDateString('ja-JP');
+  chrome.storage.local.set({
+    gemini_usage_count: 0, gemini_usage_input_chars: 0,
+    gemini_usage_output_chars: 0, gemini_usage_reset_date: today,
+  }, loadGeminiUsage);
+});
+
 function showGeminiMsg(text, color) {
   saveGeminiMsg.textContent = text;
   saveGeminiMsg.style.color = color;
