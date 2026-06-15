@@ -72,6 +72,8 @@ function resetMessages() {
   messageCount = 0;
   scrollPaused = false;
   scrollToBottomBtnEl?.classList.remove('visible');
+  chatters.clear();
+  closeMentionList();
 }
 
 // ===== IRCメッセージ処理 =====
@@ -175,6 +177,8 @@ function translateMessageEl(el) {
 }
 
 // ===== メッセージ表示・翻訳 =====
+const MENTION_CHATTERS_MAX = 500; // メンション候補として保持する発言者数の上限（古い順に削除）
+
 function addChatMessage(username, text, color, isBot = false) {
   if (panelCollapsed) return;
   const lname = username.toLowerCase();
@@ -187,6 +191,11 @@ function addChatMessage(username, text, color, isBot = false) {
     if (ignoreSet.has(lname)) return;
   }
   updateDanmakuMode();
+
+  // メンション候補に登録（再発言時は末尾に移動して「最近発言した順」を保つ）
+  chatters.delete(lname);
+  chatters.set(lname, username);
+  if (chatters.size > MENTION_CHATTERS_MAX) chatters.delete(chatters.keys().next().value);
 
   const el = document.createElement('div');
   el.className = 'msg';
@@ -280,6 +289,7 @@ async function sendUserMessage() {
 
   chatInputEl.value    = '';
   chatInputEl.disabled = true;
+  closeMentionList();
   sendBtnEl.disabled   = true;
 
   try {

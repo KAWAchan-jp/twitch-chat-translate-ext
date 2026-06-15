@@ -184,9 +184,21 @@ const PANEL_CSS = `
 
   /* チャット送信エリア */
   .input-area {
+    position: relative;
     display: flex; gap: 6px; padding: 8px;
     border-top: 1px solid #2d2d2f; background: #18181b; flex-shrink: 0;
   }
+
+  /* メンション自動補完 */
+  .mention-list {
+    display: none;
+    position: absolute; left: 8px; right: 8px; bottom: 100%; margin-bottom: 4px;
+    max-height: 140px; overflow-y: auto;
+    background: #18181b; border: 1px solid #3d3d40; border-radius: 4px;
+    font-size: 12px; z-index: 5;
+  }
+  .mention-item { padding: 5px 8px; cursor: pointer; color: #efeff1; }
+  .mention-item:hover, .mention-item.active { background: #2d2d2f; }
 
   .chat-input {
     flex: 1; min-width: 0; background: #0e0e10;
@@ -416,6 +428,7 @@ function createPanel() {
       <div class="messages" id="messages"></div>
       <button class="scroll-to-bottom" id="scrollToBottomBtn">↓ 最新へ</button>
       <div class="input-area" id="inputArea">
+        <div class="mention-list" id="mentionList"></div>
         <input type="text" class="chat-input" id="chatInput" autocomplete="off" spellcheck="false">
         <button class="send-btn" id="sendBtn">送信</button>
       </div>
@@ -492,6 +505,7 @@ function createPanel() {
   logoutBtnEl    = shadowRoot.getElementById('logoutBtn');
   chatInputEl    = shadowRoot.getElementById('chatInput');
   sendBtnEl      = shadowRoot.getElementById('sendBtn');
+  mentionListEl  = shadowRoot.getElementById('mentionList');
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('collapseBtn').addEventListener('click', toggleCollapse);
@@ -544,10 +558,27 @@ function createPanel() {
   // キーボードイベントをShadow DOM内で止めてTwitchのグローバルハンドラに漏らさない
   chatInputEl.addEventListener('keydown', e => {
     e.stopPropagation();
+    if (mentionMatches.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveMentionActive(1); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); moveMentionActive(-1); return; }
+      if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); applyMentionSelection(); return; }
+      if (e.key === 'Escape') { closeMentionList(); return; }
+    }
     if (e.key === 'Enter') sendUserMessage();
   });
   chatInputEl.addEventListener('keyup',    e => e.stopPropagation());
   chatInputEl.addEventListener('keypress', e => e.stopPropagation());
+  chatInputEl.addEventListener('input',  updateMentionSuggestions);
+  chatInputEl.addEventListener('blur',   () => setTimeout(closeMentionList, 150)); // クリック選択を待ってから閉じる
+
+  // メンション候補をクリック/タップで選択（mousedownでblurより先に確定）
+  mentionListEl.addEventListener('mousedown', e => {
+    const item = e.target.closest('.mention-item');
+    if (!item) return;
+    e.preventDefault();
+    mentionActiveIndex = Number(item.dataset.i);
+    applyMentionSelection();
+  });
 
   sendBtnEl.addEventListener('click', sendUserMessage);
 
@@ -609,6 +640,60 @@ function updateInputPlaceholder() {
   chatInputEl.placeholder = `${tgtName}で入力 → ${srcName}に翻訳して送信`;
   chatInputEl.disabled    = false;
   sendBtnEl.disabled      = false;
+}
+
+// ===== メンション自動補完 =====
+// 入力欄のカーソル直前が「（行頭または空白）+ @ + 空白を含まない文字列」のとき、
+// 最近発言したユーザー名から前方一致する候補を表示する
+function updateMentionSuggestions() {
+  if (!chatInputEl) return;
+  const caret    = chatInputEl.selectionStart;
+  const uptoCaret = chatInputEl.value.slice(0, caret);
+  const m = uptoCaret.match(/(^|\s)@([^\s@]*)$/);
+  if (!m) { closeMentionList(); return; }
+
+  const query = m[2].toLowerCase();
+  const candidates = [...chatters.entries()]
+    .reverse() // 最近発言した順
+    .filter(([lname]) => lname.startsWith(query))
+    .slice(0, 8);
+  if (!candidates.length) { closeMentionList(); return; }
+
+  mentionMatches    = candidates;
+  mentionTokenStart = caret - query.length - 1; // "@" の位置
+  renderMentionList();
+}
+
+function renderMentionList() {
+  mentionActiveIndex = 0;
+  mentionListEl.innerHTML = mentionMatches.map(([, name], i) =>
+    `<div class="mention-item${i === 0 ? ' active' : ''}" data-i="${i}">${escapeHtml(name)}</div>`
+  ).join('');
+  mentionListEl.style.display = 'block'; // CSSの基本値はnoneなので明示的にblockへ
+}
+
+function moveMentionActive(delta) {
+  mentionActiveIndex = (mentionActiveIndex + delta + mentionMatches.length) % mentionMatches.length;
+  [...mentionListEl.children].forEach((el, i) => el.classList.toggle('active', i === mentionActiveIndex));
+}
+
+function applyMentionSelection() {
+  if (!mentionMatches.length) return;
+  const [, name] = mentionMatches[mentionActiveIndex];
+  const before = chatInputEl.value.slice(0, mentionTokenStart);
+  const after  = chatInputEl.value.slice(chatInputEl.selectionStart);
+  const inserted = `@${name} `;
+  chatInputEl.value = before + inserted + after;
+  const newPos = (before + inserted).length;
+  chatInputEl.setSelectionRange(newPos, newPos);
+  closeMentionList();
+  chatInputEl.focus();
+}
+
+function closeMentionList() {
+  mentionMatches     = [];
+  mentionActiveIndex = -1;
+  if (mentionListEl) mentionListEl.style.display = 'none';
 }
 
 function updateLangIndicator() {
