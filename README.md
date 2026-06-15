@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.5.9-9147ff)
+![version](https://img.shields.io/badge/version-0.6.0-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -23,6 +23,7 @@
 | ⚡ **Groq Whisper STT** | クラウド音声認識で高精度・高速な字幕。ローカル Whisper より認識率が高い場合も |
 | 🔊 **翻訳読み上げ（TTS）** | 翻訳した字幕を自動読み上げ。配信者の声を理解しながら聴ける |
 | 📊 **API 利用状況パネル** | Gemini・Groq・DeepL の利用量をリアルタイム表示。使いすぎ防止に |
+| 🎬 **クリップ録画** | 配信画面を録画し、翻訳字幕入り動画として書き出し。ffmpeg で字幕を焼き込み可能 |
 
 ---
 
@@ -83,6 +84,14 @@
 
 > Windows 11 ではニューラル音声（Nanami, Keita など）を追加インストールすると音質が向上します。
 > 設定 → 時刻と言語 → 音声認識 → 音声の追加 から追加できます。
+
+### クリップ録画
+
+- **録画機能** — 配信画面を WebM 形式で録画（最大時間はオプションで設定可能）
+- **ASS 字幕生成** — 録画中に認識・翻訳された字幕を `.ass` ファイルとして自動書き出し
+- **字幕スタイル設定** — フォント・サイズ・位置（X/Y）・背景（なし/薄い/中/濃い/べた黒）をオプションページで調整
+- **ffmpeg コマンド生成** — 字幕焼き込み用コマンドを自動生成。PowerShell / CMD / bash の形式で切り替え可能
+- **ハルシネーション対策** — Whisper の長フレーズ繰り返しループを検出・除去
 
 ---
 

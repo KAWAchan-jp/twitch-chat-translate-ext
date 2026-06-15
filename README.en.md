@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.5.9-9147ff)
+![version](https://img.shields.io/badge/version-0.6.0-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -23,6 +23,7 @@
 | ⚡ **Groq Whisper STT** | High-accuracy, fast cloud speech recognition for subtitles. It may recognize speech better than local Whisper in some cases |
 | 🔊 **Translation text-to-speech (TTS)** | Automatically reads translated subtitles aloud so you can listen while understanding the streamer |
 | 📊 **API usage panel** | Shows Gemini, Groq, and DeepL usage in real time to help prevent overuse |
+| 🎬 **Clip recording** | Record the stream and export a video with translated subtitles burned in via ffmpeg |
 
 ---
 
@@ -85,6 +86,14 @@
 
 > On Windows 11, installing neural voices such as Nanami and Keita improves audio quality.
 > Add them from Settings → Time & language → Speech → Add voices.
+
+### Clip Recording
+
+- **Recording** — Records the stream video in WebM format (maximum duration configurable in options).
+- **ASS subtitle export** — Automatically exports recognized and translated subtitles as an `.ass` file alongside the recording.
+- **Subtitle style settings** — Customize font, size, position (X/Y), and background (none / light / medium / dark / solid) on the options page.
+- **ffmpeg command generation** — Automatically generates a subtitle burn-in command for PowerShell, CMD, or bash.
+- **Hallucination filtering** — Detects and discards Whisper's long repeating phrase loops before they are written to subtitles.
 
 ---
 
