@@ -9,9 +9,9 @@ const PANEL_CSS = `
     bottom: 20px;
     right: 20px;
     z-index: 2147483647;
-    width: 380px;
+    width: 300px;
     height: 480px;
-    min-width: 240px;
+    min-width: 220px;
     min-height: 200px;
   }
 
@@ -255,7 +255,7 @@ const PANEL_CSS = `
   .usage-panel {
     position: fixed;
     bottom: 20px;
-    right: 380px;
+    right: 300px;
     width: 260px;
     background: #0e0e10;
     border: 1px solid #2d2d2f;
@@ -376,7 +376,7 @@ const PANEL_CSS = `
 function createPanel() {
   container = document.createElement('div');
   container.id = 'tct-root';
-  container.style.cssText = 'position:fixed;bottom:20px;right:20px;width:380px;height:480px;z-index:2147483647;';
+  container.style.cssText = 'position:fixed;bottom:20px;right:20px;width:300px;height:480px;z-index:2147483647;';
   shadowRoot = container.attachShadow({ mode: 'open' });
 
   shadowRoot.innerHTML = `
@@ -387,18 +387,18 @@ function createPanel() {
           <div class="status-dot connecting" id="statusDot"></div>
           <span class="channel-name" id="channelName">接続待ち</span>
           <span class="game-name" id="gameName"></span>
+          <span class="version-badge" title="バージョン">${chrome.runtime.getManifest().version}</span>
+          <button class="close-btn" id="closeBtn" title="閉じる">×</button>
         </div>
         <div class="header-row">
           <span class="lang-indicator" id="langIndicator"></span>
           <div class="header-spacer"></div>
-          <span class="version-badge" title="バージョン">${chrome.runtime.getManifest().version}</span>
           <button class="hint-btn" id="hintBtn" title="認識ヒント（固有名詞を入れると音声認識の精度が上がります）">💡</button>
           <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
           <button class="tts-btn" id="ttsBtn" title="翻訳読み上げ ON/OFF">🔊</button>
           <button class="usage-btn" id="usageBtn" title="利用状況">📊</button>
           <button class="clip-btn" id="clipBtn" title="クリップ録画（クリックで開始）">📹</button>
           <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▼</button>
-          <button class="close-btn" id="closeBtn" title="閉じる">×</button>
         </div>
       </div>
       <div class="hint-bar" id="hintBar" style="display:none">
