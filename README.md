@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.0-9147ff)
+![version](https://img.shields.io/badge/version-0.6.12-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -33,7 +33,7 @@
 - **リアルタイム翻訳** — チャットが流れるたびに自動翻訳（Google Translate / DeepL）・3並列処理
 - **弾幕モード** — チャットの流速が速いとき（3msg/秒以上）は自動で翻訳を控えて原文表示。スクロールを止める・ホバーで見えている範囲だけ翻訳（API消費を節約）
 - **翻訳エンジン表示** — ヘッダーに `JA→JA・Google` のように翻訳方向と使用エンジンを常時表示。チャンネル別設定があるときはオレンジ色
-- **フッター翻訳エンジンインジケーター** — パネル最下部に自分のメッセージ・音声字幕・STT エンジンをリアルタイム表示
+- **フッター翻訳エンジンインジケーター** — パネル最下部に自分のメッセージ・音声字幕・STT エンジンをリアルタイム表示。クリックで有効化済みエンジンを巡回切替可能
 - **配信言語の自動検出** — Twitch のタグから配信言語を取得して翻訳元言語に自動設定
 - **フローティングパネル** — ページ右下に常駐。ヘッダーのドラッグで移動、右下のツマミでリサイズ、透過率調整も可能
 - **チャンネル自動検出** — URL からチャンネルを自動取得。SPA ナビゲーションにも対応
@@ -174,7 +174,7 @@
 | **音声:** | 配信者の音声認識後の翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>） |
 | **STT:** | 音声認識エンジン（Local = ローカル Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API） |
 
-オプションの設定変更はフッターにリアルタイム反映されます。
+オプションの設定変更はフッターにリアルタイム反映されます。**フッターの表示をクリックすると、有効化済みのエンジンを順番に切替できます**（チャット入力・音声は Google→DeepL→Gemini、STT は Local⇄Groq。それぞれオプションで有効化していないエンジンは候補に出ません）。
 
 | 操作 | 動作 |
 |------|------|

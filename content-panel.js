@@ -215,7 +215,8 @@ const PANEL_CSS = `
     font-family: 'Courier New', monospace;
   }
   .footer-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .footer-engine { color: #7a7a8e; }
+  .footer-engine { color: #7a7a8e; cursor: pointer; border-bottom: 1px dotted transparent; }
+  .footer-engine:hover { color: #efeff1; border-bottom-color: #5a5a6e; }
   .footer-engine.gemini { color: #4285f4; }
   .footer-engine.deepl  { color: #00c4a0; }
 
@@ -396,7 +397,7 @@ function createPanel() {
           <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
           <button class="tts-btn" id="ttsBtn" title="翻訳読み上げ ON/OFF">🔊</button>
           <button class="usage-btn" id="usageBtn" title="利用状況">📊</button>
-          <button class="clip-btn" id="clipBtn" title="クリップ録画（クリックで開始）">📹</button>
+          <button class="clip-btn" id="clipBtn" title="クリップ録画（クリックで開始）">🔴</button>
           <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▼</button>
           <button class="close-btn" id="closeBtn" title="閉じる">×</button>
         </div>
@@ -505,6 +506,11 @@ function createPanel() {
   shadowRoot.getElementById('recCloseDoneBtn').addEventListener('click', closeRecIndicator);
   makeUsagePanelDraggable(shadowRoot.getElementById('usagePanelHeader'));
   makeRecIndicatorDraggable();
+
+  // フッター：クリックで翻訳/STTエンジンを切替
+  shadowRoot.getElementById('footerChat').addEventListener('click', () => cycleFeatureEngine('own'));
+  shadowRoot.getElementById('footerVoice').addEventListener('click', () => cycleFeatureEngine('voice'));
+  shadowRoot.getElementById('footerSTT').addEventListener('click', cycleSttEngine);
 
   // 認識ヒントバー：💡で開閉、入力は500msデバウンスでストレージ保存（次のチャンクから反映）
   const hintBtn   = shadowRoot.getElementById('hintBtn');
@@ -808,36 +814,69 @@ function makeUsagePanelDraggable(header) {
   });
 }
 
+// ===== フッター：エンジン切替 =====
+// 「チャット入力」「音声」はそれぞれ Gemini / DeepL の有効フラグを切り替えて優先エンジンを変える
+const FOOTER_FEATURES = {
+  own:   { geminiFlag: 'gemini_own',   deeplFlag: 'deepl_own'   }, // チャット入力（送信メッセージ翻訳）
+  voice: { geminiFlag: 'gemini_voice', deeplFlag: 'deepl_voice' }, // 音声字幕翻訳
+};
+
+function getFeatureEngine(feature) {
+  const f = FOOTER_FEATURES[feature];
+  if (settings.gemini_enabled && settings[f.geminiFlag]) return 'Gemini';
+  if (settings.deepl_enabled  && settings[f.deeplFlag])  return 'DeepL';
+  return 'Google';
+}
+
+function getFeatureAvailable(feature) {
+  const list = ['Google'];
+  if (settings.deepl_enabled)  list.push('DeepL');
+  if (settings.gemini_enabled) list.push('Gemini');
+  return list;
+}
+
+// オプションで有効化済みのエンジンの中だけをクリックで巡回（未設定エンジンには切替できない）
+function cycleFeatureEngine(feature) {
+  const f = FOOTER_FEATURES[feature];
+  const available = getFeatureAvailable(feature);
+  if (available.length <= 1) return;
+  const current = getFeatureEngine(feature);
+  const next = available[(available.indexOf(current) + 1) % available.length];
+  chrome.storage.local.set({
+    [f.geminiFlag]: next === 'Gemini',
+    [f.deeplFlag]:  next === 'DeepL',
+  });
+}
+
+function cycleSttEngine() {
+  if (settings.groq_enabled) {
+    chrome.storage.local.set({ groq_enabled: false });
+  } else if (settings.groq_api_key) {
+    chrome.storage.local.set({ groq_enabled: true });
+  }
+}
+
 // ===== フッター更新 =====
 function updateFooter() {
   const chatEl  = shadowRoot?.getElementById('footerChat');
   const voiceEl = shadowRoot?.getElementById('footerVoice');
   if (!chatEl || !voiceEl) return;
 
-  // チャット翻訳エンジン（自分が入力したメッセージの翻訳）
-  let chatEngine;
-  if (settings.gemini_enabled && settings.gemini_own) {
-    chatEngine = 'Gemini';
-  } else if (settings.deepl_enabled && settings.deepl_own) {
-    chatEngine = 'DeepL';
-  } else {
-    chatEngine = 'Google';
-  }
+  const chatAvailable = getFeatureAvailable('own');
+  const chatEngine = getFeatureEngine('own');
   chatEl.textContent = chatEngine;
   chatEl.className = 'footer-engine' + (chatEngine === 'Gemini' ? ' gemini' : chatEngine === 'DeepL' ? ' deepl' : '');
+  chatEl.title = chatAvailable.length > 1
+    ? `クリックで切替（${chatAvailable.join(' → ')}）`
+    : 'オプションでDeepL/Geminiを有効にすると切替できます';
 
-  // 音声翻訳エンジン
-  const geminiVoice = settings.gemini_voice !== false;
-  let voiceEngine;
-  if (settings.gemini_enabled && geminiVoice) {
-    voiceEngine = 'Gemini';
-  } else if (settings.deepl_enabled && settings.deepl_voice) {
-    voiceEngine = 'DeepL';
-  } else {
-    voiceEngine = 'Google';
-  }
+  const voiceAvailable = getFeatureAvailable('voice');
+  const voiceEngine = getFeatureEngine('voice');
   voiceEl.textContent = voiceEngine;
   voiceEl.className = 'footer-engine' + (voiceEngine === 'Gemini' ? ' gemini' : voiceEngine === 'DeepL' ? ' deepl' : '');
+  voiceEl.title = voiceAvailable.length > 1
+    ? `クリックで切替（${voiceAvailable.join(' → ')}）`
+    : 'オプションでDeepL/Geminiを有効にすると切替できます';
 
   // STT エンジン
   const sttEl = shadowRoot?.getElementById('footerSTT');
@@ -845,6 +884,9 @@ function updateFooter() {
     const sttEngine = (settings.groq_enabled && settings.groq_api_key) ? 'Groq' : 'Local';
     sttEl.textContent = sttEngine;
     sttEl.style.color = sttEngine === 'Groq' ? '#f0971d' : '';
+    sttEl.title = settings.groq_api_key
+      ? 'クリックで切替（Local → Groq）'
+      : 'オプションでGroq APIキーを設定すると切替できます';
   }
 }
 

@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.0-9147ff)
+![version](https://img.shields.io/badge/version-0.6.12-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -34,7 +34,7 @@
 - **Real-time translation** — Automatically translates messages as they arrive using Google Translate or DeepL, with three-way parallel processing.
 - **High-speed chat mode** — When chat is moving quickly (3 messages/sec or more), translation is automatically reduced and original messages are shown. Pause scrolling or hover to translate only the visible range and save API usage.
 - **Translation engine display** — The header always shows the translation direction and engine, such as `JA→JA・Google`. It turns orange when channel-specific settings are active.
-- **Footer translation engine indicators** — The bottom of the panel shows your message translation engine, voice subtitle translation engine, and STT engine in real time.
+- **Footer translation engine indicators** — The bottom of the panel shows your message translation engine, voice subtitle translation engine, and STT engine in real time. Click to cycle through enabled engines.
 - **Automatic stream language detection** — Reads Twitch tags and automatically sets the source language.
 - **Floating panel** — Stays in the lower-right corner of the page. Drag the header to move it, drag the lower-right handle to resize it, and adjust opacity.
 - **Automatic channel detection** — Detects the channel from the URL and supports Twitch SPA navigation.
@@ -172,7 +172,7 @@ The panel footer shows the currently used translation engines in real time.
 | **Voice:** | Translation engine for recognized streamer speech (Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>) |
 | **STT:** | Speech recognition engine (Local = local Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API) |
 
-Changes made on the options page are reflected in the footer in real time.
+Changes made on the options page are reflected in the footer in real time. **Clicking a footer item cycles through the engines you've enabled** (Chat input/Voice: Google→DeepL→Gemini, STT: Local⇄Groq — engines not enabled in options are skipped).
 
 | Action | Behavior |
 |--------|----------|
