@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.12-9147ff)
+![version](https://img.shields.io/badge/version-0.6.13-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
