@@ -93,7 +93,6 @@
 - **ASS subtitle export** — Automatically exports recognized and translated subtitles as an `.ass` file alongside the recording.
 - **Subtitle style settings** — Customize font, size, position (X/Y), and background (none / light / medium / dark / solid) on the options page.
 - **ffmpeg command generation** — Automatically generates a subtitle burn-in command for PowerShell, CMD, or bash.
-- **Hallucination filtering** — Detects and discards Whisper's long repeating phrase loops before they are written to subtitles.
 
 ---
 
