@@ -68,6 +68,7 @@ async function init() {
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_prompt_default', 'whisper_max_chunk_ms', 'whisper_num_beams',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_voice', 'gemini_own', 'groq_enabled', 'groq_api_key', 'tts_enabled', 'tts_rate', 'downloaded_models', 'custom_hallucination_patterns', 'panel_opacity',
     'ignore_bot_badge', 'ignore_known_bots', 'ignore_users', 'clip_max_minutes', 'ffmpeg_path', 'ffmpeg_shell', 'clip_subtitle_enabled', 'clip_sub_bg', 'clip_sub_font', 'clip_sub_fontsize', 'clip_sub_x', 'clip_sub_y',
+    'panel_collapsed',
   ]);
   settings = { ...settings, ...stored };
 
@@ -79,8 +80,8 @@ async function init() {
 
   createPanel();
   applyPanelOpacity();
-  // TTS の有効/無効状態をストレージから復元
   if (stored.tts_enabled) { isTtsActive = true; updateTtsBtn(); }
+  if (stored.panel_collapsed) applyCollapsedState(true);
   await detectAndConnect();
   hookNavigation();
 

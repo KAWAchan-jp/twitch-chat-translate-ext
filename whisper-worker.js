@@ -357,7 +357,9 @@ self.addEventListener('message', async (e) => {
         // temperature fallback: 低信頼の出力を高温度で再試行（Whisper本来の動作）
         temperature: [0, 0.2, 0.4, 0.6, 0.8, 1.0],
       };
-      if (language && language !== 'auto') opts.language = language;
+      // Whisper は ISO 639-1 コードのみ対応（zh-CN/zh-TW → zh に正規化）
+      const whisperLang = { 'zh-CN': 'zh', 'zh-TW': 'zh' }[language] ?? language;
+      if (whisperLang && whisperLang !== 'auto') opts.language = whisperLang;
       if (initial_prompt) opts.initial_prompt = initial_prompt;
       console.log(`[TCT-W] 推論開始 model=${loadedModelKey} beams=${opts.num_beams} lang=${opts.language ?? 'auto'}`);
 

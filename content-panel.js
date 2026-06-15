@@ -9,7 +9,7 @@ const PANEL_CSS = `
     bottom: 20px;
     right: 20px;
     z-index: 2147483647;
-    width: 330px;
+    width: 380px;
     height: 480px;
     min-width: 240px;
     min-height: 200px;
@@ -227,6 +227,21 @@ const PANEL_CSS = `
   }
   .resize-handle:hover { background: linear-gradient(135deg, transparent 50%, #9147ff 50%); }
 
+  /* 折りたたみ */
+  :host(.collapsed) { height: auto; min-height: 0; }
+  :host(.collapsed) .hint-bar,
+  :host(.collapsed) .auth-bar,
+  :host(.collapsed) .messages,
+  :host(.collapsed) .scroll-to-bottom,
+  :host(.collapsed) .resize-handle { display: none; }
+
+  .collapse-btn {
+    background: none; border: none; color: #5a5a6e; cursor: pointer;
+    font-size: 11px; line-height: 1; padding: 0 3px; flex-shrink: 0;
+    transition: color 0.15s;
+  }
+  .collapse-btn:hover { color: #adadb8; }
+
   /* 利用状況ボタン */
   .usage-btn {
     background: none; border: none; cursor: pointer;
@@ -240,7 +255,7 @@ const PANEL_CSS = `
   .usage-panel {
     position: fixed;
     bottom: 20px;
-    right: 330px;
+    right: 380px;
     width: 260px;
     background: #0e0e10;
     border: 1px solid #2d2d2f;
@@ -361,7 +376,7 @@ const PANEL_CSS = `
 function createPanel() {
   container = document.createElement('div');
   container.id = 'tct-root';
-  container.style.cssText = 'position:fixed;bottom:20px;right:20px;width:330px;height:480px;z-index:2147483647;';
+  container.style.cssText = 'position:fixed;bottom:20px;right:20px;width:380px;height:480px;z-index:2147483647;';
   shadowRoot = container.attachShadow({ mode: 'open' });
 
   shadowRoot.innerHTML = `
@@ -382,6 +397,7 @@ function createPanel() {
           <button class="tts-btn" id="ttsBtn" title="翻訳読み上げ ON/OFF">🔊</button>
           <button class="usage-btn" id="usageBtn" title="利用状況">📊</button>
           <button class="clip-btn" id="clipBtn" title="クリップ録画（クリックで開始）">📹</button>
+          <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▼</button>
           <button class="close-btn" id="closeBtn" title="閉じる">×</button>
         </div>
       </div>
@@ -477,6 +493,7 @@ function createPanel() {
   sendBtnEl      = shadowRoot.getElementById('sendBtn');
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
+  shadowRoot.getElementById('collapseBtn').addEventListener('click', toggleCollapse);
   shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
   shadowRoot.getElementById('ttsBtn').addEventListener('click', toggleTts);
   shadowRoot.getElementById('usageBtn').addEventListener('click', toggleUsagePanel);
@@ -612,6 +629,57 @@ function handleLogout() {
   if (currentChannel) { disconnect(); connect(); }
 }
 
+// ===== 折りたたみ =====
+let panelCollapsed = false;
+let _savedPanelHeight = '480px';
+
+function _updateCollapseBtn() {
+  const btn = shadowRoot?.getElementById('collapseBtn');
+  if (btn) { btn.textContent = panelCollapsed ? '▲' : '▼'; btn.title = panelCollapsed ? '展開する' : '折りたたむ'; }
+}
+
+function toggleCollapse() {
+  if (panelCollapsed) {
+    // 折りたたみ中 → 展開: クラス変更前に位置を確定（auto height 変化で rect.top がずれるのを防ぐ）
+    const rect = container.getBoundingClientRect();
+    panelCollapsed = false;
+    container.classList.remove('collapsed');
+    const h   = parseFloat(_savedPanelHeight) || 480;
+    const top = Math.max(0, Math.min(rect.top, window.innerHeight - h - 10));
+    container.style.top    = top + 'px';
+    container.style.bottom = 'auto';
+    container.style.height    = _savedPanelHeight;
+    container.style.minHeight = '';
+  } else {
+    // 展開中 → 折りたたみ: 現在の高さと位置を保存して top アンカーに切り替え
+    _savedPanelHeight = container.style.height || '480px';
+    const rect = container.getBoundingClientRect();
+    panelCollapsed = true;
+    container.classList.add('collapsed');
+    container.style.top    = Math.max(0, rect.top) + 'px';
+    container.style.bottom = 'auto';
+    container.style.height    = 'auto';
+    container.style.minHeight = '0';
+  }
+  _updateCollapseBtn();
+  chrome.storage.local.set({ panel_collapsed: panelCollapsed });
+}
+
+function applyCollapsedState(val) {
+  // ページ初期化時の状態復元（getBoundingClientRect未使用・高さのみ制御）
+  panelCollapsed = !!val;
+  container.classList.toggle('collapsed', panelCollapsed);
+  if (panelCollapsed) {
+    _savedPanelHeight = container.style.height || '480px';
+    container.style.height    = 'auto';
+    container.style.minHeight = '0';
+  } else {
+    container.style.height    = _savedPanelHeight;
+    container.style.minHeight = '';
+  }
+  _updateCollapseBtn();
+}
+
 // ===== パネル透過率 =====
 function applyPanelOpacity() {
   if (!container) return;
@@ -691,23 +759,29 @@ function renderUsagePanel(u) {
 function makeRecIndicatorDraggable() {
   const el = shadowRoot?.getElementById('recIndicator');
   if (!el) return;
-  el.addEventListener('mousedown', e => {
+  el.addEventListener('pointerdown', e => {
     if (e.target.closest('.rec-start-btn, .rec-stop-btn, .rec-close-btn, .rec-cmd-text')) return;
     e.preventDefault();
+    el.setPointerCapture(e.pointerId);
     const rect = el.getBoundingClientRect();
     const startX = e.clientX, startY = e.clientY;
-    const startLeft = rect.left, startTop = rect.top;
-    el.style.right = 'auto'; el.style.bottom = 'auto';
-    el.style.left = startLeft + 'px'; el.style.top = startTop + 'px';
+    const origRight  = window.innerWidth  - rect.right;
+    const origBottom = window.innerHeight - rect.bottom;
+    el.style.left = 'auto'; el.style.top = 'auto';
+    el.style.right  = origRight  + 'px';
+    el.style.bottom = origBottom + 'px';
     const onMove = e => {
-      const newLeft = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  startLeft + (e.clientX - startX)));
-      const newTop  = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, startTop  + (e.clientY - startY)));
-      el.style.left = newLeft + 'px';
-      el.style.top  = newTop  + 'px';
+      el.style.right  = Math.max(0, origRight  - (e.clientX - startX)) + 'px';
+      el.style.bottom = Math.max(0, origBottom - (e.clientY - startY)) + 'px';
     };
-    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    const onUp = () => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
   });
 }
 
@@ -777,12 +851,16 @@ function updateFooter() {
 // ===== ドラッグ移動 =====
 function makeDraggable(handle) {
   handle.addEventListener('mousedown', e => {
-    if (e.target.closest('.close-btn')) return;
+    if (e.target.closest('.close-btn, .collapse-btn')) return;
     e.preventDefault();
     const rect = container.getBoundingClientRect();
     const startX = e.clientX, startY = e.clientY;
     const origRight  = window.innerWidth  - rect.right;
     const origBottom = window.innerHeight - rect.bottom;
+    container.style.top  = 'auto';
+    container.style.left = 'auto';
+    container.style.right  = origRight  + 'px';
+    container.style.bottom = origBottom + 'px';
     const onMove = e => {
       container.style.right  = Math.max(0, origRight  - (e.clientX - startX)) + 'px';
       container.style.bottom = Math.max(0, origBottom - (e.clientY - startY)) + 'px';
@@ -1063,6 +1141,7 @@ function makeResizable(handle) {
       const newH = Math.max(200, startH + deltaY);
       container.style.width  = newW + 'px';
       container.style.height = newH + 'px';
+      _savedPanelHeight = newH + 'px';
       container.style.right  = Math.max(0, origRight  - (newW - startW)) + 'px';
       container.style.bottom = Math.max(0, origBottom - (newH - startH)) + 'px';
     };

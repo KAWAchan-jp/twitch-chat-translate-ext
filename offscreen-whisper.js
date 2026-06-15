@@ -81,7 +81,8 @@ async function handleTranscribe({ audioBase64, mimeType, language }) {
 
   try {
     const opts = { task: 'transcribe', return_timestamps: false };
-    if (language && language !== 'auto') opts.language = language;
+    const whisperLang = ({ 'zh-CN': 'zh', 'zh-TW': 'zh' })[language] ?? language;
+    if (whisperLang && whisperLang !== 'auto') opts.language = whisperLang;
     const result = await t(url, opts);
     return result.text?.trim() ?? '';
   } finally {

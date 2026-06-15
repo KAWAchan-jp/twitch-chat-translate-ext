@@ -176,6 +176,7 @@ function translateMessageEl(el) {
 
 // ===== メッセージ表示・翻訳 =====
 function addChatMessage(username, text, color, isBot = false) {
+  if (panelCollapsed) return;
   const lname = username.toLowerCase();
   if (settings.ignore_bot_badge && isBot) return;
   if (settings.ignore_known_bots && KNOWN_BOTS.has(lname)) return;
@@ -245,7 +246,7 @@ function addOwnMessage(sentText, typedText) {
 }
 
 function addSystemMessage(text) {
-  if (!messagesEl) return;
+  if (!messagesEl || panelCollapsed) return;
   const el = document.createElement('div');
   el.className = 'msg system';
   el.innerHTML = `<div class="msg-trans">${escapeHtml(text)}</div>`;

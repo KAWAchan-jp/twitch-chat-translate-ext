@@ -255,7 +255,9 @@ async function groqTranscribe(audioBase64, mimeType, language) {
   const formData = new FormData();
   formData.append('file', blob, 'audio.webm');
   formData.append('model', model);
-  if (language) formData.append('language', language);
+  // Whisper API は ISO 639-1 コードのみ対応（zh-CN/zh-TW → zh に正規化）
+  const whisperLang = ({ 'zh-CN': 'zh', 'zh-TW': 'zh' })[language] ?? language;
+  if (whisperLang) formData.append('language', whisperLang);
   formData.append('response_format', 'json');
 
   const controller = new AbortController();
