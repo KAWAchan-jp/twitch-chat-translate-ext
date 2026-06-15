@@ -59,7 +59,13 @@ let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scr
 let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl, hintInputEl;
 let authBarEl, loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
 let scrollPaused = false;
-let chatInputEl, sendBtnEl;
+let chatInputEl, sendBtnEl, mentionListEl;
+
+// ===== メンション自動補完 =====
+let chatters = new Map();   // ユーザー名(小文字)→表示名。最近発言した順（古い→新しい）
+let mentionMatches = [];    // 現在表示中の候補 [[lname, displayName], ...]
+let mentionActiveIndex = -1;
+let mentionTokenStart = -1; // 入力欄内の "@" の位置
 
 // ===== 初期化 =====
 async function init() {
