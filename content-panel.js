@@ -160,7 +160,7 @@ const PANEL_CSS = `
   .messages::-webkit-scrollbar-thumb { background: #3d3d40; border-radius: 2px; }
 
   .scroll-to-bottom {
-    position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
+    position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%);
     background: #9147ff; color: #fff; border: none; border-radius: 14px;
     padding: 4px 14px; font-size: 12px; cursor: pointer; white-space: nowrap;
     box-shadow: 0 2px 8px rgba(0,0,0,0.4); opacity: 0; pointer-events: none;
