@@ -1,5 +1,15 @@
 'use strict';
 
+// ===== 周知ボットリスト =====
+const KNOWN_BOTS = new Set([
+  'nightbot', 'streamelements', 'fossabot', 'moobot', 'wizebot', 'phantombot',
+  'supibot', 'commanderroot', 'pretzelrocks', 'soundalerts', 'streamlabs',
+  'botrix', 'own3d', 'sery_bot', 'titlechange_bot', 'kofistreambot',
+  'streamlabsbot', 'logviewer', 'anotherttvviewer', 'coebot', 'deepbot',
+  'electricallongboard', 'stay_hydrated_bot', 'streamholics', 'v_and_k',
+  'pokemoncommunitygame', 'wize_bot', 'zanekyber',
+]);
+
 // ===== チャット翻訳キュー（3並列・FIFO） =====
 const TRANSLATE_CONCURRENCY = 3;
 let _translateActive  = 0;
@@ -76,7 +86,7 @@ function handleIRCLine(line) {
   }
   if (!line.includes('PRIVMSG')) return;
   const parsed = parseIRCMessage(line);
-  if (parsed) addChatMessage(parsed.username, parsed.text, parsed.color);
+  if (parsed) addChatMessage(parsed.username, parsed.text, parsed.color, parsed.isBot);
 }
 
 function parseIRCMessage(line) {
@@ -84,7 +94,9 @@ function parseIRCMessage(line) {
     const withTags = line.match(/^@([^ ]+) :(\w+)!\w+@\S+ PRIVMSG #\w+ :(.+)$/);
     if (withTags) {
       const tags = parseTags(withTags[1]);
-      return { username: tags['display-name'] || withTags[2], text: withTags[3], color: tags['color'] || null };
+      const badges = tags['badges'] || '';
+      const isBot = badges.split(',').some(b => b.startsWith('bot/'));
+      return { username: tags['display-name'] || withTags[2], text: withTags[3], color: tags['color'] || null, isBot };
     }
     const plain = line.match(/:(\w+)!\w+@\S+ PRIVMSG #\w+ :(.+)$/);
     if (plain) return { username: plain[1], text: plain[2], color: null };
@@ -163,7 +175,16 @@ function translateMessageEl(el) {
 }
 
 // ===== メッセージ表示・翻訳 =====
-function addChatMessage(username, text, color) {
+function addChatMessage(username, text, color, isBot = false) {
+  const lname = username.toLowerCase();
+  if (settings.ignore_bot_badge && isBot) return;
+  if (settings.ignore_known_bots && KNOWN_BOTS.has(lname)) return;
+  if (settings.ignore_users) {
+    const ignoreSet = new Set(
+      settings.ignore_users.split(/[\n,]+/).map(s => s.trim().toLowerCase()).filter(Boolean)
+    );
+    if (ignoreSet.has(lname)) return;
+  }
   updateDanmakuMode();
 
   const el = document.createElement('div');

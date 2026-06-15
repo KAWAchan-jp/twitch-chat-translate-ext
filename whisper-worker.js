@@ -80,6 +80,19 @@ function isHallucination(text, customPatterns = []) {
       if (counts[key] >= 3) return true;
     }
   }
+  // 語レベルの繰り返し（「je vais dire que」×N 等の長フレーズループを検出）
+  const words = text.trim().toLowerCase().split(/\s+/);
+  if (words.length >= 6) {
+    for (let n = 2; n <= Math.min(6, Math.floor(words.length / 3)); n++) {
+      const wgrams = new Map();
+      for (let i = 0; i <= words.length - n; i++) {
+        const g = words.slice(i, i + n).join(' ');
+        const cnt = (wgrams.get(g) ?? 0) + 1;
+        if (cnt >= 3) return true;
+        wgrams.set(g, cnt);
+      }
+    }
+  }
   // n-gram高頻度繰り返し（「スッシュッシュッ」等、先頭から始まらない繰り返しも検出）
   if (normalized.length >= 12) {
     for (let n = 2; n <= 6; n++) {

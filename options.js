@@ -3,6 +3,25 @@
 document.getElementById('version').textContent =
   `v${chrome.runtime.getManifest().version}`;
 
+// ===== ページナビゲーション =====
+(function () {
+  const pages    = document.querySelectorAll('.page');
+  const navItems = document.querySelectorAll('.nav-item');
+
+  function showPage(id) {
+    pages.forEach(p => p.classList.toggle('active', p.id === `page-${id}`));
+    navItems.forEach(n => n.classList.toggle('active', n.dataset.page === id));
+    localStorage.setItem('options_page', id);
+  }
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => showPage(item.dataset.page));
+  });
+
+  const saved = localStorage.getItem('options_page') || 'stt';
+  showPage(saved);
+})();
+
 // ===== モデルテーブル =====
 const MODEL_DEFS = [
   { value: 'tiny',              label: 'Tiny',                   size: '約38MB',  note: '高速・標準精度・CPU可' },
@@ -598,6 +617,117 @@ defaultTgtLangEl.addEventListener('change', () => {
   chrome.storage.local.set({ tgt_lang: defaultTgtLangEl.value });
 });
 
+// ===== クリップ最大録画時間 =====
+const clipMaxMinutesEl  = document.getElementById('clipMaxMinutes');
+const clipMaxMinutesVal = document.getElementById('clipMaxMinutesVal');
+
+chrome.storage.local.get('clip_max_minutes', ({ clip_max_minutes }) => {
+  const m = clip_max_minutes ?? 3;
+  clipMaxMinutesEl.value       = m;
+  clipMaxMinutesVal.textContent = m;
+});
+
+clipMaxMinutesEl.addEventListener('input', () => {
+  const m = Number(clipMaxMinutesEl.value);
+  clipMaxMinutesVal.textContent = m;
+  chrome.storage.local.set({ clip_max_minutes: m });
+});
+
+// ===== ffmpeg パス =====
+const ffmpegPathEl = document.getElementById('ffmpegPath');
+
+chrome.storage.local.get('ffmpeg_path', ({ ffmpeg_path }) => {
+  ffmpegPathEl.value = ffmpeg_path ?? '';
+});
+
+ffmpegPathEl.addEventListener('change', () => {
+  chrome.storage.local.set({ ffmpeg_path: ffmpegPathEl.value.trim() });
+});
+
+// ===== 焼き込み字幕スタイル =====
+const clipSubBgEl        = document.getElementById('clipSubBg');
+const clipSubFontEl      = document.getElementById('clipSubFont');
+const clipSubFontsizeEl  = document.getElementById('clipSubFontsize');
+const clipSubFontsizeVal = document.getElementById('clipSubFontsizeVal');
+const clipSubYEl         = document.getElementById('clipSubY');
+const clipSubYVal        = document.getElementById('clipSubYVal');
+const clipSubXEl         = document.getElementById('clipSubX');
+const clipSubXVal        = document.getElementById('clipSubXVal');
+const clipSubPreviewEl   = document.getElementById('clipSubPreview');
+
+const BG_PREVIEW = { none: 'transparent', light: 'rgba(0,0,0,0.25)', medium: 'rgba(0,0,0,0.5)', dark: 'rgba(0,0,0,0.75)', solid: 'rgba(0,0,0,1)' };
+
+function updateClipSubPreview() {
+  const previewH = clipSubPreviewEl.parentElement.offsetHeight || 200;
+  clipSubPreviewEl.style.left       = clipSubXEl.value + '%';
+  clipSubPreviewEl.style.top        = clipSubYEl.value + '%';
+  clipSubPreviewEl.style.fontSize   = Math.round(Number(clipSubFontsizeEl.value) * previewH / 1080) + 'px';
+  clipSubPreviewEl.style.fontFamily = `"${clipSubFontEl.value}", sans-serif`;
+  clipSubPreviewEl.style.background = BG_PREVIEW[clipSubBgEl.value] ?? 'rgba(0,0,0,0.5)';
+  clipSubPreviewEl.style.textShadow = clipSubBgEl.value === 'none' ? '1px 1px 2px #000, -1px -1px 2px #000' : 'none';
+  clipSubPreviewEl.style.padding    = clipSubBgEl.value === 'none' ? '0' : '4px 12px';
+}
+
+chrome.storage.local.get(['clip_sub_bg', 'clip_sub_font', 'clip_sub_fontsize', 'clip_sub_x', 'clip_sub_y'], ({ clip_sub_bg, clip_sub_font, clip_sub_fontsize, clip_sub_x, clip_sub_y }) => {
+  clipSubBgEl.value             = clip_sub_bg   ?? 'medium';
+  clipSubFontEl.value           = clip_sub_font ?? 'Arial';
+  clipSubFontsizeEl.value       = clip_sub_fontsize ?? 24;
+  clipSubFontsizeVal.textContent = clipSubFontsizeEl.value + 'px';
+  clipSubXEl.value              = clip_sub_x ?? 50;
+  clipSubXVal.textContent       = clipSubXEl.value;
+  clipSubYEl.value              = clip_sub_y ?? 90;
+  clipSubYVal.textContent       = clipSubYEl.value;
+  updateClipSubPreview();
+});
+
+clipSubBgEl.addEventListener('change', () => {
+  chrome.storage.local.set({ clip_sub_bg: clipSubBgEl.value });
+  updateClipSubPreview();
+});
+
+clipSubFontEl.addEventListener('change', () => {
+  chrome.storage.local.set({ clip_sub_font: clipSubFontEl.value });
+  updateClipSubPreview();
+});
+
+clipSubFontsizeEl.addEventListener('input', () => {
+  clipSubFontsizeVal.textContent = clipSubFontsizeEl.value + 'px';
+  chrome.storage.local.set({ clip_sub_fontsize: Number(clipSubFontsizeEl.value) });
+  updateClipSubPreview();
+});
+clipSubXEl.addEventListener('input', () => {
+  clipSubXVal.textContent = clipSubXEl.value;
+  chrome.storage.local.set({ clip_sub_x: Number(clipSubXEl.value) });
+  updateClipSubPreview();
+});
+clipSubYEl.addEventListener('input', () => {
+  clipSubYVal.textContent = clipSubYEl.value;
+  chrome.storage.local.set({ clip_sub_y: Number(clipSubYEl.value) });
+  updateClipSubPreview();
+});
+
+// ===== 字幕生成 =====
+const clipSubtitleEnabledEl = document.getElementById('clipSubtitleEnabled');
+
+chrome.storage.local.get('clip_subtitle_enabled', ({ clip_subtitle_enabled }) => {
+  clipSubtitleEnabledEl.checked = clip_subtitle_enabled ?? false;
+});
+
+clipSubtitleEnabledEl.addEventListener('change', () => {
+  chrome.storage.local.set({ clip_subtitle_enabled: clipSubtitleEnabledEl.checked });
+});
+
+// ===== ffmpeg シェル種別 =====
+const ffmpegShellEl = document.getElementById('ffmpegShell');
+
+chrome.storage.local.get('ffmpeg_shell', ({ ffmpeg_shell }) => {
+  ffmpegShellEl.value = ffmpeg_shell ?? 'powershell';
+});
+
+ffmpegShellEl.addEventListener('change', () => {
+  chrome.storage.local.set({ ffmpeg_shell: ffmpegShellEl.value });
+});
+
 // ===== パネル透過率 =====
 const panelOpacityEl    = document.getElementById('panelOpacity');
 const panelOpacityValEl = document.getElementById('panelOpacityVal');
@@ -612,6 +742,34 @@ panelOpacityEl.addEventListener('input', () => {
   const v = Number(panelOpacityEl.value);
   panelOpacityValEl.textContent = Math.round(v * 100);
   chrome.storage.local.set({ panel_opacity: v });
+});
+
+// ===== ボット・ユーザー無視 =====
+const ignoreKnownBotsEl   = document.getElementById('ignoreKnownBots');
+const ignoreBotBadgeEl    = document.getElementById('ignoreBotBadge');
+const ignoreUsersEl       = document.getElementById('ignoreUsers');
+const saveIgnoreUsersBtn  = document.getElementById('saveIgnoreUsers');
+const saveIgnoreUsersMsgEl = document.getElementById('saveIgnoreUsersMsg');
+
+chrome.storage.local.get(['ignore_known_bots', 'ignore_bot_badge', 'ignore_users'], ({ ignore_known_bots, ignore_bot_badge, ignore_users }) => {
+  ignoreKnownBotsEl.checked = ignore_known_bots !== false; // デフォルトON
+  ignoreBotBadgeEl.checked  = !!ignore_bot_badge;
+  ignoreUsersEl.value       = ignore_users ?? '';
+});
+
+ignoreKnownBotsEl.addEventListener('change', () => {
+  chrome.storage.local.set({ ignore_known_bots: ignoreKnownBotsEl.checked });
+});
+
+ignoreBotBadgeEl.addEventListener('change', () => {
+  chrome.storage.local.set({ ignore_bot_badge: ignoreBotBadgeEl.checked });
+});
+
+saveIgnoreUsersBtn.addEventListener('click', () => {
+  chrome.storage.local.set({ ignore_users: ignoreUsersEl.value.trim() }, () => {
+    saveIgnoreUsersMsgEl.style.display = 'inline';
+    setTimeout(() => { saveIgnoreUsersMsgEl.style.display = 'none'; }, 2000);
+  });
 });
 
 // ===== カスタムハルシネーション除外パターン =====

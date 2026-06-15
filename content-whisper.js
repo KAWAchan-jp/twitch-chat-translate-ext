@@ -452,6 +452,7 @@ async function handleFinalTranscript(text) {
   const from = (settings.src_lang === 'auto') ? 'auto' : settings.src_lang;
   if (from === settings.tgt_lang) {
     showSubtitle(text, true);
+    if (typeof addClipSubtitle === 'function') addClipSubtitle(text);
     speakTranslation(text, settings.tgt_lang);
     return;
   }
@@ -459,8 +460,12 @@ async function handleFinalTranscript(text) {
   try {
     const translated = await translateViaBackground(text, from, settings.tgt_lang, 'voice');
     showSubtitle(translated, true);
+    if (typeof addClipSubtitle === 'function') addClipSubtitle(translated);
     speakTranslation(translated, settings.tgt_lang);
-  } catch { /* 原文表示のまま */ }
+  } catch {
+    // 翻訳失敗時は原文を記録
+    if (typeof addClipSubtitle === 'function') addClipSubtitle(text);
+  }
 }
 
 // ===== 字幕オーバーレイ =====

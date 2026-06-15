@@ -53,7 +53,7 @@ let isActive        = true;
 let isAuthenticated = false;
 let twitchToken     = '';
 let twitchUsername  = '';
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, gemini_enabled: false, gemini_voice: true, gemini_own: false, groq_enabled: false, groq_api_key: '', tts_enabled: false, tts_rate: 1.0, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_prompt_default: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1, downloaded_models: [] };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, gemini_enabled: false, gemini_voice: true, gemini_own: false, groq_enabled: false, groq_api_key: '', tts_enabled: false, tts_rate: 1.0, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_prompt_default: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1, downloaded_models: [], ignore_bot_badge: false, ignore_known_bots: true, ignore_users: '', clip_max_minutes: 3, ffmpeg_path: '', ffmpeg_shell: 'powershell', clip_subtitle_enabled: false, clip_sub_bg: 'medium', clip_sub_font: 'Arial', clip_sub_fontsize: 24, clip_sub_x: 50, clip_sub_y: 90 };
 
 // ===== Shadow DOM 内のDOM参照 =====
 let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl, hintInputEl;
@@ -67,6 +67,7 @@ async function init() {
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_prompt_default', 'whisper_max_chunk_ms', 'whisper_num_beams',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_voice', 'gemini_own', 'groq_enabled', 'groq_api_key', 'tts_enabled', 'tts_rate', 'downloaded_models', 'custom_hallucination_patterns', 'panel_opacity',
+    'ignore_bot_badge', 'ignore_known_bots', 'ignore_users', 'clip_max_minutes', 'ffmpeg_path', 'ffmpeg_shell', 'clip_subtitle_enabled', 'clip_sub_bg', 'clip_sub_font', 'clip_sub_fontsize', 'clip_sub_x', 'clip_sub_y',
   ]);
   settings = { ...settings, ...stored };
 
@@ -310,6 +311,18 @@ function onSettingsChanged(changes) {
   if (changes.whisper_num_beams)     settings.whisper_num_beams     = changes.whisper_num_beams.newValue;
   if (changes.downloaded_models)          settings.downloaded_models          = changes.downloaded_models.newValue ?? [];
   if (changes.custom_hallucination_patterns) settings.custom_hallucination_patterns = changes.custom_hallucination_patterns.newValue ?? [];
+  if (changes.ignore_bot_badge)   settings.ignore_bot_badge   = changes.ignore_bot_badge.newValue;
+  if (changes.ignore_known_bots) settings.ignore_known_bots = changes.ignore_known_bots.newValue;
+  if (changes.ignore_users)      settings.ignore_users      = changes.ignore_users.newValue ?? '';
+  if (changes.clip_max_minutes)  settings.clip_max_minutes  = changes.clip_max_minutes.newValue ?? 3;
+  if (changes.ffmpeg_path)       settings.ffmpeg_path       = changes.ffmpeg_path.newValue ?? '';
+  if (changes.ffmpeg_shell)         settings.ffmpeg_shell         = changes.ffmpeg_shell.newValue ?? 'powershell';
+  if (changes.clip_subtitle_enabled) settings.clip_subtitle_enabled = changes.clip_subtitle_enabled.newValue ?? false;
+  if (changes.clip_sub_bg)       settings.clip_sub_bg       = changes.clip_sub_bg.newValue       ?? 'medium';
+  if (changes.clip_sub_font)     settings.clip_sub_font     = changes.clip_sub_font.newValue     ?? 'Arial';
+  if (changes.clip_sub_fontsize) settings.clip_sub_fontsize = changes.clip_sub_fontsize.newValue ?? 24;
+  if (changes.clip_sub_x)        settings.clip_sub_x        = changes.clip_sub_x.newValue        ?? 50;
+  if (changes.clip_sub_y)        settings.clip_sub_y        = changes.clip_sub_y.newValue        ?? 90;
   if (changes.panel_opacity) {
     settings.panel_opacity = changes.panel_opacity.newValue;
     applyPanelOpacity();
