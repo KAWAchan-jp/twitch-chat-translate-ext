@@ -1059,31 +1059,59 @@ function generateAssContent(subtitles) {
   // 利用可能幅: 1920-80-80=1760px / 全角1文字 ≒ fontsize px
   const charsPerLine = Math.max(10, Math.floor(1760 / fs));
 
-  const events = subtitles.map(entry => {
+  // BorderStyle=3は行ごとに独立したボックスを描画するため、
+  // 複数行を\Nでまとめると隣接ボックスが重なって透過が二重になる。
+  // 対策: 複数行は1行ずつ別Dialogueイベントに分割し\posで配置する。
+  const boxPad   = bg === 'none' ? 0 : 4;   // StyleのOutline値と合わせる
+  // 1行ステップ(PlayRes px) = フォント行高さ(fs*1.3) + ボックス上下パディング
+  const lineStep = Math.round(fs * 1.3) + boxPad * 2;
+  // \posで使うX座標（左/中央/右）
+  const posX     = col === 0 ? 80 : col === 2 ? 1840 : 960;
+
+  const events = subtitles.flatMap(entry => {
     const i      = subtitles.indexOf(entry);
     const next   = subtitles[i + 1];
     const rawEnd = next ? Math.min(next.startMs - 100, entry.startMs + 5000) : entry.startMs + 4000;
     const endMs  = Math.max(rawEnd, entry.startMs + 500);
-    const wrapped = wrapAssText(entry.text, charsPerLine);
-    return `Dialogue: 0,${msToAssTime(entry.startMs)},${msToAssTime(endMs)},Default,,0,0,0,,${wrapped}`;
+    const lines  = splitAssLines(entry.text, charsPerLine);
+
+    if (lines.length === 1) {
+      // 1行: StyleのAlignmentとMarginVで配置（従来通り）
+      return [`Dialogue: 0,${msToAssTime(entry.startMs)},${msToAssTime(endMs)},Default,,0,0,0,,${lines[0]}`];
+    }
+
+    // 複数行: 1行ずつ別Dialogueに分割して\posで配置
+    return lines.map((lineText, li) => {
+      let posY;
+      if (rowOff === 0) {
+        // 下揃え: \an=1/2/3 → posYはテキスト内側の下端
+        posY = Math.round(1080 - marginV - (lines.length - 1 - li) * lineStep);
+      } else if (rowOff === 6) {
+        // 上揃え: \an=7/8/9 → posYはテキスト内側の上端
+        posY = Math.round(marginV + li * lineStep);
+      } else {
+        // 中央: \an=4/5/6 → posYはテキスト中心
+        posY = Math.round(540 + (li - (lines.length - 1) / 2) * lineStep);
+      }
+      return `Dialogue: 0,${msToAssTime(entry.startMs)},${msToAssTime(endMs)},Default,,0,0,0,,{\\an${align}\\pos(${posX},${posY})}${lineText}`;
+    });
   }).join('\n');
 
   return header + '\n' + events + '\n';
 }
 
-function wrapAssText(text, charsPerLine) {
-  if (text.length <= charsPerLine) return text;
+function splitAssLines(text, charsPerLine) {
+  if (text.length <= charsPerLine) return [text];
   const lines = [];
   let remaining = text;
   while (remaining.length > charsPerLine) {
-    // スペースがあればスペース優先で切る
     const spaceIdx = remaining.lastIndexOf(' ', charsPerLine);
     const breakAt  = spaceIdx > charsPerLine * 0.4 ? spaceIdx : charsPerLine;
     lines.push(remaining.slice(0, breakAt).trimEnd());
     remaining = remaining.slice(breakAt).trimStart();
   }
   if (remaining) lines.push(remaining);
-  return lines.join('\\N');
+  return lines;
 }
 
 function toggleClipRecording() {
