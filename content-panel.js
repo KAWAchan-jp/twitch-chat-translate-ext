@@ -1047,9 +1047,9 @@ function generateAssContent(subtitles) {
       const boxColMap = { none: null, light: '&HC0000000', medium: '&H80000000', dark: '&H40000000', solid: '&H00000000' };
       const boxCol = boxColMap[bg];
       if (bg === 'none') {
-        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,2,1,${align},80,80,${marginV},1`];
+        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,-1,0,0,0,100,100,-4,0,1,2,1,${align},80,80,${marginV},1`];
       } else {
-        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,${boxCol},&HFF000000,-1,0,0,0,100,100,0,0,3,4,0,${align},80,80,${marginV},1`];
+        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,${boxCol},&HFF000000,-1,0,0,0,100,100,-4,0,3,4,0,${align},80,80,${marginV},1`];
       }
     })(),
     '', '[Events]',
@@ -1064,7 +1064,7 @@ function generateAssContent(subtitles) {
   // 対策: 複数行は1行ずつ別Dialogueイベントに分割し\posで配置する。
   const boxPad   = bg === 'none' ? 0 : 4;   // StyleのOutline値と合わせる
   // 1行ステップ(PlayRes px) = フォント行高さ(fs*1.3) + ボックス上下パディング
-  const lineStep = Math.round(fs * 1.3) + boxPad * 2;
+  const lineStep = Math.round(fs * 1.05) + boxPad * 2;
   // \posで使うX座標（左/中央/右）
   const posX     = col === 0 ? 80 : col === 2 ? 1840 : 960;
 
