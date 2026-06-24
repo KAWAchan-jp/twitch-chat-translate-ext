@@ -160,7 +160,7 @@ const PANEL_CSS = `
   .messages::-webkit-scrollbar-thumb { background: #3d3d40; border-radius: 2px; }
 
   .scroll-to-bottom {
-    position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
+    position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%);
     background: #9147ff; color: #fff; border: none; border-radius: 14px;
     padding: 4px 14px; font-size: 12px; cursor: pointer; white-space: nowrap;
     box-shadow: 0 2px 8px rgba(0,0,0,0.4); opacity: 0; pointer-events: none;
@@ -249,11 +249,12 @@ const PANEL_CSS = `
   :host(.collapsed) .resize-handle { display: none; }
 
   .collapse-btn {
-    background: none; border: none; color: #5a5a6e; cursor: pointer;
-    font-size: 11px; line-height: 1; padding: 0 3px; flex-shrink: 0;
+    background: #000; border: none; color: #adadb8; cursor: pointer;
+    font-size: 11px; line-height: 1; padding: 1px 5px; flex-shrink: 0;
+    border-radius: 3px;
     transition: color 0.15s;
   }
-  .collapse-btn:hover { color: #adadb8; }
+  .collapse-btn:hover { color: #efeff1; }
 
   /* 利用状況ボタン */
   .usage-btn {
@@ -411,7 +412,7 @@ function createPanel() {
           <button class="tts-btn" id="ttsBtn" title="翻訳読み上げ ON/OFF">🔊</button>
           <button class="usage-btn" id="usageBtn" title="利用状況">📊</button>
           <button class="clip-btn" id="clipBtn" title="クリップ録画（クリックで開始）">🔴</button>
-          <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▼</button>
+          <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▲</button>
         </div>
       </div>
       <div class="hint-bar" id="hintBar" style="display:none">
@@ -726,7 +727,7 @@ let _savedPanelHeight = '480px';
 
 function _updateCollapseBtn() {
   const btn = shadowRoot?.getElementById('collapseBtn');
-  if (btn) { btn.textContent = panelCollapsed ? '▲' : '▼'; btn.title = panelCollapsed ? '展開する' : '折りたたむ'; }
+  if (btn) { btn.textContent = panelCollapsed ? '▼' : '▲'; btn.title = panelCollapsed ? '展開する' : '折りたたむ'; }
 }
 
 function toggleCollapse() {
@@ -1047,9 +1048,9 @@ function generateAssContent(subtitles) {
       const boxColMap = { none: null, light: '&HC0000000', medium: '&H80000000', dark: '&H40000000', solid: '&H00000000' };
       const boxCol = boxColMap[bg];
       if (bg === 'none') {
-        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,2,1,${align},80,80,${marginV},1`];
+        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,-1,0,0,0,100,100,-4,0,1,2,1,${align},80,80,${marginV},1`];
       } else {
-        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,${boxCol},&HFF000000,-1,0,0,0,100,100,0,0,3,4,0,${align},80,80,${marginV},1`];
+        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,${boxCol},&HFF000000,-1,0,0,0,100,100,-4,0,3,4,0,${align},80,80,${marginV},1`];
       }
     })(),
     '', '[Events]',
@@ -1059,31 +1060,59 @@ function generateAssContent(subtitles) {
   // 利用可能幅: 1920-80-80=1760px / 全角1文字 ≒ fontsize px
   const charsPerLine = Math.max(10, Math.floor(1760 / fs));
 
-  const events = subtitles.map(entry => {
+  // BorderStyle=3は行ごとに独立したボックスを描画するため、
+  // 複数行を\Nでまとめると隣接ボックスが重なって透過が二重になる。
+  // 対策: 複数行は1行ずつ別Dialogueイベントに分割し\posで配置する。
+  const boxPad   = bg === 'none' ? 0 : 4;   // StyleのOutline値と合わせる
+  // 1行ステップ(PlayRes px) = フォント行高さ(fs*1.3) + ボックス上下パディング
+  const lineStep = Math.round(fs * 1.05) + boxPad * 2;
+  // \posで使うX座標（左/中央/右）
+  const posX     = col === 0 ? 80 : col === 2 ? 1840 : 960;
+
+  const events = subtitles.flatMap(entry => {
     const i      = subtitles.indexOf(entry);
     const next   = subtitles[i + 1];
     const rawEnd = next ? Math.min(next.startMs - 100, entry.startMs + 5000) : entry.startMs + 4000;
     const endMs  = Math.max(rawEnd, entry.startMs + 500);
-    const wrapped = wrapAssText(entry.text, charsPerLine);
-    return `Dialogue: 0,${msToAssTime(entry.startMs)},${msToAssTime(endMs)},Default,,0,0,0,,${wrapped}`;
+    const lines  = splitAssLines(entry.text, charsPerLine);
+
+    if (lines.length === 1) {
+      // 1行: StyleのAlignmentとMarginVで配置（従来通り）
+      return [`Dialogue: 0,${msToAssTime(entry.startMs)},${msToAssTime(endMs)},Default,,0,0,0,,${lines[0]}`];
+    }
+
+    // 複数行: 1行ずつ別Dialogueに分割して\posで配置
+    return lines.map((lineText, li) => {
+      let posY;
+      if (rowOff === 0) {
+        // 下揃え: \an=1/2/3 → posYはテキスト内側の下端
+        posY = Math.round(1080 - marginV - (lines.length - 1 - li) * lineStep);
+      } else if (rowOff === 6) {
+        // 上揃え: \an=7/8/9 → posYはテキスト内側の上端
+        posY = Math.round(marginV + li * lineStep);
+      } else {
+        // 中央: \an=4/5/6 → posYはテキスト中心
+        posY = Math.round(540 + (li - (lines.length - 1) / 2) * lineStep);
+      }
+      return `Dialogue: 0,${msToAssTime(entry.startMs)},${msToAssTime(endMs)},Default,,0,0,0,,{\\an${align}\\pos(${posX},${posY})}${lineText}`;
+    });
   }).join('\n');
 
   return header + '\n' + events + '\n';
 }
 
-function wrapAssText(text, charsPerLine) {
-  if (text.length <= charsPerLine) return text;
+function splitAssLines(text, charsPerLine) {
+  if (text.length <= charsPerLine) return [text];
   const lines = [];
   let remaining = text;
   while (remaining.length > charsPerLine) {
-    // スペースがあればスペース優先で切る
     const spaceIdx = remaining.lastIndexOf(' ', charsPerLine);
     const breakAt  = spaceIdx > charsPerLine * 0.4 ? spaceIdx : charsPerLine;
     lines.push(remaining.slice(0, breakAt).trimEnd());
     remaining = remaining.slice(breakAt).trimStart();
   }
   if (remaining) lines.push(remaining);
-  return lines.join('\\N');
+  return lines;
 }
 
 function toggleClipRecording() {

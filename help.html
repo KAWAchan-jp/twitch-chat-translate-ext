@@ -36,6 +36,9 @@
     <tr><td>数字（0.5.8 など）</td><td>拡張機能のバージョン</td></tr>
     <tr><td><strong>💡</strong></td><td>認識ヒント入力バーの開閉</td></tr>
     <tr><td><strong>🎤</strong></td><td>音声字幕の ON / OFF</td></tr>
+    <tr><td><strong>🔊</strong></td><td>翻訳読み上げ（TTS）の ON / OFF</td></tr>
+    <tr><td><strong>📊</strong></td><td>API 利用状況パネルの表示 / 非表示</td></tr>
+    <tr><td><strong>🔴</strong></td><td>クリップ録画パネルの開閉（録画中は赤く点滅）</td></tr>
     <tr><td><strong>×</strong></td><td>パネルを閉じる（チャット受信・翻訳も停止）</td></tr>
   </table>
 
@@ -44,9 +47,11 @@
   <p>パネル最下部のフッターに、現在使用中の翻訳エンジンをリアルタイムで表示します。設定変更は即座に反映されます。</p>
   <table>
     <tr><th>表示</th><th>説明</th></tr>
-    <tr><td><strong>チャット入力:</strong></td><td>自分が入力して送信するメッセージの翻訳エンジン</td></tr>
-    <tr><td><strong>音声:</strong></td><td>配信者の音声認識後の翻訳エンジン</td></tr>
+    <tr><td><strong>チャット入力:</strong></td><td>自分が入力して送信するメッセージの翻訳エンジン（Google / DeepL / Gemini）</td></tr>
+    <tr><td><strong>音声:</strong></td><td>配信者の音声認識後の翻訳エンジン（Google / DeepL / Gemini）</td></tr>
+    <tr><td><strong>STT:</strong></td><td>音声認識エンジン（Local = ローカル Whisper / Groq = Groq Whisper API）</td></tr>
   </table>
+  <p><strong>フッターの各項目をクリックすると、オプションで有効にしたエンジンをその場で切り替えられます。</strong>設定ページを開かずに素早く変更可能です。有効化していないエンジンはスキップされます。</p>
 
   <h2>翻訳エンジン（Google / DeepL / Gemini）</h2>
   <table>
@@ -187,6 +192,19 @@
     <li>自動翻訳されてチャンネルに投稿されます</li>
   </ol>
   <p>翻訳エンジンはオプションで選択できます（Google / DeepL / Gemini）。使用中のエンジンはフッターの「チャット:」に表示されます。</p>
+
+  <h2>クリップ録画</h2>
+  <ol>
+    <li>パネルヘッダーの <strong>🔴 ボタン</strong> をクリックして録画パネルを開く</li>
+    <li><strong>「● 録画開始」</strong> をクリックすると録画が始まる（最大時間はオプションで設定可能、デフォルト 3 分）</li>
+    <li>録画中は 🔴 が赤く点滅し、経過時間が表示される</li>
+    <li><strong>「■ 停止」</strong> をクリックすると <code>clip_チャンネル名_日時.webm</code> が自動ダウンロードされる</li>
+    <li>オプションで「字幕を録画に含める」が ON の場合、<code>.ass</code> 字幕ファイルも自動ダウンロードされる</li>
+    <li>字幕焼き込み用の ffmpeg コマンドが自動生成されてクリップボードにコピーされる</li>
+  </ol>
+  <div class="tip">
+    字幕は <strong>🎤 音声字幕が動作中</strong> のときだけ記録されます。録画前に 🎤 をオンにしておくのがおすすめです。
+  </div>
 
   <h2>ハルシネーション（誤認識）対策</h2>
   <p>

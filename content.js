@@ -184,6 +184,7 @@ function updateTwitchAutoPrompt() {
   if (detectedLang) {
     settings.src_lang = detectedLang;
     updateLangIndicator();
+    updateInputPlaceholder();
     console.log(`[TCT] 配信言語を自動検出: ${detectedLang}`);
   }
 

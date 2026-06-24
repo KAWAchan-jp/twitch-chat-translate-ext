@@ -300,7 +300,12 @@ async function sendUserMessage() {
     ws.send(`PRIVMSG #${currentChannel} :${sendText}`);
     addOwnMessage(sendText, sendText !== text ? text : null);
   } catch (e) {
-    addSystemMessage(`送信失敗: ${e.message}`);
+    if (e.message?.includes('Receiving end does not exist')) {
+      addSystemMessage('拡張機能のバックグラウンドに接続できません。ページを更新してください (F5)');
+    } else {
+      addSystemMessage(`送信失敗: ${e.message}`);
+    }
+    chatInputEl.value = text;
   } finally {
     chatInputEl.disabled = false;
     sendBtnEl.disabled   = false;
@@ -319,6 +324,7 @@ async function translateViaBackground(text, from, to, feature = 'chat') {
       if (!res?.ok) throw new Error(res?.error || 'translate failed');
       return res.result;
     } catch (e) {
+      if (e.message?.includes('Receiving end does not exist')) throw e;
       if (attempt === 2) throw e;
       await sleep(300 * (attempt + 1));
     }

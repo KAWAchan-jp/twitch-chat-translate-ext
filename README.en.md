@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.13-9147ff)
+![version](https://img.shields.io/badge/version-0.6.22-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -155,6 +155,7 @@ Before using voice subtitles, download a model from the options page.
 | **🎤** | Toggles voice subtitles on/off |
 | **🔊** | Toggles translation text-to-speech (TTS) on/off |
 | **📊** | Shows/hides the API usage panel |
+| **🔴** | Opens/closes the clip recording panel (blinks red during recording) |
 | **×** | Closes the panel and stops chat receiving/translation |
 
 **💡 Recognition hint bar**  
@@ -202,6 +203,18 @@ A translucent floating panel that can be opened from the header **📊** button.
 
 Usage counters can be reset from the options page. The panel can be dragged to any position.
 
+### Switching Translation Engines
+
+Click any item in the footer to cycle through the engines you've enabled in options — no need to open the settings page.
+
+| Footer item | Engines cycled on click |
+|---|---|
+| **Chat input:** | Google → DeepL → Gemini (enabled ones only) |
+| **Voice:** | Google → DeepL → Gemini (enabled ones only) |
+| **STT:** | Local ⇄ Groq (when Groq is enabled) |
+
+> An engine must have its API key set and be enabled on the options page to appear in the cycle. Disabled engines are skipped.
+
 ### Sending Chat
 
 1. Right-click the icon and set the source language.
@@ -224,6 +237,17 @@ Usage counters can be reset from the options page. The panel can be dragged to a
 3. Click again to stop.
 
 > Lowering the streamer’s volume or using headphones is recommended.
+
+### Clip Recording
+
+1. Click the **🔴 button** in the panel header to open the recording panel.
+2. Click **"● Start Recording"** to begin recording (maximum duration is configurable in options; default is 3 minutes).
+3. While recording, the 🔴 button blinks red and shows the elapsed time.
+4. Click **"■ Stop"** to finish. `clip_channelname_timestamp.webm` is downloaded automatically.
+5. If "Include subtitles in recording" is enabled in options, the `.ass` subtitle file is also downloaded.
+6. An ffmpeg command for burning subtitles into the video is automatically generated and copied to the clipboard.
+
+> Subtitles are only recorded while **🎤** voice subtitles are active. Turn on **🎤** before starting recording.
 
 ---
 

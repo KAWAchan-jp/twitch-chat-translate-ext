@@ -557,7 +557,7 @@ function showSubtitle(text, isFinal) {
   Object.assign(textEl.style, {
     color:      isFinal ? '#ffffff' : '#aaaaaa',
     fontSize:   `${settings.subtitle_font_size ?? 22}px`,
-    fontWeight: isFinal ? '700' : '400',
+    fontWeight: isFinal ? '900' : '600',
     fontStyle:  isFinal ? 'normal' : 'italic',
   });
 
