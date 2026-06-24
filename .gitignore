@@ -6,8 +6,15 @@ Thumbs.db
 .vscode/
 *.swp
 
-# 引き継ぎドキュメント（開発用）
+# 開発用メモ / エージェント設定
+.claude/
+CLAUDE.md
+.github/
 HANDOVER_*.md
 
 # リリース用ZIP（GitHubリリースにアップロードするため追跡不要）
 *.zip
+
+# リリース作成時の一時ディレクトリ
+dist/
+release/

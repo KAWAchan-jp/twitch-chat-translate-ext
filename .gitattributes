@@ -1,0 +1,9 @@
+.gitignore export-ignore
+.gitattributes export-ignore
+.github/ export-ignore
+.claude/ export-ignore
+CLAUDE.md export-ignore
+HANDOVER_*.md export-ignore
+*.zip export-ignore
+dist/ export-ignore
+release/ export-ignore
