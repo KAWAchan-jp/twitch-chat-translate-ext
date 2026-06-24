@@ -249,11 +249,12 @@ const PANEL_CSS = `
   :host(.collapsed) .resize-handle { display: none; }
 
   .collapse-btn {
-    background: none; border: none; color: #5a5a6e; cursor: pointer;
-    font-size: 11px; line-height: 1; padding: 0 3px; flex-shrink: 0;
+    background: #000; border: none; color: #adadb8; cursor: pointer;
+    font-size: 11px; line-height: 1; padding: 1px 5px; flex-shrink: 0;
+    border-radius: 3px;
     transition: color 0.15s;
   }
-  .collapse-btn:hover { color: #adadb8; }
+  .collapse-btn:hover { color: #efeff1; }
 
   /* 利用状況ボタン */
   .usage-btn {
@@ -411,7 +412,7 @@ function createPanel() {
           <button class="tts-btn" id="ttsBtn" title="翻訳読み上げ ON/OFF">🔊</button>
           <button class="usage-btn" id="usageBtn" title="利用状況">📊</button>
           <button class="clip-btn" id="clipBtn" title="クリップ録画（クリックで開始）">🔴</button>
-          <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▼</button>
+          <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▲</button>
         </div>
       </div>
       <div class="hint-bar" id="hintBar" style="display:none">
@@ -726,7 +727,7 @@ let _savedPanelHeight = '480px';
 
 function _updateCollapseBtn() {
   const btn = shadowRoot?.getElementById('collapseBtn');
-  if (btn) { btn.textContent = panelCollapsed ? '▲' : '▼'; btn.title = panelCollapsed ? '展開する' : '折りたたむ'; }
+  if (btn) { btn.textContent = panelCollapsed ? '▼' : '▲'; btn.title = panelCollapsed ? '展開する' : '折りたたむ'; }
 }
 
 function toggleCollapse() {
