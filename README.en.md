@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.22-9147ff)
+![version](https://img.shields.io/badge/version-0.6.28-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -319,6 +319,7 @@ twitch-chat-translate-ext/
 ├── auth-callback.js        # Content script for OAuth callback
 ├── help.html               # Usage page (right-click icon → “📖 Help”)
 ├── options.html / options.js / options.css
+├── scripts/build-release.ps1 # Release ZIP packaging script
 ├── docs/images/            # Documentation images
 ├── lib/
 │   ├── transformers.min.js                 # Transformers.js v3 (Whisper inference engine)
@@ -409,6 +410,18 @@ The usage panel is independently positioned with `position: fixed` in the same S
 | Whisper model | Tiny |
 | Subtitle font size | 22 px |
 | Panel opacity | 80% |
+
+---
+
+## Creating a Release ZIP
+
+Create distribution ZIP files with the packaging script instead of manually zipping the whole repository.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
+```
+
+The script uses the version from `manifest.json` and generates `twitch-chat-translator-vX.Y.Z.zip`. Development files such as `.github/`, `.gitignore`, and `CLAUDE.md` are not included in the release ZIP.
 
 ---
 

@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.22-9147ff)
+![version](https://img.shields.io/badge/version-0.6.28-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -319,6 +319,7 @@ twitch-chat-translate-ext/
 ├── auth-callback.js        # Content script для OAuth callback
 ├── help.html               # Страница помощи (правый щелчок по значку → “📖 Help”)
 ├── options.html / options.js / options.css
+├── scripts/build-release.ps1 # Скрипт создания release ZIP
 ├── docs/images/            # Изображения для документации
 ├── lib/
 │   ├── transformers.min.js                 # Transformers.js v3 (движок распознавания Whisper)
@@ -409,6 +410,18 @@ twitch-chat-translate-ext/
 | Модель Whisper | Tiny |
 | Размер шрифта субтитров | 22 px |
 | Прозрачность панели | 80% |
+
+---
+
+## Создание release ZIP
+
+Для дистрибутивного ZIP используйте скрипт упаковки, а не ручное архивирование всего репозитория.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
+```
+
+Скрипт берет версию из `manifest.json` и создает `twitch-chat-translator-vX.Y.Z.zip`. Файлы разработки, такие как `.github/`, `.gitignore` и `CLAUDE.md`, не включаются в release ZIP.
 
 ---
 

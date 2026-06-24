@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.22-9147ff)
+![version](https://img.shields.io/badge/version-0.6.28-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -321,6 +321,7 @@ twitch-chat-translate-ext/
 ├── auth-callback.js        # OAuth コールバック用コンテンツスクリプト
 ├── help.html               # 使い方ページ（アイコン右クリック →「📖 使い方」）
 ├── options.html / options.js / options.css
+├── scripts/build-release.ps1 # リリース用 ZIP 作成スクリプト
 ├── docs/images/            # ドキュメント用画像
 ├── lib/
 │   ├── transformers.min.js             # Transformers.js v3（Whisper 推論エンジン）
@@ -417,6 +418,18 @@ Shadow DOM でページの CSS から分離しています（`attachShadow({ mod
 | Whisper モデル | Tiny |
 | 字幕フォントサイズ | 22px |
 | パネル透過率 | 80% |
+
+---
+
+## リリース ZIP の作成
+
+配布用 ZIP は、リポジトリ全体を手動で圧縮せず、次のスクリプトで作成します。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
+```
+
+`manifest.json` の version を使って `twitch-chat-translator-vX.Y.Z.zip` を生成します。`.github/`、`.gitignore`、`CLAUDE.md` などの開発用ファイルは配布 ZIP に含めません。
 
 ---
 
