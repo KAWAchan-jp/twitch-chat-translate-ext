@@ -39,6 +39,9 @@ const EXCLUDED_PATHS = new Set([
   'jobs', 'store', 'popout',
 ]);
 
+const groqAudioRequests = new Map();
+const GROQ_AUDIO_REQUEST_TTL_MS = 60000;
+
 // ===== インストール・起動時にコンテキストメニューを構築 =====
 chrome.runtime.onInstalled.addListener(buildContextMenus);
 chrome.runtime.onStartup.addListener(buildContextMenus);
@@ -210,6 +213,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'groq_audio_start') {
+    startGroqAudioRequest(message.requestId, message.mimeType, message.language);
+    sendResponse({ ok: true });
+    return;
+  }
+
+  if (message.type === 'groq_audio_chunk') {
+    try {
+      appendGroqAudioChunk(message.requestId, message.chunk);
+      sendResponse({ ok: true });
+    } catch (err) {
+      sendResponse({ ok: false, error: err.message });
+    }
+    return;
+  }
+
+  if (message.type === 'groq_audio_finish') {
+    finishGroqAudioRequest(message.requestId)
+      .then(result => sendResponse({ ok: true, result }))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'groq_audio_abort') {
+    clearGroqAudioRequest(message.requestId);
+    sendResponse({ ok: true });
+    return;
+  }
+
   if (message.type === 'twitch_api') {
     const { url, token, clientId } = message;
     fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': clientId } })
@@ -219,6 +251,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
+function startGroqAudioRequest(requestId, mimeType, language) {
+  clearGroqAudioRequest(requestId);
+  const timer = setTimeout(() => clearGroqAudioRequest(requestId), GROQ_AUDIO_REQUEST_TTL_MS);
+  groqAudioRequests.set(requestId, { chunks: [], mimeType, language, timer });
+}
+
+function appendGroqAudioChunk(requestId, chunk) {
+  const request = groqAudioRequests.get(requestId);
+  if (!request) throw new Error('Groq音声送信セッションが見つかりません');
+  request.chunks.push(chunk);
+}
+
+async function finishGroqAudioRequest(requestId) {
+  const request = groqAudioRequests.get(requestId);
+  if (!request) throw new Error('Groq音声送信セッションが見つかりません');
+  groqAudioRequests.delete(requestId);
+  clearTimeout(request.timer);
+  return groqTranscribe(request.chunks.join(''), request.mimeType, request.language);
+}
+
+function clearGroqAudioRequest(requestId) {
+  const request = groqAudioRequests.get(requestId);
+  if (!request) return;
+  clearTimeout(request.timer);
+  groqAudioRequests.delete(requestId);
+}
 
 async function handleTwitchAuth(token) {
   try {
@@ -250,10 +309,11 @@ async function groqTranscribe(audioBase64, mimeType, language) {
   const binary = atob(audioBase64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const blob = new Blob([bytes], { type: mimeType });
+  const audioType = normalizeAudioMimeType(mimeType);
+  const blob = new Blob([bytes], { type: audioType });
 
   const formData = new FormData();
-  formData.append('file', blob, 'audio.webm');
+  formData.append('file', blob, `audio.${audioExtensionForMimeType(audioType)}`);
   formData.append('model', model);
   // Whisper API は ISO 639-1 コードのみ対応（zh-CN/zh-TW → zh に正規化）
   const whisperLang = ({ 'zh-CN': 'zh', 'zh-TW': 'zh' })[language] ?? language;
@@ -270,8 +330,15 @@ async function groqTranscribe(audioBase64, mimeType, language) {
       signal: controller.signal,
     });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(`Groq HTTP ${res.status}: ${errData.error?.message ?? res.statusText}`);
+      const errText = await res.text().catch(() => '');
+      let errMessage = res.statusText;
+      try {
+        const errData = errText ? JSON.parse(errText) : {};
+        errMessage = errData.error?.message ?? errMessage;
+      } catch {
+        if (errText) errMessage = errText.slice(0, 200);
+      }
+      throw new Error(`Groq HTTP ${res.status}: ${errMessage}`);
     }
     const data = await res.json();
     const result = data.text?.trim() ?? '';
@@ -286,6 +353,23 @@ async function groqTranscribe(audioBase64, mimeType, language) {
     return result;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+function normalizeAudioMimeType(mimeType) {
+  const type = String(mimeType || '').split(';')[0].trim().toLowerCase();
+  if (type === 'audio/mp4' || type === 'audio/m4a' || type === 'audio/x-m4a') return 'audio/mp4';
+  if (type === 'audio/ogg') return 'audio/ogg';
+  if (type === 'audio/wav' || type === 'audio/x-wav') return 'audio/wav';
+  return 'audio/webm';
+}
+
+function audioExtensionForMimeType(mimeType) {
+  switch (mimeType) {
+    case 'audio/mp4': return 'm4a';
+    case 'audio/ogg': return 'ogg';
+    case 'audio/wav': return 'wav';
+    default: return 'webm';
   }
 }
 

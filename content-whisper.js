@@ -27,6 +27,7 @@ const whisperSlots          = [];
 const pendingTranscriptions = new Map();
 let _decodeAudioCtx = null;
 const WHISPER_MAX_CONSECUTIVE_DISCARDS = 8;
+const GROQ_AUDIO_CHUNK_BYTES = 48 * 1024;
 let whisperConsecutiveDiscards = 0;
 
 function createWhisperSlot() {
@@ -147,27 +148,57 @@ async function transcribeViaGroq(blob, language) {
   showSubtitle('Groq 認識中...', false);
   const arrayBuffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
-  let binary = '';
-  // チャンクに分割してスタックオーバーフローを防ぐ
-  for (let i = 0; i < bytes.length; i += 8192) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-  }
-  const base64 = btoa(binary);
+  const requestId = Math.random().toString(36).slice(2);
 
-  const response = await chrome.runtime.sendMessage({
-    type: 'groq_transcribe',
-    audioBase64: base64,
+  const startResponse = await chrome.runtime.sendMessage({
+    type: 'groq_audio_start',
+    requestId,
     mimeType: blob.type,
     language: language === 'auto' ? null : language,
   });
-  if (!response.ok) throw new Error(response.error);
+  if (!startResponse?.ok) throw new Error(startResponse?.error || 'Groq音声送信の開始に失敗しました');
 
-  const text = response.result?.trim() ?? '';
-  if (isGroqHallucination(text, settings.custom_hallucination_patterns ?? [])) {
-    console.log('[TCT] Groq ハルシネーション検出 → 破棄');
-    return '';
+  try {
+    for (let i = 0; i < bytes.length; i += GROQ_AUDIO_CHUNK_BYTES) {
+      const slice = bytes.subarray(i, i + GROQ_AUDIO_CHUNK_BYTES);
+      let binary = '';
+      for (let j = 0; j < slice.length; j += 8192) {
+        binary += String.fromCharCode(...slice.subarray(j, j + 8192));
+      }
+      const chunkResponse = await chrome.runtime.sendMessage({
+        type: 'groq_audio_chunk',
+        requestId,
+        chunk: btoa(binary),
+      });
+      if (!chunkResponse?.ok) throw new Error(chunkResponse?.error || 'Groq音声送信に失敗しました');
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      type: 'groq_audio_finish',
+      requestId,
+    });
+    if (!response.ok) throw new Error(response.error);
+
+    const text = response.result?.trim() ?? '';
+    if (isGroqHallucination(text, settings.custom_hallucination_patterns ?? [])) {
+      console.log('[TCT] Groq ハルシネーション検出 → 破棄');
+      return '';
+    }
+    return text;
+  } catch (err) {
+    chrome.runtime.sendMessage({ type: 'groq_audio_abort', requestId }).catch(() => {});
+    throw err;
   }
-  return text;
+}
+
+function getSupportedRecordingMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/mp4',
+  ];
+  return candidates.find(type => MediaRecorder.isTypeSupported(type)) || '';
 }
 
 // 音声チャンクを Worker へ送信（空きスロットがなければ null を返す）
@@ -179,7 +210,8 @@ async function transcribeViaBackground(blob, mimeType, language) {
       return await transcribeViaGroq(blob, language);
     } catch (err) {
       console.warn(`[TCT] Groq失敗 → ローカルWhisperにフォールバック: ${err.message}`);
-      showSubtitle('⚠ Groq失敗 → ローカルで認識中...', false);
+      const message = err.message ? `⚠ Groq失敗: ${err.message}` : '⚠ Groq失敗';
+      showSubtitle(`${message} → ローカルで認識中...`, false);
     }
   }
 
@@ -303,14 +335,15 @@ async function startVoice() {
     sampleLevel();
   } catch (_) {}
 
-  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-    ? 'audio/webm;codecs=opus' : 'audio/webm';
+  const mimeType = getSupportedRecordingMimeType();
 
   function startRecordingCycle() {
     if (!isVoiceActive) return;
     audioChunks = [];
     hadSpeech   = false;
-    mediaRecorder = new MediaRecorder(voiceStream, { mimeType });
+    mediaRecorder = mimeType
+      ? new MediaRecorder(voiceStream, { mimeType })
+      : new MediaRecorder(voiceStream);
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
 
     let silenceStart = null;
@@ -334,17 +367,18 @@ async function startVoice() {
       clearTimeout(vadTimer);
       const chunks     = audioChunks;
       const wasSpeech  = hadSpeech;
+      const stoppedMimeType = mediaRecorder?.mimeType || chunks.find(chunk => chunk.type)?.type || mimeType;
 
       startRecordingCycle();
 
       console.log(`[TCT] chunk stop: wasSpeech=${wasSpeech} chunks=${chunks.length} level=${cableLevel}% active=${whisperActiveCount}`);
       if (wasSpeech && chunks.length > 0) {
-        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const blob = new Blob(chunks, { type: stoppedMimeType });
         (async () => {
           whisperActiveCount++;
           if (whisperActiveCount === 1) setSubtitleProcessing(true);
           try {
-            const text = await transcribeViaBackground(blob, 'audio/webm', settings.src_lang);
+            const text = await transcribeViaBackground(blob, blob.type || stoppedMimeType, settings.src_lang);
             if (text === null) {
               console.log('[TCT] 全Workerビジー・スキップ');
               return;
