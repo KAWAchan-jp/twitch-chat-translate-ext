@@ -3,7 +3,10 @@
 // ===== 定数 =====
 const TWITCH_WS_URL = 'wss://irc-ws.chat.twitch.tv:443';
 const MAX_MESSAGES  = 150;
+const WS_RECONNECT_MIN_DELAY_MS = 1000;
 const WS_RECONNECT_MAX_DELAY_MS = 30000;
+const WS_RECONNECT_JITTER_RATIO = 0.2;
+const NAVIGATION_DEBOUNCE_MS = 300;
 const TRANSLATE_DELAY_MS = 100;
 const TRANSLATE_SKIP_PATTERNS = [
   /^[!\/]/,
@@ -43,8 +46,11 @@ const EXCLUDED_PATHS = new Set([
 
 // ===== 状態 =====
 let ws              = null;
-let wsReconnectDelay = 1000;
+let wsReconnectDelay = WS_RECONNECT_MIN_DELAY_MS;
 let wsReconnectTimer = null;
+let detectConnectTimer = null;
+let detectConnectRunning = false;
+let detectConnectQueued = false;
 let currentChannel  = '';
 let hasChannelSpecificSettings = false;
 let twitchAutoPrompt    = '';
@@ -67,9 +73,40 @@ let mentionMatches = [];    // 現在表示中の候補 [[lname, displayName], .
 let mentionActiveIndex = -1;
 let mentionTokenStart = -1; // 入力欄内の "@" の位置
 
+async function safeStorageGet(keys, fallback = {}) {
+  try {
+    return await chrome.storage.local.get(keys);
+  } catch (e) {
+    console.warn('[TCT] storage.get failed:', e);
+    return fallback;
+  }
+}
+
+async function safeStorageSet(items) {
+  try {
+    await chrome.storage.local.set(items);
+    return true;
+  } catch (e) {
+    console.warn('[TCT] storage.set failed:', e);
+    addSystemMessage?.('設定の保存に失敗しました。ページを更新して再試行してください。');
+    return false;
+  }
+}
+
+async function safeStorageRemove(keys) {
+  try {
+    await chrome.storage.local.remove(keys);
+    return true;
+  } catch (e) {
+    console.warn('[TCT] storage.remove failed:', e);
+    addSystemMessage?.('設定の削除に失敗しました。ページを更新して再試行してください。');
+    return false;
+  }
+}
+
 // ===== 初期化 =====
 async function init() {
-  const stored = await chrome.storage.local.get([
+  const stored = await safeStorageGet([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_prompt_default', 'whisper_max_chunk_ms', 'whisper_num_beams',
     'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_voice', 'gemini_own', 'groq_enabled', 'groq_api_key', 'tts_enabled', 'tts_rate', 'downloaded_models', 'custom_hallucination_patterns', 'panel_opacity',
@@ -102,41 +139,58 @@ function getChannelFromUrl() {
 }
 
 async function detectAndConnect() {
-  // SPA ナビゲーションで body が差し替えられた場合にコンテナを再追加
-  if (container && !document.body.contains(container)) {
-    document.body.appendChild(container);
+  if (detectConnectRunning) {
+    detectConnectQueued = true;
+    return;
   }
+  detectConnectRunning = true;
 
-  const ch = getChannelFromUrl();
-  if (ch && ch !== currentChannel) {
-    const isChannelSwitch = !!currentChannel;
-    disconnect();
-    currentChannel = ch;
-    if (isChannelSwitch && settings.whisper_prompt) {
-      settings.whisper_prompt = '';
-      chrome.storage.local.set({ whisper_prompt: '' });
-      console.log('[TCT] チャンネル移動 → カスタムヒントをリセット');
+  try {
+    // SPA ナビゲーションで body が差し替えられた場合にコンテナを再追加
+    if (container && !document.body.contains(container)) {
+      document.body.appendChild(container);
     }
-    await loadChannelSettings(ch);
-    resetMessages();
-    updateTwitchAutoPrompt();
-    watchForGameLink();
-    if (isActive) connect();
-    else {
-      if (channelNameEl) channelNameEl.textContent = `#${ch} (停止中)`;
-      setStatus('error');
+
+    const ch = getChannelFromUrl();
+    if (ch && ch !== currentChannel) {
+      const isChannelSwitch = !!currentChannel;
+      disconnect();
+      currentChannel = ch;
+      if (isChannelSwitch && settings.whisper_prompt) {
+        settings.whisper_prompt = '';
+        safeStorageSet({ whisper_prompt: '' });
+        console.log('[TCT] チャンネル移動 → カスタムヒントをリセット');
+      }
+      await loadChannelSettings(ch);
+      resetMessages();
+      updateTwitchAutoPrompt();
+      watchForGameLink();
+      if (isActive) connect();
+      else {
+        if (channelNameEl) channelNameEl.textContent = `#${ch} (停止中)`;
+        setStatus('error');
+      }
+    } else if (!ch && currentChannel) {
+      disconnect();
+      currentChannel = '';
+      if (channelNameEl) channelNameEl.textContent = '接続待ち';
+      setStatus('connecting');
     }
-  } else if (!ch && currentChannel) {
-    disconnect();
-    currentChannel = '';
-    if (channelNameEl) channelNameEl.textContent = '接続待ち';
-    setStatus('connecting');
+  } catch (e) {
+    console.warn('[TCT] チャンネル検出/接続処理に失敗:', e);
+    setStatus('error');
+  } finally {
+    detectConnectRunning = false;
+    if (detectConnectQueued) {
+      detectConnectQueued = false;
+      scheduleDetectAndConnect();
+    }
   }
 }
 
 // チャンネル固有の言語設定をストレージから読み込む（なければグローバル設定を使用）
 async function loadChannelSettings(channel) {
-  const stored = await chrome.storage.local.get(['src_lang', 'tgt_lang', 'channel_settings']);
+  const stored = await safeStorageGet(['src_lang', 'tgt_lang', 'channel_settings']);
   const cs = stored.channel_settings?.[channel];
   hasChannelSpecificSettings = !!(cs?.src_lang || cs?.tgt_lang);
   settings.src_lang = cs?.src_lang ?? stored.src_lang ?? 'auto';
@@ -259,15 +313,20 @@ function watchForGameLink() {
 function hookNavigation() {
   ['pushState', 'replaceState'].forEach(method => {
     const orig = history[method].bind(history);
-    history[method] = (...args) => { orig(...args); setTimeout(() => detectAndConnect(), 300); };
+    history[method] = (...args) => { orig(...args); scheduleDetectAndConnect(); };
   });
-  window.addEventListener('popstate', () => setTimeout(() => detectAndConnect(), 300));
+  window.addEventListener('popstate', scheduleDetectAndConnect);
 
   // Twitch SPA ナビゲーションの確実な検知（タイトル変化を監視）
   const titleEl = document.querySelector('title');
   if (titleEl) {
-    new MutationObserver(() => detectAndConnect()).observe(titleEl, { childList: true });
+    new MutationObserver(scheduleDetectAndConnect).observe(titleEl, { childList: true });
   }
+}
+
+function scheduleDetectAndConnect() {
+  clearTimeout(detectConnectTimer);
+  detectConnectTimer = setTimeout(() => detectAndConnect(), NAVIGATION_DEBOUNCE_MS);
 }
 
 function onSettingsChanged(changes) {
@@ -358,7 +417,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     twitchToken     = '';
     twitchUsername  = msg.username;
     isAuthenticated = true;
-    chrome.storage.local.get('twitch_token', ({ twitch_token }) => {
+    safeStorageGet('twitch_token').then(({ twitch_token }) => {
       twitchToken = twitch_token || '';
       updateAuthUI();
       addSystemMessage(`ログイン成功: ${msg.username}`);

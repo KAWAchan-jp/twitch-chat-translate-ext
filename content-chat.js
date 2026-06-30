@@ -28,42 +28,62 @@ let _visTransTimer = null;
 // ===== WebSocket接続 =====
 function connect() {
   if (!currentChannel) return;
+  if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+
+  const channelAtConnect = currentChannel;
   setStatus('connecting');
-  channelNameEl.textContent = `#${currentChannel}`;
-  addSystemMessage(`#${currentChannel} に接続中...`);
+  channelNameEl.textContent = `#${channelAtConnect}`;
+  addSystemMessage(`#${channelAtConnect} に接続中...`);
 
   ws = new WebSocket(TWITCH_WS_URL);
+  const socket = ws;
 
   ws.onopen = () => {
-    ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
-    if (isAuthenticated && twitchToken) {
-      ws.send(`PASS oauth:${twitchToken}`);
-      ws.send(`NICK ${twitchUsername}`);
-    } else {
-      ws.send('PASS oauth:will_not_actually_work');
-      ws.send('NICK justinfan' + Math.floor(Math.random() * 99999));
+    if (socket !== ws || channelAtConnect !== currentChannel) {
+      socket.close();
+      return;
     }
-    ws.send(`JOIN #${currentChannel}`);
+    socket.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
+    if (isAuthenticated && twitchToken) {
+      socket.send(`PASS oauth:${twitchToken}`);
+      socket.send(`NICK ${twitchUsername}`);
+    } else {
+      socket.send('PASS oauth:will_not_actually_work');
+      socket.send('NICK justinfan' + Math.floor(Math.random() * 99999));
+    }
+    socket.send(`JOIN #${channelAtConnect}`);
   };
 
   ws.onmessage = e => e.data.split('\r\n').filter(Boolean).forEach(handleIRCLine);
   ws.onerror   = () => { setStatus('error'); addSystemMessage('接続エラーが発生しました。'); };
   ws.onclose   = () => {
-    if (!currentChannel) return;
+    if (socket !== ws) return;
+    ws = null;
+    if (!currentChannel || channelAtConnect !== currentChannel || !isActive) return;
     setStatus('error');
-    addSystemMessage(`接続が切断されました。${wsReconnectDelay / 1000}秒後に再接続します...`);
+    const nextDelay = getReconnectDelayWithJitter(wsReconnectDelay);
+    addSystemMessage(`接続が切断されました。約${Math.round(nextDelay / 1000)}秒後に再接続します...`);
     wsReconnectTimer = setTimeout(() => {
-      if (!currentChannel) return;
+      wsReconnectTimer = null;
+      if (!currentChannel || channelAtConnect !== currentChannel || !isActive) return;
       wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_RECONNECT_MAX_DELAY_MS);
       connect();
-    }, wsReconnectDelay);
+    }, nextDelay);
   };
 }
 
 function disconnect() {
   if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
-  wsReconnectDelay = 1000;
+  wsReconnectDelay = WS_RECONNECT_MIN_DELAY_MS;
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
+}
+
+function getReconnectDelayWithJitter(baseDelay) {
+  const jitter = baseDelay * WS_RECONNECT_JITTER_RATIO;
+  const min = Math.max(WS_RECONNECT_MIN_DELAY_MS, baseDelay - jitter);
+  const max = Math.min(WS_RECONNECT_MAX_DELAY_MS, baseDelay + jitter);
+  return Math.round(min + Math.random() * (max - min));
 }
 
 function resetMessages() {
@@ -81,7 +101,7 @@ function handleIRCLine(line) {
   if (line.startsWith('PING')) { ws?.send('PONG :tmi.twitch.tv'); return; }
   if (line.includes(`JOIN #${currentChannel}`)) {
     setStatus('connected');
-    wsReconnectDelay = 1000;
+    wsReconnectDelay = WS_RECONNECT_MIN_DELAY_MS;
     const authLabel = isAuthenticated ? ` (${twitchUsername} でログイン中)` : '';
     addSystemMessage(`#${currentChannel} に接続しました！${authLabel}`);
     return;

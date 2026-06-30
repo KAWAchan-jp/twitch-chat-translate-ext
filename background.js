@@ -41,6 +41,35 @@ const EXCLUDED_PATHS = new Set([
 
 const groqAudioRequests = new Map();
 const GROQ_AUDIO_REQUEST_TTL_MS = 60000;
+const TRANSLATE_SETTING_KEYS = [
+  'deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own',
+  'gemini_enabled', 'gemini_api_key', 'gemini_prompt', 'gemini_voice',
+  'gemini_own', 'gemini_model',
+];
+let translateSettingsCache = null;
+
+async function safeStorageGet(keys, fallback = {}) {
+  try {
+    return await chrome.storage.local.get(keys);
+  } catch (e) {
+    console.warn('[TCT-BG] storage.get failed:', e);
+    return fallback;
+  }
+}
+
+async function getTranslateSettings() {
+  if (!translateSettingsCache) {
+    translateSettingsCache = await safeStorageGet(TRANSLATE_SETTING_KEYS);
+  }
+  return translateSettingsCache;
+}
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' || !translateSettingsCache) return;
+  for (const key of TRANSLATE_SETTING_KEYS) {
+    if (key in changes) translateSettingsCache[key] = changes[key].newValue;
+  }
+});
 
 // ===== インストール・起動時にコンテキストメニューを構築 =====
 chrome.runtime.onInstalled.addListener(buildContextMenus);
@@ -380,7 +409,7 @@ async function translateText(text, from, to, feature = 'chat') {
   const cacheKey = `${from}:${to}:${text}`;
   if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
 
-  const stored = await chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_api_key', 'gemini_prompt', 'gemini_voice', 'gemini_own', 'gemini_model']);
+  const stored = await getTranslateSettings();
   let result;
 
   // Gemini 優先（音声字幕・入力メッセージ）

@@ -546,7 +546,7 @@ function createPanel() {
     hintInput.classList.remove('auto');
     clearTimeout(hintSaveTimer);
     hintSaveTimer = setTimeout(() => {
-      chrome.storage.local.set({ whisper_prompt: hintInput.value.trim() });
+      safeStorageSet({ whisper_prompt: hintInput.value.trim() });
     }, 500);
   });
   // 空のままフォーカスを外したら自動ヒント表示に戻す
@@ -716,7 +716,7 @@ function handleLogout() {
   isAuthenticated = false;
   twitchToken     = '';
   twitchUsername  = '';
-  chrome.storage.local.remove(['twitch_token', 'twitch_username']);
+  safeStorageRemove(['twitch_token', 'twitch_username']);
   updateAuthUI();
   if (currentChannel) { disconnect(); connect(); }
 }
@@ -754,7 +754,7 @@ function toggleCollapse() {
     container.style.minHeight = '0';
   }
   _updateCollapseBtn();
-  chrome.storage.local.set({ panel_collapsed: panelCollapsed });
+  safeStorageSet({ panel_collapsed: panelCollapsed });
 }
 
 function applyCollapsedState(val) {
@@ -796,7 +796,7 @@ let isTtsActive = false;
 function toggleTts() {
   isTtsActive = !isTtsActive;
   if (!isTtsActive) speechSynthesis.cancel();
-  chrome.storage.local.set({ tts_enabled: isTtsActive });
+  safeStorageSet({ tts_enabled: isTtsActive });
   updateTtsBtn();
 }
 
@@ -821,11 +821,11 @@ function toggleUsagePanel() {
 
 function loadAndRenderUsagePanel() {
   if (!isUsagePanelVisible) return;
-  chrome.storage.local.get([
+  safeStorageGet([
     'gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars',
     'groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars',
     'deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars',
-  ], renderUsagePanel);
+  ]).then(renderUsagePanel);
 }
 
 function renderUsagePanel(u) {
@@ -928,7 +928,7 @@ function cycleFeatureEngine(feature) {
   if (available.length <= 1) return;
   const current = getFeatureEngine(feature);
   const next = available[(available.indexOf(current) + 1) % available.length];
-  chrome.storage.local.set({
+  safeStorageSet({
     [f.geminiFlag]: next === 'Gemini',
     [f.deeplFlag]:  next === 'DeepL',
   });
@@ -936,9 +936,9 @@ function cycleFeatureEngine(feature) {
 
 function cycleSttEngine() {
   if (settings.groq_enabled) {
-    chrome.storage.local.set({ groq_enabled: false });
+    safeStorageSet({ groq_enabled: false });
   } else if (settings.groq_api_key) {
-    chrome.storage.local.set({ groq_enabled: true });
+    safeStorageSet({ groq_enabled: true });
   }
 }
 
