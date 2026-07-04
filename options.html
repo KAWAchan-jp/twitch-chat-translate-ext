@@ -57,6 +57,39 @@
         </section>
 
         <section class="card">
+          <h2>Faster-Whisper（ローカルサーバー STT）</h2>
+          <p class="hint" style="margin-bottom:14px">
+            PC上で動かした Faster-Whisper サーバーに音声を送って認識します。<br>
+            Large系モデルをローカルGPU/CPUで使いたい場合向けです。未起動・エラー時はローカル Whisper にフォールバックします。
+          </p>
+          <div class="field">
+            <label class="toggle-label">
+              <span>Faster-Whisper を有効にする（ローカル Whisper より優先）</span>
+              <input type="checkbox" id="fasterWhisperEnabled">
+              <span class="toggle-switch"></span>
+            </label>
+          </div>
+          <div class="field">
+            <label for="fasterWhisperUrl">サーバー URL</label>
+            <input type="text" id="fasterWhisperUrl" placeholder="http://127.0.0.1:8765/transcribe" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box">
+            <p class="hint">安全のため <code>localhost</code> / <code>127.0.0.1</code> の URL のみ使用します。</p>
+          </div>
+          <div class="field">
+            <label>Faster-Whisper モデル</label>
+            <div class="radio-row">
+              <label><input type="radio" name="fasterWhisperModel" value="small"> Small（軽量）</label>
+              <label><input type="radio" name="fasterWhisperModel" value="medium"> Medium（高精度）</label>
+              <label><input type="radio" name="fasterWhisperModel" value="large-v3"> Large-v3（最高精度）</label>
+              <label><input type="radio" name="fasterWhisperModel" value="large-v3-turbo"> Large-v3-Turbo（高速・推奨）</label>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn-primary" id="saveFasterWhisperBtn">保存</button>
+            <span class="save-msg" id="saveFasterWhisperMsg"></span>
+          </div>
+        </section>
+
+        <section class="card">
           <h2>Groq Whisper API（高速 STT）</h2>
           <p class="hint" style="margin-bottom:14px">
             クラウドの Groq API で音声認識を行います。ローカルより<strong>10〜20倍高速</strong>（約200ms）。<br>

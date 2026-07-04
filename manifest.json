@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Twitch Chat Translator",
-  "version": "0.6.29",
+  "version": "0.6.30",
   "description": "Twitchチャットをリアルタイム日本語翻訳",
 
   "content_security_policy": {
@@ -21,6 +21,8 @@
     "https://api.twitch.tv/*",
     "https://id.twitch.tv/*",
     "https://api.groq.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*",
     "https://huggingface.co/*",
     "https://cdn-lfs.huggingface.co/*",
     "https://cdn-lfs-us-1.huggingface.co/*",

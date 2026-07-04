@@ -20,6 +20,7 @@
 | 🎙️ **配信者の声を字幕表示** | 配信音声を自動認識してリアルタイム字幕。APIキー不要・完全ローカル処理 |
 | ✏️ **日本語でチャットに参加** | 日本語で入力すると自動翻訳して送信。言語が違っても配信者と話せる |
 | 🤖 **Gemini AI 翻訳** | 音声字幕・送信メッセージの翻訳に Gemini AI を使用。ゲーム用語・スラングにも強い自然な翻訳 |
+| 🖥️ **Faster-Whisper STT** | ローカルサーバー経由で Whisper large 系モデルを利用。PC の GPU/CPU で高精度認識 |
 | ⚡ **Groq Whisper STT** | クラウド音声認識で高精度・高速な字幕。ローカル Whisper より認識率が高い場合も |
 | 🔊 **翻訳読み上げ（TTS）** | 翻訳した字幕を自動読み上げ。配信者の声を理解しながら聴ける |
 | 📊 **API 利用状況パネル** | Gemini・Groq・DeepL の利用量をリアルタイム表示。使いすぎ防止に |
@@ -60,6 +61,16 @@
 - **APIキー設定のみ** — オプションページで Groq APIキーを入力するだけで有効化
 
 > Groq API キーは [console.groq.com](https://console.groq.com) で無料取得可能。
+
+### Faster-Whisper STT（ローカルサーバー）
+
+- **ローカルPCで高精度モデルを実行** — Faster-Whisper / CTranslate2 を使い、Large-v3 / Large-v3-Turbo などをローカルサーバー側で実行
+- **ブラウザ外で推論** — Chrome 拡張内ではなく `http://127.0.0.1:8765/transcribe` などのローカルサーバーへ音声を送信
+- **自動フォールバック** — サーバー未起動・エラー・タイムアウト時は既存のローカル Whisper に切り替え
+- **サーバー雛形同梱** — `tools/faster-whisper-server/` に FastAPI ベースの最小サーバーを用意
+
+> Faster-Whisper は「モデル名」ではなく、Whisper 系モデルを高速に動かす実行エンジンです。
+> オプションページでは STT エンジンとして有効化し、使用モデル（例: Large-v3-Turbo）を別に選択します。
 
 ### 音声字幕（ローカル Whisper）
 - **APIキー不要** — Whisper を拡張機能内でローカル実行（Transformers.js v3 + ONNX Runtime）
@@ -173,9 +184,9 @@
 |------|------|
 | **チャット入力:** | 自分が入力して送信するメッセージの翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>）。</br><span style="color:#e84393">**⚠ 翻訳元言語が「自動検出」の場合は翻訳送信が無効になります**</span> |
 | **音声:** | 配信者の音声認識後の翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>） |
-| **STT:** | 音声認識エンジン（Local = ローカル Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API） |
+| **STT:** | 音声認識エンジン（Local = ローカル Whisper / <span style="color:#c084fc">Faster</span> = Faster-Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API） |
 
-オプションの設定変更はフッターにリアルタイム反映されます。**フッターの表示をクリックすると、有効化済みのエンジンを順番に切替できます**（チャット入力・音声は Google→DeepL→Gemini、STT は Local⇄Groq。それぞれオプションで有効化していないエンジンは候補に出ません）。
+オプションの設定変更はフッターにリアルタイム反映されます。**フッターの表示をクリックすると、有効化済みのエンジンを順番に切替できます**（チャット入力・音声は Google→DeepL→Gemini、STT は Local→Faster→Groq。それぞれオプションで有効化していないエンジンは候補に出ません）。
 
 | 操作 | 動作 |
 |------|------|

@@ -240,6 +240,63 @@ fontSizeEl.addEventListener('input', () => {
   chrome.storage.local.set({ subtitle_font_size: size });
 });
 
+// ===== Faster-Whisper =====
+const fasterWhisperEnabledEl = document.getElementById('fasterWhisperEnabled');
+const fasterWhisperUrlEl     = document.getElementById('fasterWhisperUrl');
+const saveFasterWhisperBtn   = document.getElementById('saveFasterWhisperBtn');
+const saveFasterWhisperMsg   = document.getElementById('saveFasterWhisperMsg');
+const fasterWhisperModelEls  = document.querySelectorAll('input[name="fasterWhisperModel"]');
+
+chrome.storage.local.get(['faster_whisper_enabled', 'faster_whisper_url', 'faster_whisper_model'], (s) => {
+  fasterWhisperEnabledEl.checked = !!s.faster_whisper_enabled;
+  fasterWhisperUrlEl.value = s.faster_whisper_url || 'http://127.0.0.1:8765/transcribe';
+  const model = s.faster_whisper_model || 'large-v3-turbo';
+  fasterWhisperModelEls.forEach(el => { el.checked = el.value === model; });
+});
+
+fasterWhisperEnabledEl.addEventListener('change', () => {
+  chrome.storage.local.set({
+    faster_whisper_enabled: fasterWhisperEnabledEl.checked,
+    groq_enabled: false,
+  });
+  if (fasterWhisperEnabledEl.checked) groqEnabledEl.checked = false;
+});
+
+fasterWhisperModelEls.forEach(el => {
+  el.addEventListener('change', () => {
+    if (el.checked) chrome.storage.local.set({ faster_whisper_model: el.value });
+  });
+});
+
+saveFasterWhisperBtn.addEventListener('click', async () => {
+  const url = fasterWhisperUrlEl.value.trim() || 'http://127.0.0.1:8765/transcribe';
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(url)) {
+    showFasterWhisperMsg('⚠ localhost / 127.0.0.1 のURLを指定してください', '#e84393');
+    return;
+  }
+  const model = [...fasterWhisperModelEls].find(el => el.checked)?.value ?? 'large-v3-turbo';
+  await chrome.storage.local.set({
+    faster_whisper_url: url,
+    faster_whisper_model: model,
+    faster_whisper_enabled: true,
+    groq_enabled: false,
+  });
+  fasterWhisperEnabledEl.checked = true;
+  groqEnabledEl.checked = false;
+  showFasterWhisperMsg('✓ 保存しました', '#00b894');
+});
+
+function showFasterWhisperMsg(text, color) {
+  saveFasterWhisperMsg.textContent = text;
+  saveFasterWhisperMsg.style.color = color;
+  saveFasterWhisperMsg.style.opacity = '1';
+  clearTimeout(showFasterWhisperMsg._timer);
+  showFasterWhisperMsg._timer = setTimeout(() => {
+    saveFasterWhisperMsg.style.opacity = '0';
+    setTimeout(() => { saveFasterWhisperMsg.textContent = ''; }, 300);
+  }, 3000);
+}
+
 // ===== Groq =====
 const groqEnabledEl = document.getElementById('groqEnabled');
 const groqKeyEl     = document.getElementById('groqKey');
@@ -262,7 +319,11 @@ toggleGroqBtn.addEventListener('click', () => {
 });
 
 groqEnabledEl.addEventListener('change', () => {
-  chrome.storage.local.set({ groq_enabled: groqEnabledEl.checked });
+  chrome.storage.local.set({
+    groq_enabled: groqEnabledEl.checked,
+    faster_whisper_enabled: groqEnabledEl.checked ? false : fasterWhisperEnabledEl.checked,
+  });
+  if (groqEnabledEl.checked) fasterWhisperEnabledEl.checked = false;
 });
 
 groqModelEls.forEach(el => {
@@ -275,8 +336,9 @@ saveGroqBtn.addEventListener('click', async () => {
   const key = groqKeyEl.value.trim();
   if (!key) { showGroqMsg('⚠ キーを入力してください', '#e84393'); return; }
   const model = [...groqModelEls].find(el => el.checked)?.value ?? 'whisper-large-v3-turbo';
-  await chrome.storage.local.set({ groq_api_key: key, groq_enabled: true, groq_model: model });
+  await chrome.storage.local.set({ groq_api_key: key, groq_enabled: true, groq_model: model, faster_whisper_enabled: false });
   groqEnabledEl.checked = true;
+  fasterWhisperEnabledEl.checked = false;
   showGroqMsg('✓ 保存しました', '#00b894');
 });
 

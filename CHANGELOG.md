@@ -1,5 +1,17 @@
 # 更新履歴
 
+## v0.6.30（2026-07-04）
+
+### 新機能
+- **Faster-Whisper STT（ローカルサーバー）** — `localhost` の Faster-Whisper サーバーへ音声を送り、Large-v3 / Large-v3-Turbo などをローカル推論できる経路を追加
+- **STT エンジン切替** — フッターから Local / Faster / Groq を切り替え可能にし、Faster/Groq失敗時は既存のローカル Whisper にフォールバック
+- **Faster-Whisper サーバー雛形** — `tools/faster-whisper-server/` に FastAPI ベースの最小サーバーを追加
+
+### 改善
+- Faster-Whisper 用のオプション（有効化、サーバーURL、モデル選択）を追加
+- `localhost` / `127.0.0.1` 以外の Faster-Whisper URL を拒否する安全チェックを追加
+- Codex / Claude Code の共有ボードとブランチ作業メモを追加
+
 ## v0.5.4.0（2026-06-12）
 
 ### 新機能

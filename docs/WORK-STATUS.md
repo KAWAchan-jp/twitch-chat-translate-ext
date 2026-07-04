@@ -13,10 +13,30 @@
 
 ## ブランチ別ステータス
 
+### feature/faster-whisper-local — 担当: **Codex**
+
+- 役割: Faster-Whisper をローカル STT エンジンとして追加する。
+- ブランチメモ: `docs/feature-faster-whisper-local.md`
+- 進捗:
+  - `master` チェックポイント作成後、このブランチを作成。
+  - ブランチ用ドキュメントを作成。
+  - 拡張側の Faster-Whisper 設定、STT切替、background 経由の localhost 転送、失敗時フォールバックを実装。
+  - `tools/faster-whisper-server/` に FastAPI ベースの最小サーバー雛形を追加。
+  - `manifest.json` を `0.6.30` に更新。
+  - 中断前チェックポイントとして構文確認まで完了。実ブラウザ/実サーバー検証は未実施。
+- 方針:
+  - Chrome 拡張内では Python を直接動かせないため、`localhost` のローカル STT サーバーへ音声 Blob を送る。
+  - Faster-Whisper が失敗・未起動・タイムアウトした場合は既存ローカル Whisper へフォールバックする。
+  - 既存の Transformers.js ローカル Whisper と Groq STT を壊さない。
+- 次の予定:
+  - 実ブラウザでオプション保存、フッター切替、未起動時フォールバックを確認する。
+  - 実 Faster-Whisper サーバーを起動して認識確認する。
+  - 必要なら README.en.md / README.ru.md / help.html を追記する。
+
 ### master — 担当: **共有**
 
 - 役割: 現在の作業ブランチ。Chrome 拡張本体の実装・ドキュメント更新を進めている。
-- 現状: `origin/master` より 1 commit ahead。既存の未コミット変更が多数あるため、作業者は差分を確認してから触る。
+- 現状: `origin/master` より 2 commits ahead。新ブランチ作業前のチェックポイントを作成済み。
 - 注意:
   - `manifest.json` の version は現在 `0.6.29`。
   - 実装変更を行ったら、原則として `manifest.json` の version を4桁目だけインクリメントする。
@@ -41,6 +61,8 @@
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-07-04 Codex**: Faster-Whisper を「モデル」ではなく「STT実行エンジン」として実装。オプションでサーバーURLとモデルを設定し、フッターは Local / Faster / Groq を切り替える。未起動・エラー時は既存 Local Whisper へフォールバックする。構文チェックは通過、実ブラウザ/実サーバー検証は未実施。中断指示によりここでチェックポイント保存する。
+- **2026-07-04 Codex**: `feature/faster-whisper-local` を作成し、ブランチ用ドキュメント `docs/feature-faster-whisper-local.md` を追加した。以後 Faster-Whisper 作業はこのブランチで進める。
 - **2026-07-04 Codex**: 新ブランチ作業前の master チェックポイントとして、既存差分と共有ドキュメントをまとめてコミットした。次は `feature/faster-whisper-local` を作成して Faster-Whisper 追加作業を進める。
 - **2026-07-04 Codex**: `docs/WORK-STATUS.md` を新規作成。Minecraft リポジトリの共有ボード運用を参考に、この拡張用の軽量な共有ボードとして整備した。
 - **2026-07-04 Codex**: `AGENTS.md` / `CLAUDE.md` に、作業前は必ず `docs/WORK-STATUS.md` を確認し、作業後は必ず更新するルールを追加した。
