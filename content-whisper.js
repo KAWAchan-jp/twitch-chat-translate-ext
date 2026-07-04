@@ -360,7 +360,14 @@ async function startVoice() {
     }
     await voiceAudioCtx.resume();
 
-    // MediaElementSourceNode は同一 video 要素に対して1回だけ作成可能
+    // MediaElementSourceNode は同一 video 要素に対して1回だけ作成可能。
+    // ただし Twitch は SPA 遷移・画質切替・広告で <video> を差し替えることがあり、
+    // 古い要素を掴んだままだと無音になり VAD が反応しない（「録音開始」で止まる）。
+    // 要素が変わっていたら破棄して作り直す
+    if (voiceSourceNode && voiceSourceNode.mediaElement !== videoEl) {
+      try { voiceSourceNode.disconnect(); } catch (_) {}
+      voiceSourceNode = null;
+    }
     if (!voiceSourceNode) {
       voiceSourceNode = voiceAudioCtx.createMediaElementSource(videoEl);
       voiceSourceNode.connect(voiceAudioCtx.destination);
@@ -481,7 +488,12 @@ async function startVoice() {
     }, settings.whisper_max_chunk_ms ?? 5000);
   }
   startRecordingCycle();
-  showSubtitle('🎤 録音開始', false);
+  // 音量0/ミュートだと MediaElementSource の出力も無音になり VAD が反応しない
+  if (videoEl.muted || videoEl.volume === 0) {
+    showSubtitle('⚠ プレイヤーが音量0/ミュートです。音声認識には音量を少し上げてください', false);
+  } else {
+    showSubtitle('🎤 録音開始', false);
+  }
 }
 
 function stopVoice() {

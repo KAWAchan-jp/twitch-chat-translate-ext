@@ -7,44 +7,34 @@
 - 更新ルール: 自分の担当ブランチの欄を、着手・進捗・完了のたびに書き換える
 - 既存の未コミット変更を勝手に戻さない。作業前に `git status --short --branch` を確認する
 - 仕様・実装の詳細は branch/doc 側へ寄せ、このファイルは共有ボードとして短く保つ
-- 最終更新: 2026-07-04 / by Codex
+- 最終更新: 2026-07-05 / by Claude Code
 
 ---
 
 ## ブランチ別ステータス
 
-### feature/faster-whisper-local — 担当: **Codex**
+### feature/faster-whisper-local — **完了・master にマージ済み（v0.7.0）**
 
 - 役割: Faster-Whisper をローカル STT エンジンとして追加する。
-- ブランチメモ: `docs/feature-faster-whisper-local.md`
-- 進捗:
-  - `master` チェックポイント作成後、このブランチを作成。
-  - ブランチ用ドキュメントを作成。
-  - 拡張側の Faster-Whisper 設定、STT切替、background 経由の localhost 転送、失敗時フォールバックを実装。
-  - `tools/faster-whisper-server/` に FastAPI ベースの最小サーバー雛形を追加。
-  - `manifest.json` を `0.6.30` に更新。
-  - 中断前チェックポイントとして構文確認まで完了。実ブラウザ/実サーバー検証は未実施。
-- 方針:
-  - Chrome 拡張内では Python を直接動かせないため、`localhost` のローカル STT サーバーへ音声 Blob を送る。
-  - Faster-Whisper が失敗・未起動・タイムアウトした場合は既存ローカル Whisper へフォールバックする。
-  - 既存の Transformers.js ローカル Whisper と Groq STT を壊さない。
-- 次の予定:
-  - 実ブラウザでオプション保存、フッター切替、未起動時フォールバックを確認する。
-  - 実 Faster-Whisper サーバーを起動して認識確認する。
-  - 必要なら README.en.md / README.ru.md / help.html を追記する。
+- ブランチメモ: `docs/feature-faster-whisper-local.md`（経緯の詳細はこちらを参照）
+- 成果（v0.6.30〜v0.7.0 で実装・検証完了）:
+  - （Codex）拡張側の Faster-Whisper 設定、STT切替、background 経由の localhost 転送、失敗時フォールバックを実装。
+  - （Claude Code）サーバーを uv 対応に変更し実サーバーで動作検証（webm/opus 直読み・large-v3-turbo 認識を確認）。
+  - （Claude Code）GPU 対応を追加（CUDA Toolkit 不要、pip 版 NVIDIA ライブラリ自動検出）。RTX 3070 実測で large-v3-turbo ≈0.5〜1秒/7.5秒音声。
+  - （Claude Code）「録音開始」から進まないバグ（video 要素差し替え・音量0）を修正。
+  - （Claude Code）配布 ZIP を拡張本体と Faster-Whisper サーバーに分離。
+  - （Claude Code）README 3言語・help.html にドキュメント整備。
+- マージ後、このブランチは削除済み。以後の Faster-Whisper 関連作業は新しいブランチを切る。
+- 残タスク: 実ブラウザでのオプション保存・フッター切替・未起動時フォールバックの手動確認（未実施）。
 
 ### master — 担当: **共有**
 
-- 役割: 現在の作業ブランチ。Chrome 拡張本体の実装・ドキュメント更新を進めている。
-- 現状: `origin/master` より 2 commits ahead。新ブランチ作業前のチェックポイントを作成済み。
+- 役割: 本番リリース用ブランチ。
+- 現状: v0.7.0 リリース済み（Faster-Whisper ローカル STT・GPU対応を含む）。
 - 注意:
-  - `manifest.json` の version は現在 `0.6.29`。
-  - 実装変更を行ったら、原則として `manifest.json` の version を4桁目だけインクリメントする。
+  - `manifest.json` の version は現在 `0.7.0`。
+  - 実装変更を行ったら、原則として `manifest.json` の version を4桁目だけインクリメントする。上位桁の変更は明示的な指示があった場合のみ。
   - README は `README.md` / `README.en.md` / `README.ru.md` がある。ユーザー向け仕様を変える場合は多言語側の更新漏れに注意する。
-- 次の予定:
-  - Faster-Whisper をローカル STT エンジンとして追加する設計・実装。
-  - ブラウザ拡張内では Python を直接動かせないため、`localhost` のローカル STT サーバーへ音声 Blob を送る構成を検討する。
-  - STT エンジン表示、設定 UI、失敗時フォールバック、`host_permissions` の整合性を確認する。
 
 ---
 
@@ -61,6 +51,10 @@
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-07-05 Claude Code**: `feature/faster-whisper-local` を `master` にマージし、**v0.7.0 としてリリース**（ユーザー指示）。Faster-Whisper ローカル STT（GPU対応・uv対応・CUDA Toolkit不要）が正式機能に。ブランチは削除済み。次に Faster-Whisper を触る場合は新しいブランチを切ること。残タスクは実ブラウザでの手動確認のみ（未実施）。
+- **2026-07-05 Claude Code**: ドキュメント整備（v0.6.33・未コミット）。ローカル Whisper / Faster-Whisper は GPU 搭載前提とする方針（ユーザー指示）。README 3言語（日・英・露）に Faster-Whisper の機能説明・サーバー起動（uv + CUDA）・使い方を追記し、help.html に専用セクションを追加。フッター STT の説明も Local → Faster → Groq に統一。残タスクは実ブラウザでの手動テストのみ。
+- **2026-07-05 Claude Code**: GPU 対応を追加（v0.6.32・未コミット）。CUDA Toolkit のシステムインストールは不要で、`uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py` で GPU 推論できる（server.py が pip 版 NVIDIA DLL を自動検出）。RTX 3070 で large-v3-turbo ≈0.5〜1秒/7.5秒音声となり、拡張の30秒タイムアウト問題も解消。
+- **2026-07-05 Claude Code**: Faster-Whisper 作業を引き継ぎ、実サーバー検証を完了（v0.6.31・未コミット）。サーバーは uv 対応にし `uv run server.py` で起動可能。webm/opus は ffmpeg なしで直読み可（PyAV 内蔵 FFmpeg）。CPU では small≈6秒/large-v3-turbo≈30秒（7.5秒音声）のため large 系は GPU 推奨。CUDA ライブラリ欠如環境では起動時ウォームアップで検出して CPU に自動フォールバックする。残タスクは実ブラウザでの拡張UI確認（手動テスト）と多言語README追記。
 - **2026-07-04 Codex**: Faster-Whisper を「モデル」ではなく「STT実行エンジン」として実装。オプションでサーバーURLとモデルを設定し、フッターは Local / Faster / Groq を切り替える。未起動・エラー時は既存 Local Whisper へフォールバックする。構文チェックは通過、実ブラウザ/実サーバー検証は未実施。中断指示によりここでチェックポイント保存する。
 - **2026-07-04 Codex**: `feature/faster-whisper-local` を作成し、ブランチ用ドキュメント `docs/feature-faster-whisper-local.md` を追加した。以後 Faster-Whisper 作業はこのブランチで進める。
 - **2026-07-04 Codex**: 新ブランチ作業前の master チェックポイントとして、既存差分と共有ドキュメントをまとめてコミットした。次は `feature/faster-whisper-local` を作成して Faster-Whisper 追加作業を進める。

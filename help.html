@@ -49,7 +49,7 @@
     <tr><th>表示</th><th>説明</th></tr>
     <tr><td><strong>チャット入力:</strong></td><td>自分が入力して送信するメッセージの翻訳エンジン（Google / DeepL / Gemini）</td></tr>
     <tr><td><strong>音声:</strong></td><td>配信者の音声認識後の翻訳エンジン（Google / DeepL / Gemini）</td></tr>
-    <tr><td><strong>STT:</strong></td><td>音声認識エンジン（Local = ローカル Whisper / Groq = Groq Whisper API）</td></tr>
+    <tr><td><strong>STT:</strong></td><td>音声認識エンジン（Local = ローカル Whisper / Faster = Faster-Whisper ローカルサーバー / Groq = Groq Whisper API）。クリックで Local → Faster → Groq を切替</td></tr>
   </table>
   <p><strong>フッターの各項目をクリックすると、オプションで有効にしたエンジンをその場で切り替えられます。</strong>設定ページを開かずに素早く変更可能です。有効化していないエンジンはスキップされます。</p>
 
@@ -153,11 +153,47 @@
     <li>字幕ウィンドウはドラッグで移動可能</li>
   </ol>
   <div class="tip">
+    <strong>⚠ プレイヤーの音量を0・ミュートにすると認識できません</strong>（すべての STT エンジン共通）。
+    音声はプレイヤーの音量適用後にキャプチャされるため、無音になります。音量は小さくても構いません。
+    ブラウザの<strong>タブのミュートは影響しない</strong>ので、音を消したい場合はタブをミュートしてください。
+  </div>
+  <div class="tip">
     <strong>モデル選びの目安：</strong><br>
     ① <strong>初めての方はまず Small</strong> — 軽量（244MB）・多言語対応で、どの配信でも使える万能モデル。動作確認に最適<br>
     ② <strong>日本語配信メインなら Kotoba-Whisper 軽量版へステップアップ</strong> — 日本語認識率が大幅に向上。GPU 負荷は通常版の約 1/3<br>
     ③ <strong>GPU がない環境は Tiny / Base</strong> — CPU でも動作します<br><br>
     Small 以上のモデルは初回起動時に GPU シェーダーのコンパイルが行われます（数分かかる場合あり）。2回目以降は高速です。
+  </div>
+
+  <h2>Faster-Whisper STT（ローカルサーバー・GPU搭載前提）</h2>
+  <p>
+    PC の GPU で Whisper Large-v3 / Large-v3-Turbo を実行できる高精度・低遅延の音声認識エンジンです。
+    Chrome 拡張の中ではなく、PC 上で起動したローカルサーバー（<code>http://127.0.0.1:8765</code>）で認識します。
+    NVIDIA GPU（VRAM 4GB 以上推奨）と CUDA 12 対応ドライバー（バージョン 525 以上）が必要です。
+  </p>
+  <h3>サーバーの起動（CUDA の利用）</h3>
+  <p>
+    <strong>CUDA Toolkit のインストールは不要です。</strong>
+    <a href="https://docs.astral.sh/uv/" target="_blank" style="color:#bf94ff">uv</a> をインストール済みなら、
+    拡張の配布フォルダ内 <code>tools\faster-whisper-server</code> で次の1コマンドを実行するだけです
+    （CUDA 用ライブラリ cuBLAS / cuDNN は自動でダウンロード・検出されます）:
+  </p>
+  <p><code>uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12&gt;=9,&lt;10" server.py</code></p>
+  <p>uv が未インストールの場合は、先に次のコマンドでインストールします。</p>
+  <p>Windows（PowerShell）: <code>irm https://astral.sh/uv/install.ps1 | iex</code></p>
+  <p>macOS / Linux: <code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></p>
+  <ol>
+    <li>初回のみ CUDA ライブラリ（約1.2GB）とモデル本体（Large-v3-Turbo 約1.6GB）がダウンロードされます</li>
+    <li>コンソールに <code>Model '...' ready</code> と表示されたら準備完了</li>
+    <li>オプションページの「Faster-Whisper」を ON にしてモデルを選択・保存（URL はデフォルトのままで OK）</li>
+    <li>フッターの「STT:」が <strong>Faster</strong> になっていることを確認して 🎤 で認識開始</li>
+  </ol>
+  <div class="tip">
+    <strong>GPU なら Large-v3-Turbo が実用的な速度で動きます</strong>（実測: 7.5秒の音声を約0.5〜1秒で認識）。
+    CUDA が使えない場合サーバーは自動で CPU に切り替わりますが、大型モデルは拡張のタイムアウト（30秒）にかかるため実用になりません。
+  </div>
+  <div class="tip">
+    サーバーが未起動・エラー・タイムアウトの場合は、自動で拡張内のローカル Whisper にフォールバックして認識を続けます。
   </div>
 
   <h2>映像がカクつくときは（音声認識使用中）</h2>
