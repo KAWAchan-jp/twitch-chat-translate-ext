@@ -40,6 +40,7 @@ const EXCLUDED_PATHS = new Set([
 ]);
 
 const groqAudioRequests = new Map();
+const fasterWhisperAudioRequests = new Map();
 const GROQ_AUDIO_REQUEST_TTL_MS = 60000;
 const TRANSLATE_SETTING_KEYS = [
   'deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own',
@@ -271,6 +272,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
+  if (message.type === 'faster_whisper_audio_start') {
+    startFasterWhisperAudioRequest(message.requestId, message.mimeType, message.language, message.initialPrompt);
+    sendResponse({ ok: true });
+    return;
+  }
+
+  if (message.type === 'faster_whisper_audio_chunk') {
+    try {
+      appendFasterWhisperAudioChunk(message.requestId, message.chunk);
+      sendResponse({ ok: true });
+    } catch (err) {
+      sendResponse({ ok: false, error: err.message });
+    }
+    return;
+  }
+
+  if (message.type === 'faster_whisper_audio_finish') {
+    finishFasterWhisperAudioRequest(message.requestId)
+      .then(result => sendResponse({ ok: true, result }))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'faster_whisper_audio_abort') {
+    clearFasterWhisperAudioRequest(message.requestId);
+    sendResponse({ ok: true });
+    return;
+  }
+
   if (message.type === 'twitch_api') {
     const { url, token, clientId } = message;
     fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': clientId } })
@@ -306,6 +336,33 @@ function clearGroqAudioRequest(requestId) {
   if (!request) return;
   clearTimeout(request.timer);
   groqAudioRequests.delete(requestId);
+}
+
+function startFasterWhisperAudioRequest(requestId, mimeType, language, initialPrompt) {
+  clearFasterWhisperAudioRequest(requestId);
+  const timer = setTimeout(() => clearFasterWhisperAudioRequest(requestId), GROQ_AUDIO_REQUEST_TTL_MS);
+  fasterWhisperAudioRequests.set(requestId, { chunks: [], mimeType, language, initialPrompt, timer });
+}
+
+function appendFasterWhisperAudioChunk(requestId, chunk) {
+  const request = fasterWhisperAudioRequests.get(requestId);
+  if (!request) throw new Error('Faster-Whisper音声送信セッションが見つかりません');
+  request.chunks.push(chunk);
+}
+
+async function finishFasterWhisperAudioRequest(requestId) {
+  const request = fasterWhisperAudioRequests.get(requestId);
+  if (!request) throw new Error('Faster-Whisper音声送信セッションが見つかりません');
+  fasterWhisperAudioRequests.delete(requestId);
+  clearTimeout(request.timer);
+  return fasterWhisperTranscribe(request.chunks.join(''), request.mimeType, request.language, request.initialPrompt);
+}
+
+function clearFasterWhisperAudioRequest(requestId) {
+  const request = fasterWhisperAudioRequests.get(requestId);
+  if (!request) return;
+  clearTimeout(request.timer);
+  fasterWhisperAudioRequests.delete(requestId);
 }
 
 async function handleTwitchAuth(token) {
@@ -380,6 +437,42 @@ async function groqTranscribe(audioBase64, mimeType, language) {
       groq_usage_output_chars: (u.groq_usage_output_chars ?? 0) + result.length,
     });
     return result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fasterWhisperTranscribe(audioBase64, mimeType, language, initialPrompt) {
+  const stored = await chrome.storage.local.get(['faster_whisper_url', 'faster_whisper_model']);
+  const endpoint = (stored.faster_whisper_url || 'http://127.0.0.1:8765/transcribe').trim();
+  const model = stored.faster_whisper_model || 'large-v3-turbo';
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(endpoint)) {
+    throw new Error('Faster-Whisper URLは localhost / 127.0.0.1 のみ指定できます');
+  }
+
+  const binary = atob(audioBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const audioType = normalizeAudioMimeType(mimeType);
+  const blob = new Blob([bytes], { type: audioType });
+
+  const formData = new FormData();
+  formData.append('file', blob, `audio.${audioExtensionForMimeType(audioType)}`);
+  formData.append('model', model);
+  const whisperLang = ({ 'zh-CN': 'zh', 'zh-TW': 'zh' })[language] ?? language;
+  if (whisperLang) formData.append('language', whisperLang);
+  if (initialPrompt) formData.append('initial_prompt', initialPrompt);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(endpoint, { method: 'POST', body: formData, signal: controller.signal });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Faster-Whisper HTTP ${res.status}: ${errText.slice(0, 200) || res.statusText}`);
+    }
+    const data = await res.json();
+    return (data.text ?? data.result ?? '').trim();
   } finally {
     clearTimeout(timer);
   }

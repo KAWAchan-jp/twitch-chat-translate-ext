@@ -1,5 +1,76 @@
 # 更新履歴
 
+## v0.7.0（2026-07-05）
+
+### 新機能
+- **Faster-Whisper ローカル STT を追加** — PC の GPU 上で動く Faster-Whisper サーバー（`tools/faster-whisper-server/`）に音声を送って認識する STT エンジンを追加。フッターで Local / Faster / Groq を切替可能。サーバー未起動・エラー・タイムアウト時は既存のローカル Whisper に自動フォールバック
+- **uv 対応・CUDA Toolkit 不要の GPU 実行** — `uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py` の1コマンドで GPU 推論が可能（pip 版 NVIDIA ライブラリを自動検出）。実測で large-v3-turbo が7.5秒音声を約0.5〜1秒で認識（RTX 3070）
+- 配布 ZIP を拡張本体（Chrome Web Store 提出用）と Faster-Whisper サーバー（Python ツール）に分離
+
+### 修正
+- Twitch の `<video>` 要素差し替え（SPA遷移・広告等）で音声認識が「録音開始」から進まなくなる問題を修正
+- プレイヤー音量0/ミュート時に警告を表示するように変更
+
+詳細は下記 v0.6.30〜v0.6.37 の各エントリを参照してください。
+
+## v0.6.37（2026-07-05）
+
+### ドキュメント
+- README（日・英・露）の Faster-Whisper 使い方セクションの絵文字誤り（🎙️→🎤、実際のボタンと不一致）を修正
+- バージョンバッジ・パネルヘッダーのバージョン表記例を最新化
+- オプション設定表・デフォルト値表に Faster-Whisper の項目が抜けていたため追加
+- README.en.md / README.ru.md のファイル構成図・リリース ZIP 作成手順が ZIP 分離（v0.6.36）に未対応だったため追記
+- **uv のインストール手順を追加** — README 3言語と help.html、tools/faster-whisper-server/README.md に Windows（PowerShell）/ macOS・Linux のインストールコマンドを掲載
+
+## v0.6.36（2026-07-05）
+
+### 改善
+- **配布 ZIP を拡張本体と Faster-Whisper サーバーに分離** — `scripts/build-faster-whisper-server-release.ps1` を追加し、`faster-whisper-server.zip`（server.py / requirements.txt / README.md のみ）を独立して作成できるように。拡張本体の ZIP は元々 Python ファイルを含んでいなかったため Chrome Web Store 審査への影響はなし
+- README にリリース ZIP 作成手順とリポジトリ構成の説明を更新
+
+## v0.6.35（2026-07-05）
+
+### 改善
+- **音量0/ミュート時に警告表示** — プレイヤーの音量が0だと音声キャプチャが無音になり認識できないため、🎤 開始時に字幕で警告するようにした
+- README（日・英・露）の「ボリュームの大小に関わらず認識可能」という誤った記述を修正し、help.html にも注意を追加（タブのミュートは影響しない）
+
+## v0.6.34（2026-07-05）
+
+### 修正
+- **「録音開始」から進まなくなる問題を修正** — Twitch が SPA 遷移・画質切替・広告で `<video>` 要素を差し替えると、音声キャプチャが古い要素を掴んだまま無音になり VAD が反応しなくなっていた。video 要素の変更を検出してキャプチャを作り直すようにした
+
+## v0.6.33（2026-07-05）
+
+### ドキュメント
+- **ローカル Whisper / Faster-Whisper を GPU 搭載前提として明記** — README（日・英・露）と help.html を更新
+- **Faster-Whisper の起動・使用・CUDA 利用手順を追記** — README 3言語に「サーバーの起動（GPU / CUDA）」「使い方」を追加、help.html に専用セクションを追加
+- フッター STT 切替の説明を Local → Faster → Groq に統一（英・露 README の未更新箇所を反映）
+
+## v0.6.32（2026-07-05）
+
+### 改善
+- **Faster-Whisper サーバーの GPU 対応（CUDA Toolkit 不要）** — pip 版 NVIDIA ライブラリ（cuBLAS/cuDNN）の DLL を自動検出して読み込むようにし、`uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py` だけで GPU 推論が可能に。実測で large-v3-turbo が7.5秒音声を約0.5〜1秒で認識（RTX 3070、CPU比約60倍）
+
+## v0.6.31（2026-07-05）
+
+### 改善
+- **Faster-Whisper サーバーを uv 対応に** — `uv run server.py` の1コマンドで依存解決込みで起動可能に（PEP 723 インライン依存 + 直接起動ブロック追加）。venv + pip の手順は代替として README に残置
+- **起動時モデル事前ロード** — 拡張の30秒タイムアウト内にモデルDLが収まらない問題を回避。`FASTER_WHISPER_PRELOAD=0` で無効化可
+- **CUDA ライブラリ欠如時の CPU 自動フォールバック** — GPU はあるが cuBLAS/cuDNN が無い環境で `device=auto` がクラッシュする問題を修正
+- `.gitignore` に Python 仮想環境（`.venv/`）とキャッシュ（`__pycache__/`）を追加
+
+## v0.6.30（2026-07-04）
+
+### 新機能
+- **Faster-Whisper STT（ローカルサーバー）** — `localhost` の Faster-Whisper サーバーへ音声を送り、Large-v3 / Large-v3-Turbo などをローカル推論できる経路を追加
+- **STT エンジン切替** — フッターから Local / Faster / Groq を切り替え可能にし、Faster/Groq失敗時は既存のローカル Whisper にフォールバック
+- **Faster-Whisper サーバー雛形** — `tools/faster-whisper-server/` に FastAPI ベースの最小サーバーを追加
+
+### 改善
+- Faster-Whisper 用のオプション（有効化、サーバーURL、モデル選択）を追加
+- `localhost` / `127.0.0.1` 以外の Faster-Whisper URL を拒否する安全チェックを追加
+- Codex / Claude Code の共有ボードとブランチ作業メモを追加
+
 ## v0.5.4.0（2026-06-12）
 
 ### 新機能

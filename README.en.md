@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.29-9147ff)
+![version](https://img.shields.io/badge/version-0.6.37-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -20,6 +20,7 @@
 | 🎙️ **Show streamer speech as subtitles** | Automatically recognize stream audio and display real-time subtitles. No API key required; all processing is local |
 | ✏️ **Join chat in Japanese** | Type in Japanese and send automatically translated messages, even when the streamer uses another language |
 | 🤖 **Gemini AI translation** | Use Gemini AI for voice subtitles and sent-message translation. It produces natural translations for game terms and slang |
+| 🖥️ **Faster-Whisper STT** | Run Whisper large models on your PC's GPU via a local server for high-accuracy, low-latency recognition (GPU required) |
 | ⚡ **Groq Whisper STT** | High-accuracy, fast cloud speech recognition for subtitles. It may recognize speech better than local Whisper in some cases |
 | 🔊 **Translation text-to-speech (TTS)** | Automatically reads translated subtitles aloud so you can listen while understanding the streamer |
 | 📊 **API usage panel** | Shows Gemini, Groq, and DeepL usage in real time to help prevent overuse |
@@ -62,12 +63,63 @@
 
 > You can get a Groq API key for free at [console.groq.com](https://console.groq.com).
 
-### Voice Subtitles (Local Whisper)
+### Faster-Whisper STT (Local Server, GPU Required)
+
+- **Run high-accuracy models on your own PC** — Uses Faster-Whisper / CTranslate2 to run Large-v3 / Large-v3-Turbo on a local server.
+- **Inference outside the browser** — Audio is sent to a local server such as `http://127.0.0.1:8765/transcribe` instead of running inside the Chrome extension.
+- **Automatic fallback** — If the server is not running, fails, or times out, the extension switches back to the built-in local Whisper.
+- **Server included** — A FastAPI-based server is provided in `tools/faster-whisper-server/`.
+
+> Faster-Whisper is not a model name but an execution engine that runs Whisper models fast.
+> On the options page you enable it as an STT engine and select the model (e.g. Large-v3-Turbo) separately.
+
+#### Starting the server (GPU / CUDA)
+
+An NVIDIA GPU is assumed. **You do not need to install the CUDA Toolkit** — with
+[uv](https://docs.astral.sh/uv/) installed, a single command is enough
+(the pip builds of cuBLAS / cuDNN are downloaded and detected automatically):
+
+```powershell
+cd tools\faster-whisper-server
+uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py
+```
+
+If uv is not installed yet, install it first:
+
+```powershell
+# Windows (PowerShell)
+irm https://astral.sh/uv/install.ps1 | iex
+```
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+- Requirements: NVIDIA GPU (4 GB+ VRAM recommended) and a CUDA 12 compatible driver (version 525 or later).
+- On first run, cuBLAS / cuDNN (about 1.2 GB) and the model itself (Large-v3-Turbo, about 1.6 GB) are downloaded.
+- The server is ready once the console shows `Model '...' ready`.
+- Without CUDA the server falls back to CPU automatically, but large models then exceed the extension's
+  30-second timeout and are not practical (measured on GPU: 7.5 s of audio recognized in about 0.5–1 s).
+
+#### How to use
+
+1. Start the server with the command above and wait for `Model '...' ready`.
+2. On the extension options page, enable **Faster-Whisper**, select a model, and save
+   (keep the default URL `http://127.0.0.1:8765/transcribe`).
+3. On a Twitch page, confirm the panel footer shows **STT:** <span style="color:#c084fc">Faster</span>
+   (click it to cycle Local → Faster → Groq).
+4. Start voice recognition with 🎤 — subtitles are now recognized by the Faster-Whisper server.
+
+See [tools/faster-whisper-server/README.md](tools/faster-whisper-server/README.md) for details
+(environment variables, API reference, measured performance, and venv-based setup).
+
+### Voice Subtitles (Local Whisper, GPU Required)
 
 - **No API key required** — Runs Whisper locally inside the extension using Transformers.js v3 and ONNX Runtime.
 - **Japanese-specialized model support** — Kotoba-Whisper v2.2, including standard and lightweight versions, greatly improves Japanese recognition accuracy.
-- **WebGPU support** — Uses WebGPU automatically for fast inference when available. Falls back to CPU (WASM) when unavailable.
-- **No tab-sharing banner** — Captures audio directly from the `<video>` element with the Web Audio API.
+- **Fast inference with WebGPU** — A GPU-equipped PC is assumed; WebGPU is used automatically. Without a GPU the extension falls back to CPU (WASM), but only small models (tiny/base) run at practical speed.
+- **No tab-sharing banner** — Captures audio directly from the `<video>` element with the Web Audio API. Recognition works even at low volume, but **at volume 0 or when the player is muted the capture is silent and nothing is recognized** (muting the browser tab is fine).
 - **VAD (silence detection)** — Starts processing immediately after speech ends for low latency.
 - **Parallel worker processing** — Runs inference with multiple Web Workers (up to 8 on CPU; 1 worker on GPU to reduce video stutter).
 - **Context carryover** — Passes recent utterances as prompts to keep recognition context.
@@ -150,7 +202,7 @@ Before using voice subtitles, download a model from the options page.
 | ● Status dot | Chat connection status: green = connected, blinking yellow = connecting, pink = disconnected/stopped |
 | **#channel name** | Connected channel. The game being played is also shown on the right |
 | **EN→JA・Google** | Translation direction and engine. **Orange** means channel-specific language settings are saved |
-| Number such as 0.5.7.0 | Extension version |
+| Number such as 0.6.37 | Extension version |
 | **💡** | Opens/closes the recognition hint input bar |
 | **🎤** | Toggles voice subtitles on/off |
 | **🔊** | Toggles translation text-to-speech (TTS) on/off |
@@ -171,9 +223,9 @@ The panel footer shows the currently used translation engines in real time.
 |---------|-------------|
 | **Chat input:** | Translation engine for messages you type and send (Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>) |
 | **Voice:** | Translation engine for recognized streamer speech (Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>) |
-| **STT:** | Speech recognition engine (Local = local Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API) |
+| **STT:** | Speech recognition engine (Local = local Whisper / <span style="color:#c084fc">Faster</span> = Faster-Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API) |
 
-Changes made on the options page are reflected in the footer in real time. **Clicking a footer item cycles through the engines you've enabled** (Chat input/Voice: Google→DeepL→Gemini, STT: Local⇄Groq — engines not enabled in options are skipped).
+Changes made on the options page are reflected in the footer in real time. **Clicking a footer item cycles through the engines you've enabled** (Chat input/Voice: Google→DeepL→Gemini, STT: Local→Faster→Groq — engines not enabled in options are skipped).
 
 | Action | Behavior |
 |--------|----------|
@@ -211,7 +263,7 @@ Click any item in the footer to cycle through the engines you've enabled in opti
 |---|---|
 | **Chat input:** | Google → DeepL → Gemini (enabled ones only) |
 | **Voice:** | Google → DeepL → Gemini (enabled ones only) |
-| **STT:** | Local ⇄ Groq (when Groq is enabled) |
+| **STT:** | Local → Faster → Groq (Groq appears when its API key is set) |
 
 > An engine must have its API key set and be enabled on the options page to appear in the cycle. Disabled engines are skipped.
 
@@ -279,6 +331,9 @@ Open options by right-clicking the extension icon and choosing **Options**.
 | **Recognition model** | Download, delete, and select models. Changes apply automatically from the next utterance |
 | **Default recognition hints** | Always-on hints for all channels. These are combined before the temporary panel 💡 hints |
 | **Subtitle font size** | Voice subtitle text size (14-56 px) |
+| **Enable Faster-Whisper** | Recognize speech via the local GPU server. Automatically falls back to local Whisper if not running or on failure |
+| **Faster-Whisper server URL** | Only `localhost` / `127.0.0.1` allowed. Default: `http://127.0.0.1:8765/transcribe` |
+| **Faster-Whisper model** | Choose Small / Medium / Large-v3 / Large-v3-Turbo (recommended) |
 | **Enable Groq STT** | Recognize speech with the Groq Whisper API. Automatically falls back to local Whisper on failure |
 | **Groq model** | Choose Large-v3-Turbo (fast) or Large-v3 (high accuracy) |
 | **Groq API key** | Get one from [console.groq.com](https://console.groq.com) for free |
@@ -319,7 +374,9 @@ twitch-chat-translate-ext/
 ├── auth-callback.js        # Content script for OAuth callback
 ├── help.html               # Usage page (right-click icon → “📖 Help”)
 ├── options.html / options.js / options.css
-├── scripts/build-release.ps1 # Release ZIP packaging script
+├── scripts/
+│   ├── build-release.ps1                        # Release ZIP packaging script (extension)
+│   └── build-faster-whisper-server-release.ps1  # Release ZIP packaging script (Faster-Whisper server)
 ├── docs/images/            # Documentation images
 ├── lib/
 │   ├── transformers.min.js                 # Transformers.js v3 (Whisper inference engine)
@@ -327,7 +384,11 @@ twitch-chat-translate-ext/
 │   ├── ort-wasm-simd-threaded.jsep.mjs     # ONNX Runtime (WebGPU support)
 │   ├── ort-wasm-simd.wasm                  # ONNX Runtime WASM (SIMD support)
 │   └── ort-wasm.wasm                       # ONNX Runtime WASM (fallback)
-└── icons/
+├── icons/
+└── tools/faster-whisper-server/  # Faster-Whisper STT server (distributed separately, Python)
+    ├── server.py
+    ├── requirements.txt
+    └── README.md
 ```
 
 ---
@@ -394,6 +455,7 @@ The usage panel is independently positioned with `position: fixed` in the same S
 | Target language | Japanese |
 | Show original text | ON |
 | Auto-scroll | ON |
+| Faster-Whisper STT | OFF |
 | Groq STT | OFF |
 | Use DeepL | OFF |
 | Use Gemini | OFF |
@@ -415,13 +477,22 @@ The usage panel is independently positioned with `position: fixed` in the same S
 
 ## Creating a Release ZIP
 
-Create distribution ZIP files with the packaging script instead of manually zipping the whole repository.
+Create distribution ZIP files with the packaging scripts instead of manually zipping the whole repository.
+**The extension itself (for the Chrome Web Store) and the Faster-Whisper server (a Python tool) are packaged
+into separate ZIP files.** The extension ZIP never contains Python files, so it can be submitted to the
+Chrome Web Store review as-is.
 
 ```powershell
+# Extension (twitch-chat-translator-vX.Y.Z.zip)
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
+
+# Faster-Whisper server (faster-whisper-server.zip, distributed separately from the extension)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-faster-whisper-server-release.ps1
 ```
 
-The script uses the version from `manifest.json` and generates `twitch-chat-translator-vX.Y.Z.zip`. Development files such as `.github/`, `.gitignore`, and `CLAUDE.md` are not included in the release ZIP.
+The first script uses the version from `manifest.json` and generates `twitch-chat-translator-vX.Y.Z.zip`. Development files such as `.github/`, `.gitignore`, and `CLAUDE.md` are not included in the release ZIP.
+The Faster-Whisper server is an independent tool and is not versioned; the second script packages only
+`server.py`, `requirements.txt`, and `README.md` into `faster-whisper-server.zip`.
 
 ---
 

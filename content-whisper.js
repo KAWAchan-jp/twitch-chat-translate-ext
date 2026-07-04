@@ -191,6 +191,61 @@ async function transcribeViaGroq(blob, language) {
   }
 }
 
+function buildWhisperInitialPrompt() {
+  const sessionPrompt = settings.whisper_prompt || twitchAutoPrompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
+  const basePrompt    = [settings.whisper_prompt_default, sessionPrompt].filter(Boolean).join(' ');
+  const historyText   = transcriptHistory.slice(-4).join('');
+  return historyText ? `${basePrompt} ${historyText}`.trim() : basePrompt;
+}
+
+async function transcribeViaFasterWhisper(blob, language) {
+  showSubtitle('Faster-Whisper 認識中...', false);
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  const requestId = Math.random().toString(36).slice(2);
+
+  const startResponse = await chrome.runtime.sendMessage({
+    type: 'faster_whisper_audio_start',
+    requestId,
+    mimeType: blob.type,
+    language: language === 'auto' ? null : language,
+    initialPrompt: buildWhisperInitialPrompt(),
+  });
+  if (!startResponse?.ok) throw new Error(startResponse?.error || 'Faster-Whisper音声送信の開始に失敗しました');
+
+  try {
+    for (let i = 0; i < bytes.length; i += GROQ_AUDIO_CHUNK_BYTES) {
+      const slice = bytes.subarray(i, i + GROQ_AUDIO_CHUNK_BYTES);
+      let binary = '';
+      for (let j = 0; j < slice.length; j += 8192) {
+        binary += String.fromCharCode(...slice.subarray(j, j + 8192));
+      }
+      const chunkResponse = await chrome.runtime.sendMessage({
+        type: 'faster_whisper_audio_chunk',
+        requestId,
+        chunk: btoa(binary),
+      });
+      if (!chunkResponse?.ok) throw new Error(chunkResponse?.error || 'Faster-Whisper音声送信に失敗しました');
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      type: 'faster_whisper_audio_finish',
+      requestId,
+    });
+    if (!response.ok) throw new Error(response.error);
+
+    const text = response.result?.trim() ?? '';
+    if (isGroqHallucination(text, settings.custom_hallucination_patterns ?? [])) {
+      console.log('[TCT] Faster-Whisper ハルシネーション検出 → 破棄');
+      return '';
+    }
+    return text;
+  } catch (err) {
+    chrome.runtime.sendMessage({ type: 'faster_whisper_audio_abort', requestId }).catch(() => {});
+    throw err;
+  }
+}
+
 function getSupportedRecordingMimeType() {
   const candidates = [
     'audio/webm;codecs=opus',
@@ -211,6 +266,16 @@ async function transcribeViaBackground(blob, mimeType, language) {
     } catch (err) {
       console.warn(`[TCT] Groq失敗 → ローカルWhisperにフォールバック: ${err.message}`);
       const message = err.message ? `⚠ Groq失敗: ${err.message}` : '⚠ Groq失敗';
+      showSubtitle(`${message} → ローカルで認識中...`, false);
+    }
+  }
+
+  if (settings.faster_whisper_enabled && settings.faster_whisper_url) {
+    try {
+      return await transcribeViaFasterWhisper(blob, language);
+    } catch (err) {
+      console.warn(`[TCT] Faster-Whisper失敗 → ローカルWhisperにフォールバック: ${err.message}`);
+      const message = err.message ? `⚠ Faster失敗: ${err.message}` : '⚠ Faster失敗';
       showSubtitle(`${message} → ローカルで認識中...`, false);
     }
   }
@@ -251,10 +316,7 @@ async function transcribeViaBackground(blob, mimeType, language) {
     pendingTranscriptions.set(requestId, { resolve, reject, timer, slot });
 
     // デフォルトヒント（常時） + 一時ヒント（💡、なければ自動ヒント） + 直近の認識履歴
-    const sessionPrompt = settings.whisper_prompt || twitchAutoPrompt || WHISPER_DEFAULT_PROMPTS[settings.src_lang] || '';
-    const basePrompt    = [settings.whisper_prompt_default, sessionPrompt].filter(Boolean).join(' ');
-    const historyText   = transcriptHistory.slice(-4).join('');
-    const initial_prompt = historyText ? `${basePrompt} ${historyText}`.trim() : basePrompt;
+    const initial_prompt = buildWhisperInitialPrompt();
     console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model} slot=${whisperSlots.indexOf(slot)}`);
     slot.worker.postMessage(
       { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
@@ -298,7 +360,14 @@ async function startVoice() {
     }
     await voiceAudioCtx.resume();
 
-    // MediaElementSourceNode は同一 video 要素に対して1回だけ作成可能
+    // MediaElementSourceNode は同一 video 要素に対して1回だけ作成可能。
+    // ただし Twitch は SPA 遷移・画質切替・広告で <video> を差し替えることがあり、
+    // 古い要素を掴んだままだと無音になり VAD が反応しない（「録音開始」で止まる）。
+    // 要素が変わっていたら破棄して作り直す
+    if (voiceSourceNode && voiceSourceNode.mediaElement !== videoEl) {
+      try { voiceSourceNode.disconnect(); } catch (_) {}
+      voiceSourceNode = null;
+    }
     if (!voiceSourceNode) {
       voiceSourceNode = voiceAudioCtx.createMediaElementSource(videoEl);
       voiceSourceNode.connect(voiceAudioCtx.destination);
@@ -419,7 +488,12 @@ async function startVoice() {
     }, settings.whisper_max_chunk_ms ?? 5000);
   }
   startRecordingCycle();
-  showSubtitle('🎤 録音開始', false);
+  // 音量0/ミュートだと MediaElementSource の出力も無音になり VAD が反応しない
+  if (videoEl.muted || videoEl.volume === 0) {
+    showSubtitle('⚠ プレイヤーが音量0/ミュートです。音声認識には音量を少し上げてください', false);
+  } else {
+    showSubtitle('🎤 録音開始', false);
+  }
 }
 
 function stopVoice() {

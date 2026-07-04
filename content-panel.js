@@ -231,6 +231,8 @@ const PANEL_CSS = `
   .footer-engine:hover { color: #efeff1; border-bottom-color: #5a5a6e; }
   .footer-engine.gemini { color: #4285f4; }
   .footer-engine.deepl  { color: #00c4a0; }
+  .footer-engine.faster { color: #c084fc; }
+  .footer-engine.groq   { color: #f0971d; }
 
   /* リサイズハンドル */
   .resize-handle {
@@ -935,11 +937,20 @@ function cycleFeatureEngine(feature) {
 }
 
 function cycleSttEngine() {
-  if (settings.groq_enabled) {
-    safeStorageSet({ groq_enabled: false });
-  } else if (settings.groq_api_key) {
-    safeStorageSet({ groq_enabled: true });
-  }
+  const available = ['Local', 'Faster'];
+  if (settings.groq_api_key) available.push('Groq');
+  const current = getSttEngine();
+  const next = available[(available.indexOf(current) + 1) % available.length];
+  safeStorageSet({
+    faster_whisper_enabled: next === 'Faster',
+    groq_enabled: next === 'Groq',
+  });
+}
+
+function getSttEngine() {
+  if (settings.groq_enabled && settings.groq_api_key) return 'Groq';
+  if (settings.faster_whisper_enabled) return 'Faster';
+  return 'Local';
 }
 
 // ===== フッター更新 =====
@@ -967,12 +978,13 @@ function updateFooter() {
   // STT エンジン
   const sttEl = shadowRoot?.getElementById('footerSTT');
   if (sttEl) {
-    const sttEngine = (settings.groq_enabled && settings.groq_api_key) ? 'Groq' : 'Local';
+    const sttEngine = getSttEngine();
+    const sttAvailable = ['Local', 'Faster'];
+    if (settings.groq_api_key) sttAvailable.push('Groq');
     sttEl.textContent = sttEngine;
-    sttEl.style.color = sttEngine === 'Groq' ? '#f0971d' : '';
-    sttEl.title = settings.groq_api_key
-      ? 'クリックで切替（Local → Groq）'
-      : 'オプションでGroq APIキーを設定すると切替できます';
+    sttEl.className = 'footer-engine'
+      + (sttEngine === 'Groq' ? ' groq' : sttEngine === 'Faster' ? ' faster' : '');
+    sttEl.title = `クリックで切替（${sttAvailable.join(' → ')}）`;
   }
 }
 

@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.29-9147ff)
+![version](https://img.shields.io/badge/version-0.6.37-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -20,6 +20,7 @@
 | 🎙️ **配信者の声を字幕表示** | 配信音声を自動認識してリアルタイム字幕。APIキー不要・完全ローカル処理 |
 | ✏️ **日本語でチャットに参加** | 日本語で入力すると自動翻訳して送信。言語が違っても配信者と話せる |
 | 🤖 **Gemini AI 翻訳** | 音声字幕・送信メッセージの翻訳に Gemini AI を使用。ゲーム用語・スラングにも強い自然な翻訳 |
+| 🖥️ **Faster-Whisper STT** | ローカルサーバー経由で Whisper large 系モデルを利用。PC の GPU で高精度・低遅延認識（GPU 搭載前提） |
 | ⚡ **Groq Whisper STT** | クラウド音声認識で高精度・高速な字幕。ローカル Whisper より認識率が高い場合も |
 | 🔊 **翻訳読み上げ（TTS）** | 翻訳した字幕を自動読み上げ。配信者の声を理解しながら聴ける |
 | 📊 **API 利用状況パネル** | Gemini・Groq・DeepL の利用量をリアルタイム表示。使いすぎ防止に |
@@ -61,11 +62,62 @@
 
 > Groq API キーは [console.groq.com](https://console.groq.com) で無料取得可能。
 
-### 音声字幕（ローカル Whisper）
+### Faster-Whisper STT（ローカルサーバー・GPU 搭載前提）
+
+- **ローカルPCで高精度モデルを実行** — Faster-Whisper / CTranslate2 を使い、Large-v3 / Large-v3-Turbo などをローカルサーバー側で実行
+- **ブラウザ外で推論** — Chrome 拡張内ではなく `http://127.0.0.1:8765/transcribe` などのローカルサーバーへ音声を送信
+- **自動フォールバック** — サーバー未起動・エラー・タイムアウト時は既存のローカル Whisper に切り替え
+- **サーバー同梱** — `tools/faster-whisper-server/` に FastAPI ベースのサーバーを用意
+
+> Faster-Whisper は「モデル名」ではなく、Whisper 系モデルを高速に動かす実行エンジンです。
+> オプションページでは STT エンジンとして有効化し、使用モデル（例: Large-v3-Turbo）を別に選択します。
+
+#### サーバーの起動（GPU / CUDA）
+
+NVIDIA GPU 搭載 PC を前提とします。**CUDA Toolkit のインストールは不要**で、
+[uv](https://docs.astral.sh/uv/) があれば1コマンドで起動できます
+（CUDA 用ライブラリ cuBLAS / cuDNN は pip 版が自動ダウンロード・自動検出されます）:
+
+```powershell
+cd tools\faster-whisper-server
+uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py
+```
+
+uv が未インストールの場合は、先に以下でインストールします。
+
+```powershell
+# Windows（PowerShell）
+irm https://astral.sh/uv/install.ps1 | iex
+```
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+- 必要環境: NVIDIA GPU（VRAM 4GB 以上推奨）+ CUDA 12 対応ドライバー（バージョン 525 以上）
+- 初回のみ cuBLAS / cuDNN（約1.2GB）とモデル本体（Large-v3-Turbo 約1.6GB）がダウンロードされます
+- コンソールに `Model '...' ready` と表示されたら準備完了です
+- CUDA が使えない環境では自動で CPU にフォールバックしますが、大型モデルは拡張のタイムアウト（30秒）に
+  かかるため実用になりません（GPU 実測: 7.5秒音声を約0.5〜1秒で認識）
+
+#### 使い方
+
+1. 上記コマンドでサーバーを起動する（`Model '...' ready` が出るまで待つ）
+2. 拡張のオプションページ →「Faster-Whisper」でチェックを ON にし、モデルを選択して保存
+   （URL はデフォルトの `http://127.0.0.1:8765/transcribe` のままで OK）
+3. Twitch ページでパネルのフッター「STT:」表示が <span style="color:#c084fc">Faster</span> になっていることを確認
+   （クリックで Local → Faster → Groq を切替可能）
+4. 🎤 で音声認識を開始すると、字幕が Faster-Whisper サーバーで認識されます
+
+詳細（環境変数・API 仕様・性能実測・venv での起動方法）は
+[tools/faster-whisper-server/README.md](tools/faster-whisper-server/README.md) を参照してください。
+
+### 音声字幕（ローカル Whisper・GPU 搭載前提）
 - **APIキー不要** — Whisper を拡張機能内でローカル実行（Transformers.js v3 + ONNX Runtime）
 - **日本語特化モデル対応** — Kotoba-Whisper v2.2（通常版・軽量版）で日本語認識率が大幅向上
-- **WebGPU 対応** — GPU が使用可能な環境では自動的に WebGPU で高速推論。使用不可の場合は CPU（WASM）に自動フォールバック
-- **タブ共有バナーなし** — Web Audio API で `<video>` 要素から直接音声を取得。ボリュームの大小に関わらず音声認識が可能
+- **WebGPU で高速推論** — GPU 搭載 PC を前提とし、自動的に WebGPU を使用。GPU が使えない場合は CPU（WASM）に自動フォールバックしますが、小型モデル（tiny/base）以外は実用的な速度になりません
+- **タブ共有バナーなし** — Web Audio API で `<video>` 要素から直接音声を取得。音量が小さくても認識できますが、**音量0・ミュートでは無音になり認識できません**（タブのミュートは影響なし）
 - **VAD（無音検出）** — 発話終了後に即座に処理開始（低遅延）
 - **並列ワーカー処理** — 複数の Web Worker で同時推論（CPU 時最大8並列・GPU 時は1ワーカーで映像のカクつきを防止）
 - **コンテキスト引き継ぎ** — 直近の発話をプロンプトとして渡し、文脈を維持した認識
@@ -150,7 +202,7 @@
 | ● ステータスドット | チャット接続状態（緑＝接続中、黄点滅＝接続処理中、ピンク＝切断・停止） |
 | **#チャンネル名** | 接続中のチャンネル。右側にプレイ中のゲーム名も表示 |
 | **EN→JA・Google** | 翻訳方向と使用エンジン。**オレンジ色**のときはこのチャンネル専用の言語設定が保存されています |
-| 数字（0.5.7.0 など） | 拡張機能のバージョン |
+| 数字（0.6.37 など） | 拡張機能のバージョン |
 | **💡** | 認識ヒント入力バーの開閉 |
 | **🎤** | 音声字幕の ON / OFF |
 | **🔊** | 翻訳読み上げ（TTS）の ON / OFF |
@@ -173,9 +225,9 @@
 |------|------|
 | **チャット入力:** | 自分が入力して送信するメッセージの翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>）。</br><span style="color:#e84393">**⚠ 翻訳元言語が「自動検出」の場合は翻訳送信が無効になります**</span> |
 | **音声:** | 配信者の音声認識後の翻訳エンジン（Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>） |
-| **STT:** | 音声認識エンジン（Local = ローカル Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API） |
+| **STT:** | 音声認識エンジン（Local = ローカル Whisper / <span style="color:#c084fc">Faster</span> = Faster-Whisper / <span style="color:#f0971d">Groq</span> = Groq Whisper API） |
 
-オプションの設定変更はフッターにリアルタイム反映されます。**フッターの表示をクリックすると、有効化済みのエンジンを順番に切替できます**（チャット入力・音声は Google→DeepL→Gemini、STT は Local⇄Groq。それぞれオプションで有効化していないエンジンは候補に出ません）。
+オプションの設定変更はフッターにリアルタイム反映されます。**フッターの表示をクリックすると、有効化済みのエンジンを順番に切替できます**（チャット入力・音声は Google→DeepL→Gemini、STT は Local→Faster→Groq。それぞれオプションで有効化していないエンジンは候補に出ません）。
 
 | 操作 | 動作 |
 |------|------|
@@ -213,7 +265,7 @@
 |---|---|
 | **チャット入力:** | Google → DeepL → Gemini（有効なものだけ） |
 | **音声:** | Google → DeepL → Gemini（有効なものだけ） |
-| **STT:** | Local ⇄ Groq（Groq が有効な場合） |
+| **STT:** | Local → Faster → Groq（Groq は APIキー設定時のみ候補に出ます） |
 
 > エンジンを使えるようにするにはオプションページで API キーを設定して有効化する必要があります。有効化していないエンジンはスキップされます。
 
@@ -281,6 +333,9 @@
 | **認識モデル** | モデルのダウンロード・削除・選択（変更は次の発話から自動反映） |
 | **デフォルト認識ヒント** | 全チャンネルで常時有効なヒント。パネル💡の一時ヒントの前に結合される |
 | **字幕フォントサイズ** | 音声字幕の文字サイズ（14〜56px） |
+| **Faster-Whisper を有効にする** | ローカルサーバー（GPU）で音声認識。未起動・失敗時はローカル Whisper に自動フォールバック |
+| **Faster-Whisper サーバー URL** | `localhost` / `127.0.0.1` のみ指定可能。デフォルト `http://127.0.0.1:8765/transcribe` |
+| **Faster-Whisper モデル** | Small / Medium / Large-v3 / Large-v3-Turbo（推奨）から選択 |
 | **Groq STT を有効にする** | Groq Whisper API で音声認識。失敗時はローカル Whisper に自動フォールバック |
 | **Groq モデル** | Large-v3-Turbo（高速）または Large-v3（高精度）を選択 |
 | **Groq API キー** | [console.groq.com](https://console.groq.com) で取得（無料） |
@@ -321,7 +376,9 @@ twitch-chat-translate-ext/
 ├── auth-callback.js        # OAuth コールバック用コンテンツスクリプト
 ├── help.html               # 使い方ページ（アイコン右クリック →「📖 使い方」）
 ├── options.html / options.js / options.css
-├── scripts/build-release.ps1 # リリース用 ZIP 作成スクリプト
+├── scripts/
+│   ├── build-release.ps1                        # 拡張本体のリリース ZIP 作成スクリプト
+│   └── build-faster-whisper-server-release.ps1  # Faster-Whisper サーバーのリリース ZIP 作成スクリプト
 ├── docs/images/            # ドキュメント用画像
 ├── lib/
 │   ├── transformers.min.js             # Transformers.js v3（Whisper 推論エンジン）
@@ -329,7 +386,11 @@ twitch-chat-translate-ext/
 │   ├── ort-wasm-simd-threaded.jsep.mjs   # ONNX Runtime（WebGPU対応）
 │   ├── ort-wasm-simd.wasm              # ONNX Runtime WASM（SIMD対応）
 │   └── ort-wasm.wasm                   # ONNX Runtime WASM（フォールバック）
-└── icons/
+├── icons/
+└── tools/faster-whisper-server/  # Faster-Whisper STT サーバー（拡張とは別配布・Python）
+    ├── server.py
+    ├── requirements.txt
+    └── README.md
 ```
 
 ---
@@ -402,6 +463,7 @@ Shadow DOM でページの CSS から分離しています（`attachShadow({ mod
 | 翻訳先言語 | 日本語 |
 | 原文を表示 | ON |
 | 自動スクロール | ON |
+| Faster-Whisper STT | OFF |
 | Groq STT | OFF |
 | DeepL を使用 | OFF |
 | Gemini を使用 | OFF |
@@ -424,12 +486,19 @@ Shadow DOM でページの CSS から分離しています（`attachShadow({ mod
 ## リリース ZIP の作成
 
 配布用 ZIP は、リポジトリ全体を手動で圧縮せず、次のスクリプトで作成します。
+**拡張本体（Chrome Web Store 用）と Faster-Whisper サーバー（Python ツール）は別 ZIP に分かれています**。
+拡張 ZIP に Python ファイルは含まれないため、そのまま Chrome Web Store の審査に提出できます。
 
 ```powershell
+# 拡張本体（twitch-chat-translator-vX.Y.Z.zip）
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
+
+# Faster-Whisper サーバー（faster-whisper-server.zip・拡張とは別配布）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-faster-whisper-server-release.ps1
 ```
 
 `manifest.json` の version を使って `twitch-chat-translator-vX.Y.Z.zip` を生成します。`.github/`、`.gitignore`、`CLAUDE.md` などの開発用ファイルは配布 ZIP に含めません。
+Faster-Whisper サーバー側は独立したツールのためバージョン番号を付けず、`server.py` / `requirements.txt` / `README.md` のみを `faster-whisper-server.zip` にまとめます。
 
 ---
 
