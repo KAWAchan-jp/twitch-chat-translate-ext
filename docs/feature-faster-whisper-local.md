@@ -25,10 +25,11 @@ Chrome 拡張内では Python / ネイティブ実行ができないため、拡
 |---|---|
 | `content-whisper.js` | STT エンジン選択、Faster-Whisper 呼び出し、フォールバック |
 | `background.js` | 必要なら localhost STT への CORS 回避・chunk 転送 |
-| `content-panel.js` | フッター STT 表示・エンジン切替 |
-| `options.html` / `options.js` / `options.css` | Faster-Whisper 有効化、URL、モデル名などの設定 |
-| `manifest.json` | localhost の host permissions と version 更新 |
-| `README*.md` / `help.html` | ユーザー向け説明 |
+| `extension/content-panel.js` | フッター STT 表示・エンジン切替 |
+| `extension/options.html` / `extension/options.js` / `extension/options.css` | Faster-Whisper 有効化、URL、モデル名などの設定 |
+| `extension/manifest.json` | localhost の host permissions と version 更新 |
+| `README*.md` / `extension/help.html` | ユーザー向け説明 |
+| `uv/` | Faster-Whisper ローカル STT サーバー |
 | `docs/WORK-STATUS.md` | 共有ボード更新 |
 
 ## 進捗
@@ -38,6 +39,7 @@ Chrome 拡張内では Python / ネイティブ実行ができないため、拡
 - 2026-07-04: 拡張側に Faster-Whisper 設定・STT切替・background 経由の localhost 転送・失敗時フォールバックを追加。
 - 2026-07-04: `tools/faster-whisper-server/` に FastAPI ベースの最小サーバー雛形を追加。
 - 2026-07-04: `manifest.json` を `0.6.30` へ更新し、`http://127.0.0.1/*` / `http://localhost/*` を host permissions に追加。
+- 2026-07-06: リポジトリ整理により、拡張本体は `extension/`、Faster-Whisper サーバーは `uv/` へ移動。現行パスは `extension/manifest.json` と `uv/server.py`。
 - 2026-07-05: Claude Code が引き継ぎ。サーバーを uv 対応（PEP 723 + `uv run server.py` 起動）に変更。
 - 2026-07-05: 起動時モデル事前ロードと CUDA ライブラリ欠如時の CPU 自動フォールバックを追加。
 - 2026-07-05: 実サーバー検証を完了（v0.6.31）。詳細は下記「検証結果」。

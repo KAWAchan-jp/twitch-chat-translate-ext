@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.37-9147ff)
+![version](https://img.shields.io/badge/version-0.7.0.1-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -68,7 +68,7 @@
 - **Точные модели на вашем ПК** — использует Faster-Whisper / CTranslate2 и запускает Large-v3 / Large-v3-Turbo на локальном сервере.
 - **Распознавание вне браузера** — звук отправляется на локальный сервер, например `http://127.0.0.1:8765/transcribe`, а не обрабатывается внутри расширения Chrome.
 - **Автоматический fallback** — если сервер не запущен, произошла ошибка или тайм-аут, расширение переключается на встроенный локальный Whisper.
-- **Сервер в комплекте** — сервер на базе FastAPI находится в `tools/faster-whisper-server/`.
+- **Сервер в комплекте** — сервер на базе FastAPI находится в `uv/`.
 
 > Faster-Whisper — это не название модели, а движок, быстро выполняющий модели Whisper.
 > На странице настроек он включается как движок STT, а модель (например, Large-v3-Turbo) выбирается отдельно.
@@ -80,7 +80,7 @@
 (pip-сборки cuBLAS / cuDNN скачиваются и подхватываются автоматически):
 
 ```powershell
-cd tools\faster-whisper-server
+cd uv
 uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py
 ```
 
@@ -113,7 +113,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 4. Запустите распознавание кнопкой 🎤 — субтитры теперь распознает сервер Faster-Whisper.
 
 Подробности (переменные окружения, описание API, замеры производительности, запуск через venv)
-см. в [tools/faster-whisper-server/README.md](tools/faster-whisper-server/README.md).
+см. в [uv/README.md](uv/README.md).
 
 ### Голосовые субтитры (локальный Whisper, требуется GPU)
 
@@ -173,7 +173,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 1. Скачайте этот репозиторий ZIP-архивом или выполните `git clone`.
 2. Откройте в Chrome `chrome://extensions/`.
 3. Включите **Developer mode** в правом верхнем углу.
-4. Нажмите **Load unpacked** и выберите скачанную папку.
+4. Нажмите **Load unpacked** и выберите папку `extension/`.
 5. Нажмите значок пазла (🧩) на панели инструментов и закрепите **Twitch Chat Translator**.
 
 ---
@@ -365,28 +365,29 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```text
 twitch-chat-translate-ext/
-├── manifest.json           # Настройки расширения (Manifest V3)
-├── background.js           # Service Worker (прокси API перевода, кэш, OAuth)
-├── content.js              # Главный content script (константы, состояние, инициализация, настройки)
-├── content-panel.js        # Content script (панель Shadow DOM и UI)
-├── content-chat.js         # Content script (IRC, перевод чата, режим быстрого чата)
-├── content-whisper.js      # Content script (распознавание Whisper, субтитры, TTS)
-├── whisper-worker.js       # Скрипт распознавания Whisper в Web Worker
-├── auth-callback.js        # Content script для OAuth callback
-├── help.html               # Страница помощи (правый щелчок по значку → “📖 Help”)
-├── options.html / options.js / options.css
+├── extension/              # Пакет расширения, который загружает Chrome
+│   ├── manifest.json       # Настройки расширения (Manifest V3)
+│   ├── background.js       # Service Worker (прокси API перевода, кэш, OAuth)
+│   ├── content.js          # Главный content script (константы, состояние, инициализация, настройки)
+│   ├── content-panel.js    # Content script (панель Shadow DOM и UI)
+│   ├── content-chat.js     # Content script (IRC, перевод чата, режим быстрого чата)
+│   ├── content-whisper.js  # Content script (распознавание Whisper, субтитры, TTS)
+│   ├── whisper-worker.js   # Скрипт распознавания Whisper в Web Worker
+│   ├── auth-callback.js    # Content script для OAuth callback
+│   ├── help.html           # Страница помощи (правый щелчок по значку → “📖 Help”)
+│   ├── options.html / options.js / options.css
+│   ├── lib/
+│   │   ├── transformers.min.js                 # Transformers.js v3 (движок распознавания Whisper)
+│   │   ├── ort-wasm-simd-threaded.jsep.wasm    # ONNX Runtime (поддержка WebGPU)
+│   │   ├── ort-wasm-simd-threaded.jsep.mjs     # ONNX Runtime (поддержка WebGPU)
+│   │   ├── ort-wasm-simd.wasm                  # ONNX Runtime WASM (поддержка SIMD)
+│   │   └── ort-wasm.wasm                       # ONNX Runtime WASM (fallback)
+│   └── icons/
 ├── scripts/
 │   ├── build-release.ps1                        # Скрипт создания release ZIP (расширение)
 │   └── build-faster-whisper-server-release.ps1  # Скрипт создания release ZIP (сервер Faster-Whisper)
 ├── docs/images/            # Изображения для документации
-├── lib/
-│   ├── transformers.min.js                 # Transformers.js v3 (движок распознавания Whisper)
-│   ├── ort-wasm-simd-threaded.jsep.wasm    # ONNX Runtime (поддержка WebGPU)
-│   ├── ort-wasm-simd-threaded.jsep.mjs     # ONNX Runtime (поддержка WebGPU)
-│   ├── ort-wasm-simd.wasm                  # ONNX Runtime WASM (поддержка SIMD)
-│   └── ort-wasm.wasm                       # ONNX Runtime WASM (fallback)
-├── icons/
-└── tools/faster-whisper-server/  # Сервер Faster-Whisper STT (распространяется отдельно, Python)
+└── uv/                    # Сервер Faster-Whisper STT (распространяется отдельно, Python)
     ├── server.py
     ├── requirements.txt
     └── README.md
@@ -491,7 +492,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-faster-whisper-server-release.ps1
 ```
 
-Первый скрипт берет версию из `manifest.json` и создает `twitch-chat-translator-vX.Y.Z.zip`. Файлы разработки, такие как `.github/`, `.gitignore` и `CLAUDE.md`, не включаются в release ZIP.
+Первый скрипт берет версию из `extension/manifest.json` и создает `twitch-chat-translator-vX.Y.Z.zip`. В ZIP файл `manifest.json` находится в корне архива. Файлы разработки, такие как `.github/`, `.gitignore` и `CLAUDE.md`, не включаются в release ZIP.
 Сервер Faster-Whisper — независимый инструмент без версионирования; второй скрипт упаковывает только
 `server.py`, `requirements.txt` и `README.md` в `faster-whisper-server.zip`.
 

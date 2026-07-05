@@ -5,7 +5,7 @@
 $ErrorActionPreference = "Stop"
 
 $root       = Resolve-Path (Join-Path $PSScriptRoot "..")
-$serverRoot = Join-Path $root "tools\faster-whisper-server"
+$serverRoot = Join-Path $root "uv"
 $zipName    = "faster-whisper-server.zip"
 $outputRoot = Resolve-Path $OutputDirectory
 $zipPath    = Join-Path $outputRoot $zipName

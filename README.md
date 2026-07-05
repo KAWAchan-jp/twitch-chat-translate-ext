@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.37-9147ff)
+![version](https://img.shields.io/badge/version-0.7.0.1-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -67,7 +67,7 @@
 - **ローカルPCで高精度モデルを実行** — Faster-Whisper / CTranslate2 を使い、Large-v3 / Large-v3-Turbo などをローカルサーバー側で実行
 - **ブラウザ外で推論** — Chrome 拡張内ではなく `http://127.0.0.1:8765/transcribe` などのローカルサーバーへ音声を送信
 - **自動フォールバック** — サーバー未起動・エラー・タイムアウト時は既存のローカル Whisper に切り替え
-- **サーバー同梱** — `tools/faster-whisper-server/` に FastAPI ベースのサーバーを用意
+- **サーバー同梱** — `uv/` に FastAPI ベースのサーバーを用意
 
 > Faster-Whisper は「モデル名」ではなく、Whisper 系モデルを高速に動かす実行エンジンです。
 > オプションページでは STT エンジンとして有効化し、使用モデル（例: Large-v3-Turbo）を別に選択します。
@@ -79,7 +79,7 @@ NVIDIA GPU 搭載 PC を前提とします。**CUDA Toolkit のインストー�
 （CUDA 用ライブラリ cuBLAS / cuDNN は pip 版が自動ダウンロード・自動検出されます）:
 
 ```powershell
-cd tools\faster-whisper-server
+cd uv
 uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py
 ```
 
@@ -111,7 +111,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 4. 🎤 で音声認識を開始すると、字幕が Faster-Whisper サーバーで認識されます
 
 詳細（環境変数・API 仕様・性能実測・venv での起動方法）は
-[tools/faster-whisper-server/README.md](tools/faster-whisper-server/README.md) を参照してください。
+[uv/README.md](uv/README.md) を参照してください。
 
 ### 音声字幕（ローカル Whisper・GPU 搭載前提）
 - **APIキー不要** — Whisper を拡張機能内でローカル実行（Transformers.js v3 + ONNX Runtime）
@@ -172,7 +172,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 1. このリポジトリを ZIP でダウンロード、または `git clone`
 2. Chrome で `chrome://extensions/` を開く
 3. 右上の **デベロッパーモード** を ON にする
-4. **「パッケージ化されていない拡張機能を読み込む」** → ダウンロードしたフォルダを選択
+4. **「パッケージ化されていない拡張機能を読み込む」** → `extension/` フォルダを選択
 5. ツールバーのパズルアイコン（🧩）→ **Twitch Chat Translator** をピン留め
 
 ---
@@ -366,28 +366,29 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```
 twitch-chat-translate-ext/
-├── manifest.json           # 拡張の設定（Manifest V3）
-├── background.js           # Service Worker（翻訳APIプロキシ、キャッシュ、OAuth）
-├── content.js              # コンテンツスクリプト メイン（定数・状態・初期化・設定）
-├── content-panel.js        # コンテンツスクリプト（Shadow DOM パネル・UI）
-├── content-chat.js         # コンテンツスクリプト（IRC・チャット翻訳・弾幕）
-├── content-whisper.js      # コンテンツスクリプト（Whisper 音声認識・字幕・TTS）
-├── whisper-worker.js       # Web Worker で動作する Whisper 推論スクリプト
-├── auth-callback.js        # OAuth コールバック用コンテンツスクリプト
-├── help.html               # 使い方ページ（アイコン右クリック →「📖 使い方」）
-├── options.html / options.js / options.css
+├── extension/              # Chrome が読み込む拡張本体
+│   ├── manifest.json       # 拡張の設定（Manifest V3）
+│   ├── background.js       # Service Worker（翻訳APIプロキシ、キャッシュ、OAuth）
+│   ├── content.js          # コンテンツスクリプト メイン（定数・状態・初期化・設定）
+│   ├── content-panel.js    # コンテンツスクリプト（Shadow DOM パネル・UI）
+│   ├── content-chat.js     # コンテンツスクリプト（IRC・チャット翻訳・弾幕）
+│   ├── content-whisper.js  # コンテンツスクリプト（Whisper 音声認識・字幕・TTS）
+│   ├── whisper-worker.js   # Web Worker で動作する Whisper 推論スクリプト
+│   ├── auth-callback.js    # OAuth コールバック用コンテンツスクリプト
+│   ├── help.html           # 使い方ページ（アイコン右クリック →「📖 使い方」）
+│   ├── options.html / options.js / options.css
+│   ├── lib/
+│   │   ├── transformers.min.js               # Transformers.js v3（Whisper 推論エンジン）
+│   │   ├── ort-wasm-simd-threaded.jsep.wasm  # ONNX Runtime（WebGPU対応）
+│   │   ├── ort-wasm-simd-threaded.jsep.mjs   # ONNX Runtime（WebGPU対応）
+│   │   ├── ort-wasm-simd.wasm                # ONNX Runtime WASM（SIMD対応）
+│   │   └── ort-wasm.wasm                     # ONNX Runtime WASM（フォールバック）
+│   └── icons/
 ├── scripts/
 │   ├── build-release.ps1                        # 拡張本体のリリース ZIP 作成スクリプト
 │   └── build-faster-whisper-server-release.ps1  # Faster-Whisper サーバーのリリース ZIP 作成スクリプト
 ├── docs/images/            # ドキュメント用画像
-├── lib/
-│   ├── transformers.min.js             # Transformers.js v3（Whisper 推論エンジン）
-│   ├── ort-wasm-simd-threaded.jsep.wasm  # ONNX Runtime（WebGPU対応）
-│   ├── ort-wasm-simd-threaded.jsep.mjs   # ONNX Runtime（WebGPU対応）
-│   ├── ort-wasm-simd.wasm              # ONNX Runtime WASM（SIMD対応）
-│   └── ort-wasm.wasm                   # ONNX Runtime WASM（フォールバック）
-├── icons/
-└── tools/faster-whisper-server/  # Faster-Whisper STT サーバー（拡張とは別配布・Python）
+└── uv/                    # Faster-Whisper STT サーバー（拡張とは別配布・Python）
     ├── server.py
     ├── requirements.txt
     └── README.md
@@ -497,7 +498,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-faster-whisper-server-release.ps1
 ```
 
-`manifest.json` の version を使って `twitch-chat-translator-vX.Y.Z.zip` を生成します。`.github/`、`.gitignore`、`CLAUDE.md` などの開発用ファイルは配布 ZIP に含めません。
+`extension/manifest.json` の version を使って `twitch-chat-translator-vX.Y.Z.zip` を生成します。ZIP 内では `manifest.json` がルートに配置されます。`.github/`、`.gitignore`、`CLAUDE.md` などの開発用ファイルは配布 ZIP に含めません。
 Faster-Whisper サーバー側は独立したツールのためバージョン番号を付けず、`server.py` / `requirements.txt` / `README.md` のみを `faster-whisper-server.zip` にまとめます。
 
 ---

@@ -14,13 +14,14 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 - ビルドツールはない。通常はファイルを直接編集し、Chrome の拡張リロードで確認する。
 - 変更は小さく保ち、既存のグローバルスクリプト構成と命名に合わせる。バンドルや新しいフレームワークは追加しない。
 - UI 文言は基本的に日本語。README は `README.md` / `README.en.md` / `README.ru.md` があるため、ユーザー向け仕様変更では必要に応じて多言語側も更新する。
-- 修正を行ったら `manifest.json` の `"version"` を上げ、最終報告で伝える。バージョンは4桁目だけをインクリメントする。
+- 修正を行ったら `extension/manifest.json` の `"version"` を上げ、最終報告で伝える。バージョンは4桁目だけをインクリメントする。
 - コミットを求められた場合のコミットメッセージは日本語: `fix: 説明 v0.6.30`。
 
 ## ビルド・デバッグ手順
 
 ビルドコマンドなし。拡張を読み込んでいる Chrome 側で確認する。
 
+- 拡張読み込み: `chrome://extensions/` → 「パッケージ化されていない拡張機能を読み込む」→ `extension/`
 - 拡張リロード: `chrome://extensions/` → 「Twitch Chat Translator」の更新ボタン
 - `background.js` のログ: 拡張カード上の「Service Worker」リンク → DevTools
 - content script のログ: Twitch ページで F12 → Console（`[TCT]` プレフィックスで検索）
@@ -31,22 +32,23 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 
 | ファイル | 役割 |
 |---|---|
-| `manifest.json` | Manifest V3。content script のロード順は `content-panel.js → content-chat.js → content-whisper.js → content.js` |
-| `background.js` | Service Worker。翻訳API・Twitch API・Groq API の CORS プロキシ、コンテキストメニュー管理、OAuth 処理 |
-| `content.js` | エントリポイント兼グローバル状態管理。`settings`、WebSocket 接続、チャンネル検出、`chrome.storage.onChanged` ハンドラを持つ |
-| `content-panel.js` | Shadow DOM パネルの HTML/CSS 定義と UI 関数群 |
-| `content-chat.js` | IRC パース、チャット表示、翻訳キュー、弾幕モード、チャット送信 |
-| `content-whisper.js` | 音声録音、ローカル Whisper ワーカープール、Groq フォールバック、字幕表示 |
-| `whisper-worker.js` | Transformers.js / ONNX Runtime で Whisper 推論を実行する Web Worker |
-| `options.js` / `options.html` / `options.css` | オプションページ。モデルDL、APIキー、VAD、字幕、録画設定など |
-| `offscreen*.js/html` / `whisper-injected.js` | 旧経路や補助的な Whisper 実行経路。触る前に現行呼び出し有無を確認する |
-| `auth-callback.js` | OAuth コールバックページ用（`kawachan-jp.github.io` に挿入） |
+| `extension/manifest.json` | Manifest V3。content script のロード順は `content-panel.js → content-chat.js → content-whisper.js → content.js` |
+| `extension/background.js` | Service Worker。翻訳API・Twitch API・Groq API の CORS プロキシ、コンテキストメニュー管理、OAuth 処理 |
+| `extension/content.js` | エントリポイント兼グローバル状態管理。`settings`、WebSocket 接続、チャンネル検出、`chrome.storage.onChanged` ハンドラを持つ |
+| `extension/content-panel.js` | Shadow DOM パネルの HTML/CSS 定義と UI 関数群 |
+| `extension/content-chat.js` | IRC パース、チャット表示、翻訳キュー、弾幕モード、チャット送信 |
+| `extension/content-whisper.js` | 音声録音、ローカル Whisper ワーカープール、Groq フォールバック、字幕表示 |
+| `extension/whisper-worker.js` | Transformers.js / ONNX Runtime で Whisper 推論を実行する Web Worker |
+| `extension/options.js` / `extension/options.html` / `extension/options.css` | オプションページ。モデルDL、APIキー、VAD、字幕、録画設定など |
+| `extension/offscreen*.js/html` / `extension/whisper-injected.js` | 旧経路や補助的な Whisper 実行経路。触る前に現行呼び出し有無を確認する |
+| `extension/auth-callback.js` | OAuth コールバックページ用（`kawachan-jp.github.io` に挿入） |
+| `uv/` | Faster-Whisper ローカル STT サーバー。`uv run ... server.py` で起動する Python 側 |
 
 ## アーキテクチャ上の重要点
 
 ### グローバル状態は content.js が持つ
 
-`settings` / `isAuthenticated` / `twitchToken` / `currentChannel` などは `content.js` のトップレベルに定義され、他の content script から直接参照される。バンドル不使用なので、`manifest.json` のロード順が依存関係になる。
+`settings` / `isAuthenticated` / `twitchToken` / `currentChannel` などは `extension/content.js` のトップレベルに定義され、他の content script から直接参照される。バンドル不使用なので、`extension/manifest.json` のロード順が依存関係になる。
 
 ### パネルは Shadow DOM
 
@@ -83,23 +85,23 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 
 | 関数 | ファイル | 説明 |
 |---|---|---|
-| `updateInputPlaceholder()` | `content-panel.js` | 入力欄プレースホルダー更新 |
-| `updateLangIndicator()` | `content-panel.js` | ヘッダー言語表示更新 |
-| `updateFooter()` | `content-panel.js` | フッターのエンジン表示更新 |
-| `addChatMessage()` | `content-chat.js` | チャットメッセージ追加・翻訳 |
-| `translateViaBackground()` | `content-chat.js` | background.js 経由の翻訳（リトライ付き） |
-| `sendUserMessage()` | `content-chat.js` | チャット送信（翻訳して IRC に送出） |
-| `loadChannelSettings()` | `content.js` | チャンネル固有言語設定の読み込み |
-| `onSettingsChanged()` | `content.js` | storage 変化の一括ハンドラ |
-| `updateTwitchAutoPrompt()` | `content.js` | 配信言語自動検出・Whisper プロンプト更新 |
-| `transcribeViaBackground()` | `content-whisper.js` | STT エンジン選択と音声認識実行 |
-| `translateText()` | `background.js` | 翻訳エンジン選択ロジック |
+| `updateInputPlaceholder()` | `extension/content-panel.js` | 入力欄プレースホルダー更新 |
+| `updateLangIndicator()` | `extension/content-panel.js` | ヘッダー言語表示更新 |
+| `updateFooter()` | `extension/content-panel.js` | フッターのエンジン表示更新 |
+| `addChatMessage()` | `extension/content-chat.js` | チャットメッセージ追加・翻訳 |
+| `translateViaBackground()` | `extension/content-chat.js` | background.js 経由の翻訳（リトライ付き） |
+| `sendUserMessage()` | `extension/content-chat.js` | チャット送信（翻訳して IRC に送出） |
+| `loadChannelSettings()` | `extension/content.js` | チャンネル固有言語設定の読み込み |
+| `onSettingsChanged()` | `extension/content.js` | storage 変化の一括ハンドラ |
+| `updateTwitchAutoPrompt()` | `extension/content.js` | 配信言語自動検出・Whisper プロンプト更新 |
+| `transcribeViaBackground()` | `extension/content-whisper.js` | STT エンジン選択と音声認識実行 |
+| `translateText()` | `extension/background.js` | 翻訳エンジン選択ロジック |
 
 ## 実装時の注意
 
 - content script 間で関数・変数を共有しているため、`const` / `let` の重複宣言に注意する。
-- `manifest.json` の content script ロード順を変える場合は、依存しているグローバル参照を確認する。
-- Chrome extension の CSP と host permissions に注意する。外部 API や localhost を追加する変更では `manifest.json` の `host_permissions` も確認する。
+- `extension/manifest.json` の content script ロード順を変える場合は、依存しているグローバル参照を確認する。
+- Chrome extension の CSP と host permissions に注意する。外部 API や localhost を追加する変更では `extension/manifest.json` の `host_permissions` も確認する。
 - 音声 Blob は大きくなるため、background service worker へ送る場合は既存の Groq chunk 転送方式を参考にする。
 - WebGPU 使用時は複数 Whisper Worker を走らせると VRAM と映像描画に影響する。現行実装は WebGPU 検出時に 1 Worker へ削減する。
 - ユーザー向け設定を追加したら `chrome.storage.local` の読み書き、`settings` への読み込み、`chrome.storage.onChanged` 反映、フッター表示の整合性を確認する。

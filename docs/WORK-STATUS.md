@@ -7,11 +7,15 @@
 - 更新ルール: 自分の担当ブランチの欄を、着手・進捗・完了のたびに書き換える
 - 既存の未コミット変更を勝手に戻さない。作業前に `git status --short --branch` を確認する
 - 仕様・実装の詳細は branch/doc 側へ寄せ、このファイルは共有ボードとして短く保つ
-- 最終更新: 2026-07-05 / by Claude Code
+- 最終更新: 2026-07-06 / by Codex
 
 ---
 
-## ブランチ別ステータス
+## ブランチ運用
+
+- 2026-07-06 時点で、古い feature / fix ブランチは整理し、いったん `master` 一本運用に戻す。
+- 現在の安定状態は `master` の `v0.7.0.1`。Chrome 拡張本体は `extension/`、Faster-Whisper の uv/Python サーバーは `uv/`。
+- 新しい作業を始める場合だけ、目的が明確な短命ブランチを切る。
 
 ### feature/faster-whisper-local — **完了・master にマージ済み（v0.7.0）**
 
@@ -30,10 +34,10 @@
 ### master — 担当: **共有**
 
 - 役割: 本番リリース用ブランチ。
-- 現状: v0.7.0 リリース済み（Faster-Whisper ローカル STT・GPU対応を含む）。
+- 現状: v0.7.0 リリース済み（Faster-Whisper ローカル STT・GPU対応を含む）。リポジトリ整理として拡張本体は `extension/`、uv サーバーは `uv/` に移動済み。
 - 注意:
-  - `manifest.json` の version は現在 `0.7.0`。
-  - 実装変更を行ったら、原則として `manifest.json` の version を4桁目だけインクリメントする。上位桁の変更は明示的な指示があった場合のみ。
+  - `extension/manifest.json` の version は現在 `0.7.0.1`。
+  - 実装変更を行ったら、原則として `extension/manifest.json` の version を4桁目だけインクリメントする。上位桁の変更は明示的な指示があった場合のみ。
   - README は `README.md` / `README.en.md` / `README.ru.md` がある。ユーザー向け仕様を変える場合は多言語側の更新漏れに注意する。
 
 ---
@@ -42,15 +46,18 @@
 
 - `AGENTS.md` は Codex 向けの作業入口。初回作業時に読む。
 - `CLAUDE.md` は Claude Code 向けの作業入口。Claude Code 側の運用変更があればそちらも更新する。
-- content script は `manifest.json` のロード順で同一スコープを共有する。重複宣言やロード順変更に注意する。
+- Chrome に手動読み込みする場合は、リポジトリルートではなく `extension/` を選ぶ。
+- content script は `extension/manifest.json` のロード順で同一スコープを共有する。重複宣言やロード順変更に注意する。
 - パネル UI は Shadow DOM 内にある。`shadowRoot.getElementById()` を使い、Twitch 側 DOM と混同しない。
-- STT まわりは `content-whisper.js`、`whisper-worker.js`、`background.js`、`options.*`、`manifest.json` が絡む。変更時はフッター表示まで確認する。
+- STT まわりは `extension/content-whisper.js`、`extension/whisper-worker.js`、`extension/background.js`、`extension/options.*`、`extension/manifest.json`、`uv/` が絡む。変更時はフッター表示まで確認する。
 - Groq の chunk 転送実装は、大きな音声 Blob を background service worker へ送る時の参考実装として扱う。
 
 ---
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-07-06 Codex**: リポジトリ構成を整理。Chrome 拡張本体を `extension/` に移動し、Faster-Whisper の uv/Python サーバーを `uv/` に移動。`scripts/build-release.ps1` は `extension/manifest.json` を読みつつ ZIP 内ルートへ `manifest.json` を配置する形に更新、`scripts/build-faster-whisper-server-release.ps1` は `uv/` をパッケージ元に変更。README 3言語、`AGENTS.md`、`CLAUDE.md`、`docs/repository-layout.md` に新配置を記録。version は `0.7.0.1`。追加確認として Windows PowerShell で `twitch-chat-translator-v0.7.0.1.zip` と `faster-whisper-server.zip` の作成に成功。拡張 ZIP は `manifest.json` がルートにあり、`extension/` / `uv/` / Python サーバー files は混入していない。サーバー ZIP は `faster-whisper-server/server.py`、`requirements.txt`、`README.md` のみ。
+- **2026-07-06 Codex**: ユーザー指示により、現在の `master` を良好な安定状態としてコミット後、古い feature / fix ブランチを整理して `master` 一本運用へ戻す方針にした。
 - **2026-07-05 Claude Code**: `feature/faster-whisper-local` を `master` にマージし、**v0.7.0 としてリリース**（ユーザー指示）。Faster-Whisper ローカル STT（GPU対応・uv対応・CUDA Toolkit不要）が正式機能に。ブランチは削除済み。次に Faster-Whisper を触る場合は新しいブランチを切ること。残タスクは実ブラウザでの手動確認のみ（未実施）。
 - **2026-07-05 Claude Code**: ドキュメント整備（v0.6.33・未コミット）。ローカル Whisper / Faster-Whisper は GPU 搭載前提とする方針（ユーザー指示）。README 3言語（日・英・露）に Faster-Whisper の機能説明・サーバー起動（uv + CUDA）・使い方を追記し、help.html に専用セクションを追加。フッター STT の説明も Local → Faster → Groq に統一。残タスクは実ブラウザでの手動テストのみ。
 - **2026-07-05 Claude Code**: GPU 対応を追加（v0.6.32・未コミット）。CUDA Toolkit のシステムインストールは不要で、`uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py` で GPU 推論できる（server.py が pip 版 NVIDIA DLL を自動検出）。RTX 3070 で large-v3-turbo ≈0.5〜1秒/7.5秒音声となり、拡張の30秒タイムアウト問題も解消。

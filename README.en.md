@@ -2,7 +2,7 @@
 
 [日本語](README.md) | [English](README.en.md) | [Русский](README.ru.md)
 
-![version](https://img.shields.io/badge/version-0.6.37-9147ff)
+![version](https://img.shields.io/badge/version-0.7.0.1-9147ff)
 ![manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -68,7 +68,7 @@
 - **Run high-accuracy models on your own PC** — Uses Faster-Whisper / CTranslate2 to run Large-v3 / Large-v3-Turbo on a local server.
 - **Inference outside the browser** — Audio is sent to a local server such as `http://127.0.0.1:8765/transcribe` instead of running inside the Chrome extension.
 - **Automatic fallback** — If the server is not running, fails, or times out, the extension switches back to the built-in local Whisper.
-- **Server included** — A FastAPI-based server is provided in `tools/faster-whisper-server/`.
+- **Server included** — A FastAPI-based server is provided in `uv/`.
 
 > Faster-Whisper is not a model name but an execution engine that runs Whisper models fast.
 > On the options page you enable it as an STT engine and select the model (e.g. Large-v3-Turbo) separately.
@@ -80,7 +80,7 @@ An NVIDIA GPU is assumed. **You do not need to install the CUDA Toolkit** — wi
 (the pip builds of cuBLAS / cuDNN are downloaded and detected automatically):
 
 ```powershell
-cd tools\faster-whisper-server
+cd uv
 uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py
 ```
 
@@ -111,7 +111,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
    (click it to cycle Local → Faster → Groq).
 4. Start voice recognition with 🎤 — subtitles are now recognized by the Faster-Whisper server.
 
-See [tools/faster-whisper-server/README.md](tools/faster-whisper-server/README.md) for details
+See [uv/README.md](uv/README.md) for details
 (environment variables, API reference, measured performance, and venv-based setup).
 
 ### Voice Subtitles (Local Whisper, GPU Required)
@@ -172,7 +172,7 @@ See [tools/faster-whisper-server/README.md](tools/faster-whisper-server/README.m
 1. Download this repository as a ZIP file, or run `git clone`.
 2. Open `chrome://extensions/` in Chrome.
 3. Turn on **Developer mode** in the upper-right corner.
-4. Click **Load unpacked** and select the downloaded folder.
+4. Click **Load unpacked** and select the `extension/` folder.
 5. Click the puzzle icon (🧩) in the toolbar and pin **Twitch Chat Translator**.
 
 ---
@@ -364,28 +364,29 @@ Open options by right-clicking the extension icon and choosing **Options**.
 
 ```text
 twitch-chat-translate-ext/
-├── manifest.json           # Extension settings (Manifest V3)
-├── background.js           # Service Worker (translation API proxy, cache, OAuth)
-├── content.js              # Content script main (constants, state, initialization, settings)
-├── content-panel.js        # Content script (Shadow DOM panel and UI)
-├── content-chat.js         # Content script (IRC, chat translation, high-speed chat)
-├── content-whisper.js      # Content script (Whisper speech recognition, subtitles, TTS)
-├── whisper-worker.js       # Whisper inference script running in Web Workers
-├── auth-callback.js        # Content script for OAuth callback
-├── help.html               # Usage page (right-click icon → “📖 Help”)
-├── options.html / options.js / options.css
+├── extension/              # Extension package loaded by Chrome
+│   ├── manifest.json       # Extension settings (Manifest V3)
+│   ├── background.js       # Service Worker (translation API proxy, cache, OAuth)
+│   ├── content.js          # Content script main (constants, state, initialization, settings)
+│   ├── content-panel.js    # Content script (Shadow DOM panel and UI)
+│   ├── content-chat.js     # Content script (IRC, chat translation, high-speed chat)
+│   ├── content-whisper.js  # Content script (Whisper speech recognition, subtitles, TTS)
+│   ├── whisper-worker.js   # Whisper inference script running in Web Workers
+│   ├── auth-callback.js    # Content script for OAuth callback
+│   ├── help.html           # Usage page (right-click icon → “📖 Help”)
+│   ├── options.html / options.js / options.css
+│   ├── lib/
+│   │   ├── transformers.min.js                 # Transformers.js v3 (Whisper inference engine)
+│   │   ├── ort-wasm-simd-threaded.jsep.wasm    # ONNX Runtime (WebGPU support)
+│   │   ├── ort-wasm-simd-threaded.jsep.mjs     # ONNX Runtime (WebGPU support)
+│   │   ├── ort-wasm-simd.wasm                  # ONNX Runtime WASM (SIMD support)
+│   │   └── ort-wasm.wasm                       # ONNX Runtime WASM (fallback)
+│   └── icons/
 ├── scripts/
 │   ├── build-release.ps1                        # Release ZIP packaging script (extension)
 │   └── build-faster-whisper-server-release.ps1  # Release ZIP packaging script (Faster-Whisper server)
 ├── docs/images/            # Documentation images
-├── lib/
-│   ├── transformers.min.js                 # Transformers.js v3 (Whisper inference engine)
-│   ├── ort-wasm-simd-threaded.jsep.wasm    # ONNX Runtime (WebGPU support)
-│   ├── ort-wasm-simd-threaded.jsep.mjs     # ONNX Runtime (WebGPU support)
-│   ├── ort-wasm-simd.wasm                  # ONNX Runtime WASM (SIMD support)
-│   └── ort-wasm.wasm                       # ONNX Runtime WASM (fallback)
-├── icons/
-└── tools/faster-whisper-server/  # Faster-Whisper STT server (distributed separately, Python)
+└── uv/                    # Faster-Whisper STT server (distributed separately, Python)
     ├── server.py
     ├── requirements.txt
     └── README.md
@@ -490,7 +491,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-faster-whisper-server-release.ps1
 ```
 
-The first script uses the version from `manifest.json` and generates `twitch-chat-translator-vX.Y.Z.zip`. Development files such as `.github/`, `.gitignore`, and `CLAUDE.md` are not included in the release ZIP.
+The first script uses the version from `extension/manifest.json` and generates `twitch-chat-translator-vX.Y.Z.zip`. In the ZIP, `manifest.json` is placed at the archive root. Development files such as `.github/`, `.gitignore`, and `CLAUDE.md` are not included in the release ZIP.
 The Faster-Whisper server is an independent tool and is not versioned; the second script packages only
 `server.py`, `requirements.txt`, and `README.md` into `faster-whisper-server.zip`.
 

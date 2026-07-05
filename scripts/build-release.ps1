@@ -5,7 +5,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$manifestPath = Join-Path $root "manifest.json"
+$extensionRoot = Join-Path $root "extension"
+$manifestPath = Join-Path $extensionRoot "manifest.json"
 $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath | ConvertFrom-Json
 $version = $manifest.version
 $zipName = "twitch-chat-translator-v$version.zip"
@@ -59,7 +60,10 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
 try {
   foreach ($relativePath in $files) {
-    $sourcePath = Join-Path $root $relativePath
+    $sourcePath = Join-Path $extensionRoot $relativePath
+    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+      $sourcePath = Join-Path $root $relativePath
+    }
     if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
       throw "Release file is missing: $relativePath"
     }

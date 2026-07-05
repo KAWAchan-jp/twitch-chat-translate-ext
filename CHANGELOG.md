@@ -1,9 +1,15 @@
 # 更新履歴
 
+## v0.7.0.1（2026-07-06）
+
+### 改善
+- リポジトリ構成を整理し、Chrome 拡張本体を `extension/`、Faster-Whisper の uv/Python サーバーを `uv/` に移動
+- README 3言語、help、共有作業ドキュメント、リリース ZIP 作成スクリプトを新配置に追従
+
 ## v0.7.0（2026-07-05）
 
 ### 新機能
-- **Faster-Whisper ローカル STT を追加** — PC の GPU 上で動く Faster-Whisper サーバー（`tools/faster-whisper-server/`）に音声を送って認識する STT エンジンを追加。フッターで Local / Faster / Groq を切替可能。サーバー未起動・エラー・タイムアウト時は既存のローカル Whisper に自動フォールバック
+- **Faster-Whisper ローカル STT を追加** — PC の GPU 上で動く Faster-Whisper サーバー（現 `uv/`、当時 `tools/faster-whisper-server/`）に音声を送って認識する STT エンジンを追加。フッターで Local / Faster / Groq を切替可能。サーバー未起動・エラー・タイムアウト時は既存のローカル Whisper に自動フォールバック
 - **uv 対応・CUDA Toolkit 不要の GPU 実行** — `uv run --with nvidia-cublas-cu12 --with "nvidia-cudnn-cu12>=9,<10" server.py` の1コマンドで GPU 推論が可能（pip 版 NVIDIA ライブラリを自動検出）。実測で large-v3-turbo が7.5秒音声を約0.5〜1秒で認識（RTX 3070）
 - 配布 ZIP を拡張本体（Chrome Web Store 提出用）と Faster-Whisper サーバー（Python ツール）に分離
 
@@ -20,7 +26,7 @@
 - バージョンバッジ・パネルヘッダーのバージョン表記例を最新化
 - オプション設定表・デフォルト値表に Faster-Whisper の項目が抜けていたため追加
 - README.en.md / README.ru.md のファイル構成図・リリース ZIP 作成手順が ZIP 分離（v0.6.36）に未対応だったため追記
-- **uv のインストール手順を追加** — README 3言語と help.html、tools/faster-whisper-server/README.md に Windows（PowerShell）/ macOS・Linux のインストールコマンドを掲載
+- **uv のインストール手順を追加** — README 3言語と help.html、Faster-Whisper サーバー README に Windows（PowerShell）/ macOS・Linux のインストールコマンドを掲載
 
 ## v0.6.36（2026-07-05）
 
@@ -64,7 +70,7 @@
 ### 新機能
 - **Faster-Whisper STT（ローカルサーバー）** — `localhost` の Faster-Whisper サーバーへ音声を送り、Large-v3 / Large-v3-Turbo などをローカル推論できる経路を追加
 - **STT エンジン切替** — フッターから Local / Faster / Groq を切り替え可能にし、Faster/Groq失敗時は既存のローカル Whisper にフォールバック
-- **Faster-Whisper サーバー雛形** — `tools/faster-whisper-server/` に FastAPI ベースの最小サーバーを追加
+- **Faster-Whisper サーバー雛形** — `tools/faster-whisper-server/`（現 `uv/`）に FastAPI ベースの最小サーバーを追加
 
 ### 改善
 - Faster-Whisper 用のオプション（有効化、サーバーURL、モデル選択）を追加
