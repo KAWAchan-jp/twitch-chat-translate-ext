@@ -244,7 +244,6 @@ const PANEL_CSS = `
 
   /* 折りたたみ */
   :host(.collapsed) { height: auto; min-height: 0; }
-  :host(.collapsed) .hint-bar,
   :host(.collapsed) .auth-bar,
   :host(.collapsed) .messages,
   :host(.collapsed) .scroll-to-bottom,
@@ -417,10 +416,6 @@ function createPanel() {
           <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▲</button>
         </div>
       </div>
-      <div class="hint-bar" id="hintBar" style="display:none">
-        <input type="text" class="hint-input" id="hintInput" autocomplete="off" spellcheck="false"
-               placeholder="認識ヒント: 固有名詞をスペース区切りで（即反映）">
-      </div>
       <div class="auth-bar" id="authBar">
         <button class="login-btn" id="loginBtn">Twitchでログインしてチャット送信を有効化</button>
         <div class="auth-info hidden" id="authInfo">
@@ -430,6 +425,10 @@ function createPanel() {
       </div>
       <div class="messages" id="messages"></div>
       <button class="scroll-to-bottom" id="scrollToBottomBtn">↓ 最新へ</button>
+      <div class="hint-bar" id="hintBar" style="display:none">
+        <input type="text" class="hint-input" id="hintInput" autocomplete="off" spellcheck="false"
+               placeholder="認識ヒント: 固有名詞をスペース区切りで（即反映）">
+      </div>
       <div class="input-area" id="inputArea">
         <div class="mention-list" id="mentionList"></div>
         <input type="text" class="chat-input" id="chatInput" autocomplete="off" spellcheck="false">
