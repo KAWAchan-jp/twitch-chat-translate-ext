@@ -7,15 +7,15 @@
 - 更新ルール: 自分の担当ブランチの欄を、着手・進捗・完了のたびに書き換える
 - 既存の未コミット変更を勝手に戻さない。作業前に `git status --short --branch` を確認する
 - 仕様・実装の詳細は branch/doc 側へ寄せ、このファイルは共有ボードとして短く保つ
-- 最終更新: 2026-07-06 / by Codex
+- 最終更新: 2026-07-07 / by Codex
 
 ---
 
 ## ブランチ運用
 
 - 2026-07-06 時点で、古い feature / fix ブランチは整理し、いったん `master` 一本運用に戻す。
-- 現在の安定状態は `master` の `v0.7.0.1`。Chrome 拡張本体は `extension/`、Faster-Whisper の uv/Python サーバーは `uv/`。
-- 現在の作業ブランチ: `fix/collapsed-hint-bar`（折りたたみ時も💡ヒント欄を開けるようにする修正）。
+- 現在の安定状態は `master` の `v0.7.0.2`。Chrome 拡張本体は `extension/`、Faster-Whisper の uv/Python サーバーは `uv/`。
+- 現在の作業ブランチ: なし（`fix/collapsed-hint-bar` は `master` にマージ済み）。
 - 新しい作業を始める場合だけ、目的が明確な短命ブランチを切る。
 
 ### feature/faster-whisper-local — **完了・master にマージ済み（v0.7.0）**
@@ -35,9 +35,9 @@
 ### master — 担当: **共有**
 
 - 役割: 本番リリース用ブランチ。
-- 現状: v0.7.0 リリース済み（Faster-Whisper ローカル STT・GPU対応を含む）。リポジトリ整理として拡張本体は `extension/`、uv サーバーは `uv/` に移動済み。
+- 現状: v0.7.0.2 まで反映済み（折りたたみ時の認識ヒント欄表示修正を含む）。リポジトリ整理として拡張本体は `extension/`、uv サーバーは `uv/` に移動済み。
 - 注意:
-  - `extension/manifest.json` の version は現在 `0.7.0.2`（`fix/collapsed-hint-bar` 作業中）。
+  - `extension/manifest.json` の version は現在 `0.7.0.2`。
   - 実装変更を行ったら、原則として `extension/manifest.json` の version を4桁目だけインクリメントする。上位桁の変更は明示的な指示があった場合のみ。
   - README は `README.md` / `README.en.md` / `README.ru.md` がある。ユーザー向け仕様を変える場合は多言語側の更新漏れに注意する。
 
@@ -57,6 +57,7 @@
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-07-07 Codex**: `fix/collapsed-hint-bar` を `master` に fast-forward マージ済み。折りたたみ時の💡ヒント欄表示修正は `v0.7.0.2` として `master` に入っている。
 - **2026-07-06 Codex**: `fix/collapsed-hint-bar` を作成。パネル折りたたみ中に💡ボタンを押しても認識ヒント欄が表示されない問題を修正中。原因は collapsed CSS が `.hint-bar` を常に `display:none` にしていたこと。ヒント欄はヘッダー直下ではなく、メッセージ一覧の下・チャット入力欄の上へ配置し、入力欄とフッターが下に逃げるようにした。version は `0.7.0.2`。
 - **2026-07-06 Codex**: リポジトリ構成を整理。Chrome 拡張本体を `extension/` に移動し、Faster-Whisper の uv/Python サーバーを `uv/` に移動。`scripts/build-release.ps1` は `extension/manifest.json` を読みつつ ZIP 内ルートへ `manifest.json` を配置する形に更新、`scripts/build-faster-whisper-server-release.ps1` は `uv/` をパッケージ元に変更。README 3言語、`AGENTS.md`、`CLAUDE.md`、`docs/repository-layout.md` に新配置を記録。version は `0.7.0.1`。追加確認として Windows PowerShell で `twitch-chat-translator-v0.7.0.1.zip` と `faster-whisper-server.zip` の作成に成功。拡張 ZIP は `manifest.json` がルートにあり、`extension/` / `uv/` / Python サーバー files は混入していない。サーバー ZIP は `faster-whisper-server/server.py`、`requirements.txt`、`README.md` のみ。
 - **2026-07-06 Codex**: ユーザー指示により、現在の `master` を良好な安定状態としてコミット後、古い feature / fix ブランチを整理して `master` 一本運用へ戻す方針にした。
