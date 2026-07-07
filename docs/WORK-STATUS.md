@@ -13,9 +13,9 @@
 
 ## ブランチ運用
 
-- 2026-07-06 時点で、古い feature / fix ブランチは整理し、いったん `master` 一本運用に戻す。
-- 現在の安定状態は `master` の `v0.7.0.2`。Chrome 拡張本体は `extension/`、Faster-Whisper の uv/Python サーバーは `uv/`。
-- 現在の作業ブランチ: なし（`fix/collapsed-hint-bar` は `master` にマージ済み）。
+- 2026-07-07 時点で、通常作業用の `develop` ブランチを作成。安定版は `master`、作業入口は `develop` を基本にする。
+- 現在の安定状態は `master` / `develop` の `v0.7.0.2`。Chrome 拡張本体は `extension/`、Faster-Whisper の uv/Python サーバーは `uv/`。
+- 現在の作業ブランチ: `develop`。
 - 新しい作業を始める場合だけ、目的が明確な短命ブランチを切る。
 
 ### feature/faster-whisper-local — **完了・master にマージ済み（v0.7.0）**
@@ -31,6 +31,11 @@
   - （Claude Code）README 3言語・help.html にドキュメント整備。
 - マージ後、このブランチは削除済み。以後の Faster-Whisper 関連作業は新しいブランチを切る。
 - 残タスク: 実ブラウザでのオプション保存・フッター切替・未起動時フォールバックの手動確認（未実施）。
+
+### develop — 担当: **共有**
+
+- 役割: 通常作業の入口・統合用ブランチ。
+- 現状: `master` の `v0.7.0.2` 先端から作成済み。新しい修正や検証作業は基本的にここから始める。
 
 ### master — 担当: **共有**
 
@@ -57,6 +62,7 @@
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-07-07 Codex**: `master` の `v0.7.0.2` 先端から `develop` ブランチを作成し、現在ブランチを `develop` に切り替えた。
 - **2026-07-07 Codex**: `fix/collapsed-hint-bar` を `master` に fast-forward マージ済み。折りたたみ時の💡ヒント欄表示修正は `v0.7.0.2` として `master` に入っている。
 - **2026-07-06 Codex**: `fix/collapsed-hint-bar` を作成。パネル折りたたみ中に💡ボタンを押しても認識ヒント欄が表示されない問題を修正中。原因は collapsed CSS が `.hint-bar` を常に `display:none` にしていたこと。ヒント欄はヘッダー直下ではなく、メッセージ一覧の下・チャット入力欄の上へ配置し、入力欄とフッターが下に逃げるようにした。version は `0.7.0.2`。
 - **2026-07-06 Codex**: リポジトリ構成を整理。Chrome 拡張本体を `extension/` に移動し、Faster-Whisper の uv/Python サーバーを `uv/` に移動。`scripts/build-release.ps1` は `extension/manifest.json` を読みつつ ZIP 内ルートへ `manifest.json` を配置する形に更新、`scripts/build-faster-whisper-server-release.ps1` は `uv/` をパッケージ元に変更。README 3言語、`AGENTS.md`、`CLAUDE.md`、`docs/repository-layout.md` に新配置を記録。version は `0.7.0.1`。追加確認として Windows PowerShell で `twitch-chat-translator-v0.7.0.1.zip` と `faster-whisper-server.zip` の作成に成功。拡張 ZIP は `manifest.json` がルートにあり、`extension/` / `uv/` / Python サーバー files は混入していない。サーバー ZIP は `faster-whisper-server/server.py`、`requirements.txt`、`README.md` のみ。
