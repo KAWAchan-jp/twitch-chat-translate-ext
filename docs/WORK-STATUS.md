@@ -7,7 +7,7 @@
 - 更新ルール: 自分の担当ブランチの欄を、着手・進捗・完了のたびに書き換える
 - 既存の未コミット変更を勝手に戻さない。作業前に `git status --short --branch` を確認する
 - 仕様・実装の詳細は branch/doc 側へ寄せ、このファイルは共有ボードとして短く保つ
-- 最終更新: 2026-07-07 / by Codex
+- 最終更新: 2026-07-10 / by Codex
 
 ---
 
@@ -62,6 +62,8 @@
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-07-10 Codex**: Faster-Whisper のモデルキャッシュ上限を `uv/server.py` の `lru_cache(maxsize=1)` に変更（v0.7.0.3）。モデル切り替え時に複数モデルを GPU メモリへ保持し続ける可能性を抑える。構文チェック済み。未確認事項は実 GPU でのメモリ推移と実ブラウザの音声認識。
+- **2026-07-10 Codex**: Faster-Whisper / CTranslate2 の GPU 使用量制限可否を調査。現行 `uv/server.py` は `FASTER_WHISPER_DEVICE` / `FASTER_WHISPER_COMPUTE_TYPE` / `FASTER_WHISPER_MODEL` / `FASTER_WHISPER_PRELOAD` のみで、VRAM 上限を直接指定する設定はない。負荷軽減は `compute_type=int8`、小さいモデル、CPU固定、起動時プリロード無効化、将来的には `device_index` / `cpu_threads` / `num_workers` 等の明示化で行うのが現実的。
 - **2026-07-07 Codex**: `問題点.md` を読み、ローカルSTT依存・言語コード・翻訳エラー・Whisper Worker・弾幕モード・APIキー/認証情報・グローバル構成をコード調査。大半は既存対策あり。残る主な改善候補は、翻訳フォールバック失敗時のユーザー向け詳細表示、Faster-Whisper の手動確認/導線、弾幕モード状態の視覚表示、APIキー保存方式の注意書き。
 - **2026-07-07 Codex**: `master` の `v0.7.0.2` 先端から `develop` ブランチを作成し、現在ブランチを `develop` に切り替えた。
 - **2026-07-07 Codex**: `fix/collapsed-hint-bar` を `master` に fast-forward マージ済み。折りたたみ時の💡ヒント欄表示修正は `v0.7.0.2` として `master` に入っている。

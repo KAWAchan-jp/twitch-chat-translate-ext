@@ -56,7 +56,7 @@ DEFAULT_MODEL = os.getenv("FASTER_WHISPER_MODEL", "large-v3-turbo")
 PRELOAD = os.getenv("FASTER_WHISPER_PRELOAD", "1") != "0"
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=1)
 def get_model(model_name: str) -> WhisperModel:
     return WhisperModel(model_name, device=DEVICE, compute_type=COMPUTE_TYPE)
 
