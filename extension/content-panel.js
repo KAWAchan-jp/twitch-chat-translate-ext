@@ -113,7 +113,10 @@ const PANEL_CSS = `
   .hint-btn:hover  { opacity: 0.85; }
   .hint-btn.active { opacity: 1; filter: drop-shadow(0 0 4px #f0b429); }
 
-  .hint-bar { padding: 4px 8px; background: #131316; border-bottom: 1px solid #2a2a2e; }
+  .hint-bar {
+    padding: 4px 8px; background: #131316; border-bottom: 1px solid #2a2a2e;
+    flex-shrink: 0;
+  }
   .hint-input {
     width: 100%; box-sizing: border-box;
     background: #1e1e21; border: 1px solid #3a3a3e; border-radius: 4px;
@@ -416,6 +419,10 @@ function createPanel() {
           <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▲</button>
         </div>
       </div>
+      <div class="hint-bar" id="hintBar" style="display:none">
+        <input type="text" class="hint-input" id="hintInput" autocomplete="off" spellcheck="false"
+               placeholder="認識ヒント: 固有名詞をスペース区切りで（即反映）">
+      </div>
       <div class="auth-bar" id="authBar">
         <button class="login-btn" id="loginBtn">Twitchでログインしてチャット送信を有効化</button>
         <div class="auth-info hidden" id="authInfo">
@@ -425,10 +432,6 @@ function createPanel() {
       </div>
       <div class="messages" id="messages"></div>
       <button class="scroll-to-bottom" id="scrollToBottomBtn">↓ 最新へ</button>
-      <div class="hint-bar" id="hintBar" style="display:none">
-        <input type="text" class="hint-input" id="hintInput" autocomplete="off" spellcheck="false"
-               placeholder="認識ヒント: 固有名詞をスペース区切りで（即反映）">
-      </div>
       <div class="input-area" id="inputArea">
         <div class="mention-list" id="mentionList"></div>
         <input type="text" class="chat-input" id="chatInput" autocomplete="off" spellcheck="false">
@@ -731,6 +734,21 @@ function _updateCollapseBtn() {
   if (btn) { btn.textContent = panelCollapsed ? '▼' : '▲'; btn.title = panelCollapsed ? '展開する' : '折りたたむ'; }
 }
 
+// 展開時はヘッダー直下、折りたたみ時は入力欄直上に置く。
+// 同じ要素を移動するため、入力値・フォーカス・イベントリスナーは維持される。
+function updateHintBarPlacement() {
+  const hintBar = shadowRoot?.getElementById('hintBar');
+  const header = shadowRoot?.getElementById('header');
+  const inputArea = shadowRoot?.getElementById('inputArea');
+  if (!hintBar || !header || !inputArea) return;
+
+  if (panelCollapsed) {
+    inputArea.parentElement.insertBefore(hintBar, inputArea);
+  } else {
+    header.parentElement.insertBefore(hintBar, header.nextSibling);
+  }
+}
+
 function toggleCollapse() {
   if (panelCollapsed) {
     // 折りたたみ中 → 展開: クラス変更前に位置を確定（auto height 変化で rect.top がずれるのを防ぐ）
@@ -754,6 +772,7 @@ function toggleCollapse() {
     container.style.height    = 'auto';
     container.style.minHeight = '0';
   }
+  updateHintBarPlacement();
   _updateCollapseBtn();
   safeStorageSet({ panel_collapsed: panelCollapsed });
 }
@@ -770,6 +789,7 @@ function applyCollapsedState(val) {
     container.style.height    = _savedPanelHeight;
     container.style.minHeight = '';
   }
+  updateHintBarPlacement();
   _updateCollapseBtn();
 }
 

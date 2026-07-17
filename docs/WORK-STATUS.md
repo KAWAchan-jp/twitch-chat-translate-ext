@@ -37,6 +37,12 @@
 - 役割: 通常作業の入口・統合用ブランチ。
 - 現状: `master` の `v0.7.0.2` 先端から作成済み。新しい修正や検証作業は基本的にここから始める。
 
+### fix/hint-bar-placement — **develop にマージ済み（Chrome手動確認待ち）**
+
+- 役割: 展開時の認識ヒント欄をヘッダー直下へ戻し、折りたたみ時のみ入力欄直上に置く。
+- ブランチメモ: `docs/fix-hint-bar-placement.md`
+- 現状: `hintBar` を複製せず、展開・折りたたみの状態遷移でDOM位置を切り替える実装を追加。`node --check`、manifest JSON 検証、今回の対象差分チェックは通過。Chrome手動確認が残っている。v0.7.0.4 としてコミットし、develop へマージ済み。
+
 ### master — 担当: **共有**
 
 - 役割: 本番リリース用ブランチ。
@@ -62,6 +68,8 @@
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-07-17 Codex**: `fix/hint-bar-placement`（v0.7.0.4）を `develop` へ fast-forward マージ。Chromeで、展開時はヘッダー直下・折りたたみ時は入力欄直上となることを手動確認する。
+- **2026-07-17 Codex**: `fix/hint-bar-placement` で認識ヒント欄の位置を状態別に修正。展開時はヘッダー直下、折りたたみ時は入力欄直上とし、同一の `hintBar` 要素を移動するため入力値・イベント・`whisper_prompt` 保存を維持する。`node --check`、manifest JSON 検証、対象差分チェックは通過。Chrome手動確認は未実施。version は v0.7.0.4。
 - **2026-07-10 Codex**: Faster-Whisper のモデルキャッシュ上限を `uv/server.py` の `lru_cache(maxsize=1)` に変更（v0.7.0.3）。モデル切り替え時に複数モデルを GPU メモリへ保持し続ける可能性を抑える。構文チェック済み。未確認事項は実 GPU でのメモリ推移と実ブラウザの音声認識。
 - **2026-07-10 Codex**: Faster-Whisper / CTranslate2 の GPU 使用量制限可否を調査。現行 `uv/server.py` は `FASTER_WHISPER_DEVICE` / `FASTER_WHISPER_COMPUTE_TYPE` / `FASTER_WHISPER_MODEL` / `FASTER_WHISPER_PRELOAD` のみで、VRAM 上限を直接指定する設定はない。負荷軽減は `compute_type=int8`、小さいモデル、CPU固定、起動時プリロード無効化、将来的には `device_index` / `cpu_threads` / `num_workers` 等の明示化で行うのが現実的。
 - **2026-07-07 Codex**: `問題点.md` を読み、ローカルSTT依存・言語コード・翻訳エラー・Whisper Worker・弾幕モード・APIキー/認証情報・グローバル構成をコード調査。大半は既存対策あり。残る主な改善候補は、翻訳フォールバック失敗時のユーザー向け詳細表示、Faster-Whisper の手動確認/導線、弾幕モード状態の視覚表示、APIキー保存方式の注意書き。
