@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Twitch Chat Translator",
-  "version": "0.7.0.4",
+  "version": "0.7.0.5",
   "description": "Twitchチャットをリアルタイム日本語翻訳",
 
   "content_security_policy": {
@@ -23,11 +23,6 @@
     "https://api.groq.com/*",
     "http://127.0.0.1/*",
     "http://localhost/*",
-    "https://huggingface.co/*",
-    "https://cdn-lfs.huggingface.co/*",
-    "https://cdn-lfs-us-1.huggingface.co/*",
-    "https://cas-bridge.xethub.hf.co/*",
-    "https://cdn.jsdelivr.net/*",
     "https://generativelanguage.googleapis.com/*"
   ],
 
@@ -39,18 +34,6 @@
   "background": {
     "service_worker": "background.js"
   },
-
-  "web_accessible_resources": [{
-    "resources": [
-      "whisper-worker.js",
-      "lib/transformers.min.js",
-      "lib/ort-wasm-simd-threaded.jsep.wasm",
-      "lib/ort-wasm-simd-threaded.jsep.mjs",
-      "lib/ort-wasm-simd.wasm",
-      "lib/ort-wasm.wasm"
-    ],
-    "matches": ["*://www.twitch.tv/*"]
-  }],
 
   "action": {
     "default_icon": {

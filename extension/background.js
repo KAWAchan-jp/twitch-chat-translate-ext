@@ -220,13 +220,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  if (message.type === 'warmup_whisper') {
-    // Whisper は Twitch ページの MAIN world で動作するため
-    // ウォームアップは 🎤 ボタンを押した時に自動的に開始されます
-    sendResponse({ ok: true });
-    return;
-  }
-
   if (message.type === 'translate') {
     const { text, from, to, feature } = message;
     translateText(text, from, to, feature)

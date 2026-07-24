@@ -4,7 +4,7 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## プロジェクト概要
 
-Twitch チャットをリアルタイム翻訳して Twitch ページ上にフローティングパネルで表示する Chrome 拡張（Manifest V3）。APIキーなしでも Google Translate とローカル Whisper で動作し、任意で DeepL / Gemini / Groq を使う。
+Twitch チャットをリアルタイム翻訳して Twitch ページ上にフローティングパネルで表示する Chrome 拡張（Manifest V3）。チャット翻訳は APIキーなしで Google Translate により動作し、任意で DeepL / Gemini を使う。音声字幕（STT）は Faster-Whisper（ローカルサーバー）または Groq（クラウドAPI）のいずれかの設定が必要。
 
 ## Codex 作業ルール
 
@@ -33,14 +33,13 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 | ファイル | 役割 |
 |---|---|
 | `extension/manifest.json` | Manifest V3。content script のロード順は `content-panel.js → content-chat.js → content-whisper.js → content.js` |
-| `extension/background.js` | Service Worker。翻訳API・Twitch API・Groq API の CORS プロキシ、コンテキストメニュー管理、OAuth 処理 |
+| `extension/background.js` | Service Worker。翻訳API・Twitch API・Groq API・Faster-Whisper の CORS プロキシ、コンテキストメニュー管理、OAuth 処理 |
 | `extension/content.js` | エントリポイント兼グローバル状態管理。`settings`、WebSocket 接続、チャンネル検出、`chrome.storage.onChanged` ハンドラを持つ |
 | `extension/content-panel.js` | Shadow DOM パネルの HTML/CSS 定義と UI 関数群 |
 | `extension/content-chat.js` | IRC パース、チャット表示、翻訳キュー、弾幕モード、チャット送信 |
-| `extension/content-whisper.js` | 音声録音、ローカル Whisper ワーカープール、Groq フォールバック、字幕表示 |
-| `extension/whisper-worker.js` | Transformers.js / ONNX Runtime で Whisper 推論を実行する Web Worker |
-| `extension/options.js` / `extension/options.html` / `extension/options.css` | オプションページ。モデルDL、APIキー、VAD、字幕、録画設定など |
-| `extension/offscreen*.js/html` / `extension/whisper-injected.js` | 旧経路や補助的な Whisper 実行経路。触る前に現行呼び出し有無を確認する |
+| `extension/content-whisper.js` | 音声録音・VAD・字幕表示・TTS、Faster-Whisper/Groq への音声送信 |
+| `extension/options.js` / `extension/options.html` / `extension/options.css` | オプションページ。APIキー、VAD、字幕、録画設定など |
+| `extension/offscreen.js/html` | 補助的な実行経路。触る前に現行呼び出し有無を確認する |
 | `extension/auth-callback.js` | OAuth コールバックページ用（`kawachan-jp.github.io` に挿入） |
 | `uv/` | Faster-Whisper ローカル STT サーバー。`uv run ... server.py` で起動する Python 側 |
 
@@ -72,8 +71,8 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 
 ### STT エンジンの考え方
 
-- ローカル Whisper は `content-whisper.js` の Web Worker プールから `whisper-worker.js` に投げる。
-- Groq は `content-whisper.js` → `background.js` の chunk 転送 → Groq API。
+- STT エンジンは Groq（クラウドAPI） → Faster-Whisper（ローカルサーバー）の優先順位。両方未設定・失敗時は字幕にエラー表示するのみで、自動フォールバック先はない（`transcribeViaBackground()` 参照）。
+- Groq / Faster-Whisper とも `content-whisper.js` → `background.js` の chunk 転送 → 外部API/ローカルサーバー、という同じ経路を使う。
 - ブラウザ拡張内で Python は直接動かせない。Faster-Whisper などネイティブ実行が必要な STT は、`localhost` のローカルサーバーへ音声 Blob を送る設計にする。
 - Whisper の言語コードは ISO 639-1 のみ。`zh-CN` / `zh-TW` は `zh` に正規化する。
 
@@ -102,8 +101,7 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 - content script 間で関数・変数を共有しているため、`const` / `let` の重複宣言に注意する。
 - `extension/manifest.json` の content script ロード順を変える場合は、依存しているグローバル参照を確認する。
 - Chrome extension の CSP と host permissions に注意する。外部 API や localhost を追加する変更では `extension/manifest.json` の `host_permissions` も確認する。
-- 音声 Blob は大きくなるため、background service worker へ送る場合は既存の Groq chunk 転送方式を参考にする。
-- WebGPU 使用時は複数 Whisper Worker を走らせると VRAM と映像描画に影響する。現行実装は WebGPU 検出時に 1 Worker へ削減する。
+- 音声 Blob は大きくなるため、background service worker へ送る場合は既存の Groq/Faster-Whisper chunk 転送方式を参考にする。
 - ユーザー向け設定を追加したら `chrome.storage.local` の読み書き、`settings` への読み込み、`chrome.storage.onChanged` 反映、フッター表示の整合性を確認する。
 
 ## 確認観点
@@ -112,4 +110,4 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 - Twitch ページの Console に `[TCT]` エラーが出ないこと。
 - オプションページで追加・変更した設定が保存され、ページ再読み込み後も復元されること。
 - チャット翻訳、音声字幕、フッター表示がそれぞれ想定エンジンを示すこと。
-- STT 変更では Groq / Local / 新規エンジンの失敗時フォールバックとステータスメッセージを確認すること。
+- STT 変更では Groq / Faster-Whisper それぞれの失敗時のエラー表示（未設定時含む）を確認すること。

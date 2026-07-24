@@ -59,7 +59,7 @@ let isActive        = true;
 let isAuthenticated = false;
 let twitchToken     = '';
 let twitchUsername  = '';
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, gemini_enabled: false, gemini_voice: true, gemini_own: false, groq_enabled: false, groq_api_key: '', faster_whisper_enabled: false, faster_whisper_url: 'http://127.0.0.1:8765/transcribe', tts_enabled: false, tts_rate: 1.0, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_model: 'tiny', whisper_prompt: '', whisper_prompt_default: '', whisper_max_chunk_ms: 5000, whisper_num_beams: 1, downloaded_models: [], ignore_bot_badge: false, ignore_known_bots: true, ignore_users: '', clip_max_minutes: 3, ffmpeg_path: '', ffmpeg_shell: 'powershell', clip_subtitle_enabled: false, clip_sub_bg: 'medium', clip_sub_font: 'Arial', clip_sub_fontsize: 24, clip_sub_x: 50, clip_sub_y: 90 };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, subtitle_font_size: 22, vad_threshold: 10, vad_silence_ms: 500, deepl_enabled: false, deepl_chat: true, deepl_voice: true, deepl_own: true, gemini_enabled: false, gemini_voice: true, gemini_own: false, groq_enabled: false, groq_api_key: '', faster_whisper_enabled: false, faster_whisper_url: 'http://127.0.0.1:8765/transcribe', tts_enabled: false, tts_rate: 1.0, min_length_enabled: false, min_length: 4, same_lang_filter: false, whisper_prompt: '', whisper_prompt_default: '', whisper_max_chunk_ms: 5000, ignore_bot_badge: false, ignore_known_bots: true, ignore_users: '', clip_max_minutes: 3, ffmpeg_path: '', ffmpeg_shell: 'powershell', clip_subtitle_enabled: false, clip_sub_bg: 'medium', clip_sub_font: 'Arial', clip_sub_fontsize: 24, clip_sub_x: 50, clip_sub_y: 90 };
 
 // ===== Shadow DOM 内のDOM参照 =====
 let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl, hintInputEl;
@@ -108,8 +108,8 @@ async function safeStorageRemove(keys) {
 async function init() {
   const stored = await safeStorageGet([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
-    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_model', 'whisper_prompt', 'whisper_prompt_default', 'whisper_max_chunk_ms', 'whisper_num_beams',
-    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_voice', 'gemini_own', 'groq_enabled', 'groq_api_key', 'faster_whisper_enabled', 'faster_whisper_url', 'tts_enabled', 'tts_rate', 'downloaded_models', 'custom_hallucination_patterns', 'panel_opacity',
+    'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter', 'whisper_prompt', 'whisper_prompt_default', 'whisper_max_chunk_ms',
+    'subtitle_font_size', 'vad_threshold', 'vad_silence_ms', 'deepl_enabled', 'deepl_chat', 'deepl_voice', 'deepl_own', 'gemini_enabled', 'gemini_voice', 'gemini_own', 'groq_enabled', 'groq_api_key', 'faster_whisper_enabled', 'faster_whisper_url', 'tts_enabled', 'tts_rate', 'custom_hallucination_patterns', 'panel_opacity',
     'ignore_bot_badge', 'ignore_known_bots', 'ignore_users', 'clip_max_minutes', 'ffmpeg_path', 'ffmpeg_shell', 'clip_subtitle_enabled', 'clip_sub_bg', 'clip_sub_font', 'clip_sub_fontsize', 'clip_sub_x', 'clip_sub_y',
     'panel_collapsed',
   ]);
@@ -370,15 +370,9 @@ function onSettingsChanged(changes) {
   if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
   if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;
-  if (changes.whisper_model) {
-    settings.whisper_model = changes.whisper_model.newValue;
-    restartWhisperWorkers();
-  }
   if (changes.whisper_prompt)         settings.whisper_prompt         = changes.whisper_prompt.newValue;
   if (changes.whisper_prompt_default) settings.whisper_prompt_default = changes.whisper_prompt_default.newValue;
   if (changes.whisper_max_chunk_ms)  settings.whisper_max_chunk_ms  = changes.whisper_max_chunk_ms.newValue;
-  if (changes.whisper_num_beams)     settings.whisper_num_beams     = changes.whisper_num_beams.newValue;
-  if (changes.downloaded_models)          settings.downloaded_models          = changes.downloaded_models.newValue ?? [];
   if (changes.custom_hallucination_patterns) settings.custom_hallucination_patterns = changes.custom_hallucination_patterns.newValue ?? [];
   if (changes.ignore_bot_badge)   settings.ignore_bot_badge   = changes.ignore_bot_badge.newValue;
   if (changes.ignore_known_bots) settings.ignore_known_bots = changes.ignore_known_bots.newValue;
@@ -425,9 +419,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       addSystemMessage(`ログイン成功: ${msg.username}`);
       if (currentChannel) { disconnect(); connect(); }
     });
-  }
-  if (msg.type === 'whisper_status' && isVoiceActive) {
-    showSubtitle(msg.text, false);
   }
 });
 

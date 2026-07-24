@@ -956,7 +956,7 @@ function cycleFeatureEngine(feature) {
 }
 
 function cycleSttEngine() {
-  const available = ['Local', 'Faster'];
+  const available = ['Faster'];
   if (settings.groq_api_key) available.push('Groq');
   const current = getSttEngine();
   const next = available[(available.indexOf(current) + 1) % available.length];
@@ -968,8 +968,7 @@ function cycleSttEngine() {
 
 function getSttEngine() {
   if (settings.groq_enabled && settings.groq_api_key) return 'Groq';
-  if (settings.faster_whisper_enabled) return 'Faster';
-  return 'Local';
+  return 'Faster';
 }
 
 // ===== フッター更新 =====
@@ -998,7 +997,7 @@ function updateFooter() {
   const sttEl = shadowRoot?.getElementById('footerSTT');
   if (sttEl) {
     const sttEngine = getSttEngine();
-    const sttAvailable = ['Local', 'Faster'];
+    const sttAvailable = ['Faster'];
     if (settings.groq_api_key) sttAvailable.push('Groq');
     sttEl.textContent = sttEngine;
     sttEl.className = 'footer-engine'

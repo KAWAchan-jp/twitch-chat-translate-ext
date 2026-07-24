@@ -1,5 +1,14 @@
 # 更新履歴
 
+## v0.7.0.5（2026-07-24）
+
+### 変更
+- **ブラウザ内 Whisper（Transformers.js + Web Worker版）を廃止** — 効率が悪いため削除。音声字幕は Faster-Whisper（ローカルサーバー）または Groq（クラウドAPI）のいずれかが必要になった
+- フッターの STT 表示は `Faster → Groq` の2択に変更（旧 `Local → Faster → Groq` の `Local` を削除）
+- Groq/Faster-Whisper が未設定・失敗した場合は、自動フォールバックせず字幕にエラーを表示するように変更
+- オプションページからモデルダウンロード・ビーム数・並列ワーカー数の設定を削除
+- `whisper-worker.js`・`lib/`（ONNX Runtime WASM 一式）・使われていなかった `whisper-injected.js`・`offscreen-whisper.*` を削除し、拡張のサイズを削減
+
 ## v0.7.0.2（2026-07-06）
 
 ### 修正

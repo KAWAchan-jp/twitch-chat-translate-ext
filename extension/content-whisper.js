@@ -15,109 +15,7 @@ let whisperActiveCount = 0;
 let subtitleContainer  = null;
 let subtitleFadeTimer  = null;
 
-// ===== Whisper Web Worker（並列スロット方式） =====
-// 特殊なリポジトリIDを持つモデル（それ以外は Xenova/whisper-{value}）。#light は q4f16 量子化版
-const WHISPER_MODEL_IDS = {
-  'large-v3-turbo':    'onnx-community/whisper-large-v3-turbo',
-  'kotoba-v2.2':       'onnx-community/kotoba-whisper-v2.2-ONNX',
-  'kotoba-v2.2-light': 'onnx-community/kotoba-whisper-v2.2-ONNX#light',
-};
-const WHISPER_WORKER_COUNT  = 4;
-const whisperSlots          = [];
-const pendingTranscriptions = new Map();
-let _decodeAudioCtx = null;
-const WHISPER_MAX_CONSECUTIVE_DISCARDS = 8;
 const GROQ_AUDIO_CHUNK_BYTES = 48 * 1024;
-let whisperConsecutiveDiscards = 0;
-
-function createWhisperSlot() {
-  const scriptUrl = chrome.runtime.getURL('whisper-worker.js');
-  const libBase   = chrome.runtime.getURL('lib/');
-  const blobUrl   = URL.createObjectURL(
-    new Blob([`importScripts(${JSON.stringify(scriptUrl)});`], { type: 'application/javascript' })
-  );
-  const slot = { worker: null, busy: false, ready: null };
-  slot.worker = new Worker(blobUrl);
-  URL.revokeObjectURL(blobUrl);
-
-  slot.ready = new Promise((resolve, reject) => {
-    slot.worker.addEventListener('message', ({ data }) => {
-      if (data.type === 'ready') {
-        resolve();
-      } else if (data.type === 'device_info') {
-        const label = data.device === 'webgpu' ? '🎮 GPU' : '🖥 CPU';
-        console.log(`[TCT] Whisper デバイス: ${data.device}`);
-        if (data.device === 'webgpu') {
-          // WebGPU は高速なのでワーカー数を1に削減
-          // （複数ワーカーはモデルをVRAMに複数載せてGPUを同時に叩くため、映像描画がカクつく）
-          while (whisperSlots.length > 1) {
-            const s = whisperSlots.pop();
-            s.worker.terminate();
-            for (const [reqId, req] of pendingTranscriptions) {
-              if (req.slot === s) {
-                clearTimeout(req.timer);
-                pendingTranscriptions.delete(reqId);
-                req.slot.busy = false;
-                req.reject(new Error('worker trimmed'));
-              }
-            }
-          }
-        }
-        if (isVoiceActive) showSubtitle(`Whisper 準備完了 ✓ (${label})`, false);
-      } else if (data.type === 'status') {
-        // モデルロード中のステータス → タイムアウトをリセット（シェーダーコンパイル等で数分かかる場合があるため）
-        if (isVoiceActive || pendingTranscriptions.size > 0) showSubtitle(data.text, false);
-        pendingTranscriptions.forEach((req, id) => {
-          clearTimeout(req.timer);
-          req.timer = setTimeout(() => {
-            pendingTranscriptions.delete(id);
-            req.slot.busy = false;
-            req.reject(new Error('タイムアウト'));
-          }, 180000);
-        });
-      } else if (data.type === 'infer_status') {
-        if (isVoiceActive || pendingTranscriptions.size > 0) showSubtitle(data.text, false);
-      } else if (data.type === 'result') {
-        const req = pendingTranscriptions.get(data.requestId);
-        if (!req) return;
-        pendingTranscriptions.delete(data.requestId);
-        clearTimeout(req.timer);
-        req.slot.busy = false;
-        if (data.ok) req.resolve(data.result);
-        else req.reject(new Error(data.error));
-      }
-    });
-    slot.worker.addEventListener('error', (e) => {
-      slot.busy = false;
-      reject(new Error(`Whisper Worker エラー: ${e.message}`));
-    });
-  });
-
-  slot.worker.postMessage({ type: 'init', libBase });
-  return slot;
-}
-
-// 全ワーカーを破棄する（モデル切替時のVRAM確実解放用）。次の推論時に新規生成される
-function restartWhisperWorkers() {
-  if (whisperSlots.length === 0) return;
-  console.log('[TCT] モデル変更 → Whisperワーカーを再起動');
-  for (const s of whisperSlots) {
-    try { s.worker.terminate(); } catch (_) {}
-  }
-  whisperSlots.length = 0;
-  for (const [reqId, req] of pendingTranscriptions) {
-    clearTimeout(req.timer);
-    req.reject(new Error('worker trimmed'));
-  }
-  pendingTranscriptions.clear();
-}
-
-async function ensureWhisperWorkers() {
-  const { whisper_worker_count } = await chrome.storage.local.get('whisper_worker_count');
-  const count = Math.min(Math.max(Number(whisper_worker_count) || WHISPER_WORKER_COUNT, 1), 8);
-  while (whisperSlots.length < count) whisperSlots.push(createWhisperSlot());
-  await Promise.all(whisperSlots.map(s => s.ready));
-}
 
 // Groq STT 用ハルシネーションチェック（基本パターンのみ）
 const GROQ_HALLUCINATION_PATTERNS = [
@@ -256,17 +154,15 @@ function getSupportedRecordingMimeType() {
   return candidates.find(type => MediaRecorder.isTypeSupported(type)) || '';
 }
 
-// 音声チャンクを Worker へ送信（空きスロットがなければ null を返す）
-// Web Worker 内は AudioContext 不可のためメインスレッドで PCM デコードしてから転送
+// 音声チャンクを認識エンジンへ送信（Groq → Faster-Whisper の順に試行。両方失敗/未設定ならエラー表示）
 async function transcribeViaBackground(blob, mimeType, language) {
-  // Groq STT が有効な場合はクラウドAPIを使用（失敗時はローカルWhisperにフォールバック）
   if (settings.groq_enabled && settings.groq_api_key) {
     try {
       return await transcribeViaGroq(blob, language);
     } catch (err) {
-      console.warn(`[TCT] Groq失敗 → ローカルWhisperにフォールバック: ${err.message}`);
-      const message = err.message ? `⚠ Groq失敗: ${err.message}` : '⚠ Groq失敗';
-      showSubtitle(`${message} → ローカルで認識中...`, false);
+      console.warn(`[TCT] Groq失敗: ${err.message}`);
+      showSubtitle(err.message ? `⚠ Groq失敗: ${err.message}` : '⚠ Groq失敗', false);
+      return null;
     }
   }
 
@@ -274,58 +170,14 @@ async function transcribeViaBackground(blob, mimeType, language) {
     try {
       return await transcribeViaFasterWhisper(blob, language);
     } catch (err) {
-      console.warn(`[TCT] Faster-Whisper失敗 → ローカルWhisperにフォールバック: ${err.message}`);
-      const message = err.message ? `⚠ Faster失敗: ${err.message}` : '⚠ Faster失敗';
-      showSubtitle(`${message} → ローカルで認識中...`, false);
+      console.warn(`[TCT] Faster-Whisper失敗: ${err.message}`);
+      showSubtitle(err.message ? `⚠ Faster失敗: ${err.message}` : '⚠ Faster失敗', false);
+      return null;
     }
   }
 
-  const modelKey = settings.whisper_model ?? 'tiny';
-  if (!(settings.downloaded_models ?? []).includes(modelKey)) {
-    showSubtitle('⚠ モデル未ダウンロード — 設定ページでDLしてください', false);
-    return null;
-  }
-
-  await ensureWhisperWorkers();
-
-  const slot = whisperSlots.find(s => !s.busy);
-  if (!slot) return null;
-  slot.busy = true;
-
-  const rawBuffer = await blob.arrayBuffer();
-  if (!_decodeAudioCtx || _decodeAudioCtx.state === 'closed') {
-    _decodeAudioCtx = new AudioContext({ sampleRate: 16000 });
-  }
-  let decoded;
-  try {
-    decoded = await _decodeAudioCtx.decodeAudioData(rawBuffer);
-  } catch (err) {
-    slot.busy = false;
-    throw err;
-  }
-  const float32   = new Float32Array(decoded.getChannelData(0));
-  const requestId = Math.random().toString(36).slice(2);
-
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingTranscriptions.delete(requestId);
-      slot.busy = false;
-      reject(new Error('タイムアウト（初回はモデルDL完了後に再試行してください）'));
-    }, 180000);
-
-    pendingTranscriptions.set(requestId, { resolve, reject, timer, slot });
-
-    // デフォルトヒント（常時） + 一時ヒント（💡、なければ自動ヒント） + 直近の認識履歴
-    const initial_prompt = buildWhisperInitialPrompt();
-    console.log(`[TCT] → Whisper送信 size=${blob.size}bytes model=${settings.whisper_model} slot=${whisperSlots.indexOf(slot)}`);
-    slot.worker.postMessage(
-      { type: 'transcribe', audioData: float32, sampling_rate: 16000, language, requestId,
-        model: WHISPER_MODEL_IDS[settings.whisper_model] ?? `Xenova/whisper-${settings.whisper_model ?? 'tiny'}`, initial_prompt,
-        num_beams: settings.whisper_num_beams ?? 1,
-        custom_hallucination_patterns: settings.custom_hallucination_patterns ?? [] },
-      [float32.buffer]
-    );
-  });
+  showSubtitle('⚠ 音声認識エンジンが未設定です — 設定でGroqかFaster-Whisperを有効にしてください', false);
+  return null;
 }
 
 function toLangTag(lang) {
@@ -449,25 +301,15 @@ async function startVoice() {
           try {
             const text = await transcribeViaBackground(blob, blob.type || stoppedMimeType, settings.src_lang);
             if (text === null) {
-              console.log('[TCT] 全Workerビジー・スキップ');
+              console.log('[TCT] 認識エンジン失敗/未設定・スキップ');
               return;
             }
-            console.log(`[TCT] ← Whisper結果: "${text}"`);
+            console.log(`[TCT] ← 認識結果: "${text}"`);
             if (!isVoiceActive) return;
             if (text?.trim() && text.trim().length >= 3) {
-              whisperConsecutiveDiscards = 0;
               transcriptHistory.push(text.trim());
               if (transcriptHistory.length > 6) transcriptHistory.shift();
               await handleFinalTranscript(text.trim());
-            } else {
-              // 発話ありのチャンクが連続で破棄される＝モデルが縮退状態（fp16破損等）の可能性
-              whisperConsecutiveDiscards++;
-              if (whisperConsecutiveDiscards >= WHISPER_MAX_CONSECUTIVE_DISCARDS) {
-                console.warn(`[TCT] 連続${whisperConsecutiveDiscards}回破棄 → 認識が不安定なためワーカーを再起動`);
-                whisperConsecutiveDiscards = 0;
-                restartWhisperWorkers();
-                showSubtitle('認識が不安定なため再初期化中...', false);
-              }
             }
           } catch (err) {
             if (err.message === 'worker trimmed') return;
@@ -516,7 +358,6 @@ function stopVoice() {
   voiceStream        = null;
   cableLevel         = 0;
   whisperActiveCount = 0;
-  whisperSlots.forEach(s => { s.busy = false; });
   clearSubtitle();
 }
 

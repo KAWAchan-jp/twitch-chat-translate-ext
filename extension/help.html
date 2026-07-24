@@ -49,7 +49,7 @@
     <tr><th>表示</th><th>説明</th></tr>
     <tr><td><strong>チャット入力:</strong></td><td>自分が入力して送信するメッセージの翻訳エンジン（Google / DeepL / Gemini）</td></tr>
     <tr><td><strong>音声:</strong></td><td>配信者の音声認識後の翻訳エンジン（Google / DeepL / Gemini）</td></tr>
-    <tr><td><strong>STT:</strong></td><td>音声認識エンジン（Local = ローカル Whisper / Faster = Faster-Whisper ローカルサーバー / Groq = Groq Whisper API）。クリックで Local → Faster → Groq を切替</td></tr>
+    <tr><td><strong>STT:</strong></td><td>音声認識エンジン（Faster = Faster-Whisper ローカルサーバー / Groq = Groq Whisper API）。クリックで Faster → Groq を切替</td></tr>
   </table>
   <p><strong>フッターの各項目をクリックすると、オプションで有効にしたエンジンをその場で切り替えられます。</strong>設定ページを開かずに素早く変更可能です。有効化していないエンジンはスキップされます。</p>
 
@@ -146,23 +146,16 @@
     スクロールを止める・パネルにマウスを乗せると、<strong>見えている範囲だけ</strong>翻訳されます。
   </div>
 
-  <h2>音声字幕（ローカル Whisper）</h2>
-  <ol>
-    <li>オプションページでモデルをダウンロード（初回のみ）</li>
-    <li>パネルの 🎤 ボタンをクリックで開始</li>
-    <li>字幕ウィンドウはドラッグで移動可能</li>
-  </ol>
+  <h2>音声字幕を使うには</h2>
+  <p>
+    音声字幕には<strong>Faster-Whisper</strong>（ローカルサーバー）または<strong>Groq</strong>（クラウドAPI）のいずれかが必要です。
+    下記いずれかをオプションページで有効にしてから、パネルの 🎤 ボタンで開始してください。字幕ウィンドウはドラッグで移動できます。
+    どちらも未設定の場合、🎤 をオンにすると「音声認識エンジンが未設定」というエラーが字幕に表示されます。
+  </p>
   <div class="tip">
     <strong>⚠ プレイヤーの音量を0・ミュートにすると認識できません</strong>（すべての STT エンジン共通）。
     音声はプレイヤーの音量適用後にキャプチャされるため、無音になります。音量は小さくても構いません。
     ブラウザの<strong>タブのミュートは影響しない</strong>ので、音を消したい場合はタブをミュートしてください。
-  </div>
-  <div class="tip">
-    <strong>モデル選びの目安：</strong><br>
-    ① <strong>初めての方はまず Small</strong> — 軽量（244MB）・多言語対応で、どの配信でも使える万能モデル。動作確認に最適<br>
-    ② <strong>日本語配信メインなら Kotoba-Whisper 軽量版へステップアップ</strong> — 日本語認識率が大幅に向上。GPU 負荷は通常版の約 1/3<br>
-    ③ <strong>GPU がない環境は Tiny / Base</strong> — CPU でも動作します<br><br>
-    Small 以上のモデルは初回起動時に GPU シェーダーのコンパイルが行われます（数分かかる場合あり）。2回目以降は高速です。
   </div>
 
   <h2>Faster-Whisper STT（ローカルサーバー・GPU搭載前提）</h2>
@@ -193,7 +186,7 @@
     CUDA が使えない場合サーバーは自動で CPU に切り替わりますが、大型モデルは拡張のタイムアウト（30秒）にかかるため実用になりません。
   </div>
   <div class="tip">
-    サーバーが未起動・エラー・タイムアウトの場合は、自動で拡張内のローカル Whisper にフォールバックして認識を続けます。
+    サーバーが未起動・エラー・タイムアウトの場合は、字幕にエラーが表示されます（自動フォールバック先はありません）。
   </div>
 
   <h2>映像がカクつくときは（音声認識使用中）</h2>
@@ -211,7 +204,7 @@
     </tr>
     <tr>
       <td><strong>軽量なモデルにする</strong></td>
-      <td>Kotoba 通常版 → 軽量版 → Small の順にGPU負荷が下がる</td>
+      <td>Faster-Whisper のモデルを Large-v3-Turbo → Medium → Small の順に切り替えるとGPU負荷が下がる</td>
       <td>認識精度が段階的に下がる</td>
     </tr>
   </table>
