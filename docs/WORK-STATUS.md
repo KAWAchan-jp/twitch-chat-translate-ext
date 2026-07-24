@@ -14,11 +14,11 @@
 ## ブランチ運用
 
 - 2026-07-07 時点で、通常作業用の `develop` ブランチを作成。安定版は `master`、作業入口は `develop` を基本にする。
-- 現在の安定状態は `master` / `develop` の `v0.7.0.4`。Chrome 拡張本体は `extension/`、Faster-Whisper の uv/Python サーバーは `uv/`。
-- 現在の作業ブランチ: `feature/remove-browser-whisper`（`develop` から分岐、未マージ）。
+- 現在の安定状態は `master` の `v0.7.0.4` / `develop` の `v0.7.1`。Chrome 拡張本体は `extension/`、Faster-Whisper の uv/Python サーバーは `uv/`。
+- 現在の作業ブランチ: `develop`（`feature/remove-browser-whisper` はマージ後に削除済み）。
 - 新しい作業を始める場合だけ、目的が明確な短命ブランチを切る。
 
-### feature/remove-browser-whisper — 担当: **Claude Code**（作業中・Chrome手動確認待ち）
+### ブラウザ内Whisper廃止（v0.7.1・develop にマージ済み・GitHub Releaseあり・Chrome手動確認待ち）
 
 - 役割: ブラウザ内Whisper（Transformers.js + Web Worker版、`whisper-worker.js` + `lib/`）をユーザー指示により廃止する。Faster-Whisper（`uv/`）と Groq は維持。
 - 変更点:
@@ -26,10 +26,9 @@
   - `content-whisper.js` の Web Worker プール管理（`createWhisperSlot` 等）を削除し、`transcribeViaBackground()` を Groq → Faster-Whisper のみに簡略化。両方未設定・失敗時は字幕にエラー表示するだけで、**自動フォールバック先はもうない**（ユーザー指示）。
   - `content.js` / `content-panel.js`（フッターSTT切替 `Faster→Groq`）/ `options.js` / `options.html`（モデルDL UI・ビーム数・並列ワーカー数を削除）/ `manifest.json`（`web_accessible_resources` 全削除、huggingface/jsdelivr host_permissions 削除）/ `background.js`（`warmup_whisper` デッドハンドラ削除）/ `scripts/build-release.ps1`（削除ファイルを一覧から除去）を整合。
   - README 3言語・`help.html`・`AGENTS.md`・`CLAUDE.md` からブラウザ内Whisperの記述を除去し、STT は Faster-Whisper/Groq の2択である旨に更新。
-  - version は `0.7.0.5`。
+  - `feature/remove-browser-whisper` を `develop` へ fast-forward マージ、ブランチは削除済み。version は当初 `0.7.0.5` としたが、ユーザー指示により `0.7.1`（3桁）に修正。
+  - GitHub Release [`v0.7.1`](https://github.com/KAWAchan-jp/twitch-chat-translate-ext/releases/tag/v0.7.1) を作成し、拡張本体 ZIP と `faster-whisper-server.zip` を添付済み（`develop` からのリリース。`master` へは未マージ）。
 - 構文チェック（`node --check` 全JS・manifest.json JSON検証）は通過。**Chrome実機での動作確認は未実施**（次の作業者へ: 下記「検証」参照）。
-
-
 
 ### feature/faster-whisper-local — **完了・master にマージ済み（v0.7.0）**
 
@@ -59,7 +58,7 @@
 ### master — 担当: **共有**
 
 - 役割: 本番リリース用ブランチ。
-- 現状: v0.7.0.4 まで反映済み（折りたたみ時の認識ヒント欄表示修正を含む）。リポジトリ整理として拡張本体は `extension/`、uv サーバーは `uv/` に移動済み。`feature/remove-browser-whisper`（v0.7.0.5・ブラウザ内Whisper廃止）は未マージ。
+- 現状: v0.7.0.4 まで反映済み（折りたたみ時の認識ヒント欄表示修正を含む）。リポジトリ整理として拡張本体は `extension/`、uv サーバーは `uv/` に移動済み。ブラウザ内Whisper廃止（v0.7.1）は `develop` へマージ・GitHub Release済みだが `master` へは未マージ。
 - 注意:
   - `extension/manifest.json` の version は現在 `0.7.0.4`（`master`）。
   - 実装変更を行ったら、原則として `extension/manifest.json` の version を4桁目だけインクリメントする。上位桁の変更は明示的な指示があった場合のみ。
@@ -74,14 +73,14 @@
 - Chrome に手動読み込みする場合は、リポジトリルートではなく `extension/` を選ぶ。
 - content script は `extension/manifest.json` のロード順で同一スコープを共有する。重複宣言やロード順変更に注意する。
 - パネル UI は Shadow DOM 内にある。`shadowRoot.getElementById()` を使い、Twitch 側 DOM と混同しない。
-- STT まわりは `extension/content-whisper.js`、`extension/background.js`、`extension/options.*`、`extension/manifest.json`、`uv/` が絡む（ブラウザ内Whisperは v0.7.0.5 で廃止済み）。変更時はフッター表示まで確認する。
+- STT まわりは `extension/content-whisper.js`、`extension/background.js`、`extension/options.*`、`extension/manifest.json`、`uv/` が絡む（ブラウザ内Whisperは v0.7.1 で廃止済み）。変更時はフッター表示まで確認する。
 - Groq の chunk 転送実装は、大きな音声 Blob を background service worker へ送る時の参考実装として扱う。
 
 ---
 
 ## 申し送り（時系列・新しい順）
 
-- **2026-07-24 Claude Code**: ユーザー指示「ローカルWhisperは効率が悪いのでやめようと思う」を受け、`feature/remove-browser-whisper`（`develop` から分岐）でブラウザ内Whisper（Transformers.js + Web Worker版）を廃止。Faster-Whisper（`uv/`）と Groq は維持。確認の上、削除範囲は「ブラウザ内Whisperのみ」、フォールバック挙動は「未設定/失敗時は字幕にエラー表示のみ（自動フォールバックなし）」とユーザーが選択。`whisper-worker.js`・`lib/`（ONNX Runtime WASM）・`whisper-injected.js`・`offscreen-whisper.*`（デッド）を削除し、`content-whisper.js`/`content.js`/`content-panel.js`/`options.*`/`manifest.json`/`background.js`/`build-release.ps1` を整合。README 3言語・`help.html`・`AGENTS.md`・`CLAUDE.md` も更新。version は `0.7.0.5`。`node --check` 全JS・manifest JSON検証は通過。**次の作業者へ**: Chrome実機での動作確認（①Faster-Whisper有効時に🎤で認識・フッター表示、②Groq/Faster両方無効時に「エンジン未設定」エラー字幕、③オプションページの音声認識タブが崩れずモデルDL UIなしで表示、④TTS・クリップ字幕がFaster/Groq出力で従来通り動作）が未実施。
+- **2026-07-24 Claude Code**: ユーザー指示「ローカルWhisperは効率が悪いのでやめようと思う」を受け、`feature/remove-browser-whisper`（`develop` から分岐）でブラウザ内Whisper（Transformers.js + Web Worker版）を廃止。Faster-Whisper（`uv/`）と Groq は維持。確認の上、削除範囲は「ブラウザ内Whisperのみ」、フォールバック挙動は「未設定/失敗時は字幕にエラー表示のみ（自動フォールバックなし）」とユーザーが選択。`whisper-worker.js`・`lib/`（ONNX Runtime WASM）・`whisper-injected.js`・`offscreen-whisper.*`（デッド）を削除し、`content-whisper.js`/`content.js`/`content-panel.js`/`options.*`/`manifest.json`/`background.js`/`build-release.ps1` を整合。README 3言語・`help.html`・`AGENTS.md`・`CLAUDE.md` も更新。version は当初 `0.7.0.5` としたが、ユーザー指示で3桁の `0.7.1` に修正。`develop` へマージし、GitHub Release `v0.7.1` を作成（拡張ZIP・`faster-whisper-server.zip` 添付）。`node --check` 全JS・manifest JSON検証は通過。**次の作業者へ**: Chrome実機での動作確認（①Faster-Whisper有効時に🎤で認識・フッター表示、②Groq/Faster両方無効時に「エンジン未設定」エラー字幕、③オプションページの音声認識タブが崩れずモデルDL UIなしで表示、④TTS・クリップ字幕がFaster/Groq出力で従来通り動作）が未実施。
 - **2026-07-17 Codex**: `fix/hint-bar-placement`（v0.7.0.4）を `develop` へ fast-forward マージ。Chromeで、展開時はヘッダー直下・折りたたみ時は入力欄直上となることを手動確認する。
 - **2026-07-17 Codex**: `fix/hint-bar-placement` で認識ヒント欄の位置を状態別に修正。展開時はヘッダー直下、折りたたみ時は入力欄直上とし、同一の `hintBar` 要素を移動するため入力値・イベント・`whisper_prompt` 保存を維持する。`node --check`、manifest JSON 検証、対象差分チェックは通過。Chrome手動確認は未実施。version は v0.7.0.4。
 - **2026-07-10 Codex**: Faster-Whisper のモデルキャッシュ上限を `uv/server.py` の `lru_cache(maxsize=1)` に変更（v0.7.0.3）。モデル切り替え時に複数モデルを GPU メモリへ保持し続ける可能性を抑える。構文チェック済み。未確認事項は実 GPU でのメモリ推移と実ブラウザの音声認識。
