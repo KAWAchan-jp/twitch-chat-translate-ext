@@ -56,12 +56,21 @@ function connect() {
   };
 
   ws.onmessage = e => e.data.split('\r\n').filter(Boolean).forEach(handleIRCLine);
-  ws.onerror   = () => { setStatus('error'); addSystemMessage('接続エラーが発生しました。'); };
-  ws.onclose   = () => {
+  ws.onerror   = () => {
+    // ErrorEvent はセキュリティ上、原因の詳細を公開しないブラウザが多い。
+    // close イベントの code / reason と IRC NOTICE も合わせて出力して切り分ける。
+    console.error('[TCT] Twitch WebSocket エラー:', { channel: channelAtConnect, url: TWITCH_WS_URL });
+    setStatus('error');
+    addSystemMessage('WebSocket接続エラー。ネットワーク・プロキシ・Twitch側の応答を確認してください（詳細は続く切断情報とConsoleログ）。');
+  };
+  ws.onclose   = event => {
     if (socket !== ws) return;
     ws = null;
     if (!currentChannel || channelAtConnect !== currentChannel || !isActive) return;
     setStatus('error');
+    const detail = describeWebSocketClose(event);
+    console.warn('[TCT] Twitch WebSocket 切断:', { channel: channelAtConnect, ...detail });
+    addSystemMessage(`Twitch接続が切断されました（コード: ${detail.code}${detail.reason ? `、理由: ${detail.reason}` : ''}）。`);
     const nextDelay = getReconnectDelayWithJitter(wsReconnectDelay);
     addSystemMessage(`接続が切断されました。約${Math.round(nextDelay / 1000)}秒後に再接続します...`);
     wsReconnectTimer = setTimeout(() => {
@@ -70,6 +79,20 @@ function connect() {
       wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_RECONNECT_MAX_DELAY_MS);
       connect();
     }, nextDelay);
+  };
+}
+
+function describeWebSocketClose(event) {
+  const reasons = {
+    1000: '正常終了',
+    1001: '接続先が離脱',
+    1006: '異常切断（ネットワーク・プロキシ・TLS遮断の可能性）',
+    1011: '接続先の内部エラー',
+  };
+  return {
+    code: event.code || 1006,
+    reason: event.reason || reasons[event.code] || '',
+    wasClean: event.wasClean,
   };
 }
 
@@ -99,6 +122,19 @@ function resetMessages() {
 // ===== IRCメッセージ処理 =====
 function handleIRCLine(line) {
   if (line.startsWith('PING')) { ws?.send('PONG :tmi.twitch.tv'); return; }
+  const notice = line.match(/(?:^| )NOTICE (?:\*|#\w+) :(.+)$/);
+  if (notice) {
+    console.warn('[TCT] Twitch IRC NOTICE:', notice[1]);
+    if (isAuthenticated && /login authentication failed/i.test(notice[1])) {
+      // 期限切れ・無効化されたトークンでの再接続ループを止める。
+      // 閲覧は匿名接続へ切り替え、送信を再び使う場合だけ再ログインを促す。
+      addSystemMessage('Twitchログイン情報が無効です。匿名接続に切り替えます。チャット送信を使うには再ログインしてください。');
+      handleLogout();
+      return;
+    }
+    addSystemMessage(`Twitch通知: ${notice[1]}`);
+    return;
+  }
   if (line.includes(`JOIN #${currentChannel}`)) {
     setStatus('connected');
     wsReconnectDelay = WS_RECONNECT_MIN_DELAY_MS;
