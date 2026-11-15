@@ -87,7 +87,7 @@
   - デッドコード掃除: `messageCount`（write-only、content-chat.js）、`authBarEl`（content.js/content-panel.js）、`geminiFeaturesField` id、options.css の未使用スタイル（モデルテーブル・DL バッジ・`.btn-sm`）。
   - `docs/images/panel-usage.png` を削除し `build-release.ps1` から除外。README 3言語・`help.html`・`AGENTS.md`/`CLAUDE.md`・`CHANGELOG.md` を更新。
   - 検証: `node --check` 全 JS・manifest JSON 検証は通過。`clip|ffmpeg|usage|録画|利用状況` の残存参照は 0 件。**Chrome 実機の手動確認は未実施**。
-  - 申し送り: `docs/images/panel-header.png` / `panel-footer.png` は旧 UI（🎤/📊/🔴 等）が写ったまま。撮り直しが必要。既知の改善候補: 配信言語の自動検出がチャンネル個別の `src_lang` を上書きする、タグ検出が日本語 UI 固定（`aria-label^="タグ、"`）、可視範囲翻訳の失敗時に再試行されない、翻訳キャッシュのキーに feature を含めていない。
+  - 申し送り: `docs/images/panel-header.png` / `panel-footer.png` は最新UI（🎤/📊/🔴 なし）に更新済み。既知の改善候補: 配信言語の自動検出がチャンネル個別の `src_lang` を上書きする、タグ検出が日本語 UI 固定（`aria-label^="タグ、"`）、可視範囲翻訳の失敗時に再試行されない、翻訳キャッシュのキーに feature を含めていない。
 
 - **2026-11-15 Command Code**: ユーザー指示「音声認識は別アプリにしてるので削除したい」を受け、拡張から音声認識（STT）・翻訳読み上げ（TTS）・クリップ字幕生成を削除し **v0.8.0** とした（未コミットの 0.7.3 変更も含む）。TTS は音声字幕の翻訳結果を読み上げる実装しかなく発火元がなくなるため、クリップ字幕は内容が STT 出力由来で空になるため、ユーザー確認のうえ併せて削除。`uv/`・Faster-Whisper 配布 ZIP・専用ビルドスクリプト・関連 docs も削除。
   - 削除ファイル: `extension/content-whisper.js`、`extension/offscreen.js`/`offscreen.html`（未使用・createDocument 呼び出しなし）、`uv/`、`scripts/build-faster-whisper-server-release.ps1`、`docs/feature-faster-whisper-local.md`、`docs/images/clip-subtitle-options.png`、ルートの `faster-whisper-server.zip`。

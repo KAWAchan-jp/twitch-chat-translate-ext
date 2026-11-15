@@ -8,6 +8,7 @@
 - `clip_max_minutes` / `ffmpeg_path` / `ffmpeg_shell` の設定と、`gemini_usage_*` / `deepl_usage_*` の記録を削除
 - 未使用コードを削除: `messageCount`（write-only）、`authBarEl`（未使用）、`twitch_api` メッセージハンドラ（送信元なし）、未使用 CSS（モデルテーブル・ダウンロードバッジ・`.btn-sm`）、`geminiFeaturesField` の id
 - `docs/images/panel-usage.png` を削除し、リリース ZIP からも除外
+- パネルのヘッダー・フッター画像を最新 UI（🎤/📊/🔴 なし）に更新
 - README 3言語・`help.html`・`AGENTS.md` / `CLAUDE.md` を更新
 
 ## v0.8.0（2026-11-15）
