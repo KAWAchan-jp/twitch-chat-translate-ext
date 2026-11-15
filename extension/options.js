@@ -18,174 +18,14 @@ document.getElementById('version').textContent =
     item.addEventListener('click', () => showPage(item.dataset.page));
   });
 
-  const saved = localStorage.getItem('options_page') || 'stt';
+  const savedRaw = localStorage.getItem('options_page');
+  const saved = (savedRaw === 'stt' || savedRaw === 'tts' || savedRaw === 'clip') ? 'translate' : (savedRaw || 'translate');
   showPage(saved);
 })();
-
-// ===== Whisper デフォルト認識ヒント（常時有効・パネルの一時ヒントとは別物） =====
-const whisperPromptEl = document.getElementById('whisperPrompt');
-chrome.storage.local.get('whisper_prompt_default', ({ whisper_prompt_default }) => {
-  whisperPromptEl.value = whisper_prompt_default ?? '';
-});
-whisperPromptEl.addEventListener('change', () => {
-  chrome.storage.local.set({ whisper_prompt_default: whisperPromptEl.value.trim() });
-});
-
-// ===== 字幕フォントサイズ =====
-const fontSizeEl  = document.getElementById('subtitleFontSize');
-const fontSizeVal = document.getElementById('subtitleFontSizeVal');
-
-chrome.storage.local.get('subtitle_font_size', ({ subtitle_font_size }) => {
-  const size = subtitle_font_size ?? 22;
-  fontSizeEl.value       = size;
-  fontSizeVal.textContent = `${size}px`;
-});
-
-fontSizeEl.addEventListener('input', () => {
-  const size = Number(fontSizeEl.value);
-  fontSizeVal.textContent = `${size}px`;
-  chrome.storage.local.set({ subtitle_font_size: size });
-});
-
-// ===== Faster-Whisper =====
-const fasterWhisperEnabledEl = document.getElementById('fasterWhisperEnabled');
-const fasterWhisperUrlEl     = document.getElementById('fasterWhisperUrl');
-const saveFasterWhisperBtn   = document.getElementById('saveFasterWhisperBtn');
-const saveFasterWhisperMsg   = document.getElementById('saveFasterWhisperMsg');
-const fasterWhisperModelEls  = document.querySelectorAll('input[name="fasterWhisperModel"]');
-
-chrome.storage.local.get(['faster_whisper_enabled', 'faster_whisper_url', 'faster_whisper_model'], (s) => {
-  fasterWhisperEnabledEl.checked = !!s.faster_whisper_enabled;
-  fasterWhisperUrlEl.value = s.faster_whisper_url || 'http://127.0.0.1:8765/transcribe';
-  const model = s.faster_whisper_model || 'large-v3-turbo';
-  fasterWhisperModelEls.forEach(el => { el.checked = el.value === model; });
-});
-
-fasterWhisperEnabledEl.addEventListener('change', () => {
-  chrome.storage.local.set({
-    faster_whisper_enabled: fasterWhisperEnabledEl.checked,
-    groq_enabled: false,
-  });
-  if (fasterWhisperEnabledEl.checked) groqEnabledEl.checked = false;
-});
-
-fasterWhisperModelEls.forEach(el => {
-  el.addEventListener('change', () => {
-    if (el.checked) chrome.storage.local.set({ faster_whisper_model: el.value });
-  });
-});
-
-saveFasterWhisperBtn.addEventListener('click', async () => {
-  const url = fasterWhisperUrlEl.value.trim() || 'http://127.0.0.1:8765/transcribe';
-  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(url)) {
-    showFasterWhisperMsg('⚠ localhost / 127.0.0.1 のURLを指定してください', '#e84393');
-    return;
-  }
-  const model = [...fasterWhisperModelEls].find(el => el.checked)?.value ?? 'large-v3-turbo';
-  await chrome.storage.local.set({
-    faster_whisper_url: url,
-    faster_whisper_model: model,
-    faster_whisper_enabled: true,
-    groq_enabled: false,
-  });
-  fasterWhisperEnabledEl.checked = true;
-  groqEnabledEl.checked = false;
-  showFasterWhisperMsg('✓ 保存しました', '#00b894');
-});
-
-function showFasterWhisperMsg(text, color) {
-  saveFasterWhisperMsg.textContent = text;
-  saveFasterWhisperMsg.style.color = color;
-  saveFasterWhisperMsg.style.opacity = '1';
-  clearTimeout(showFasterWhisperMsg._timer);
-  showFasterWhisperMsg._timer = setTimeout(() => {
-    saveFasterWhisperMsg.style.opacity = '0';
-    setTimeout(() => { saveFasterWhisperMsg.textContent = ''; }, 300);
-  }, 3000);
-}
-
-// ===== Groq =====
-const groqEnabledEl = document.getElementById('groqEnabled');
-const groqKeyEl     = document.getElementById('groqKey');
-const toggleGroqBtn = document.getElementById('toggleGroqKey');
-const saveGroqBtn   = document.getElementById('saveGroqBtn');
-const saveGroqMsg   = document.getElementById('saveGroqMsg');
-const groqModelEls  = document.querySelectorAll('input[name="groqModel"]');
-
-chrome.storage.local.get(['groq_enabled', 'groq_api_key', 'groq_model'], (s) => {
-  groqEnabledEl.checked = !!s.groq_enabled;
-  if (s.groq_api_key) groqKeyEl.value = s.groq_api_key;
-  const model = s.groq_model || 'whisper-large-v3-turbo';
-  groqModelEls.forEach(el => { el.checked = el.value === model; });
-});
-
-toggleGroqBtn.addEventListener('click', () => {
-  const isHidden = groqKeyEl.type === 'password';
-  groqKeyEl.type = isHidden ? 'text' : 'password';
-  toggleGroqBtn.textContent = isHidden ? '隠す' : '表示';
-});
-
-groqEnabledEl.addEventListener('change', () => {
-  chrome.storage.local.set({
-    groq_enabled: groqEnabledEl.checked,
-    faster_whisper_enabled: groqEnabledEl.checked ? false : fasterWhisperEnabledEl.checked,
-  });
-  if (groqEnabledEl.checked) fasterWhisperEnabledEl.checked = false;
-});
-
-groqModelEls.forEach(el => {
-  el.addEventListener('change', () => {
-    if (el.checked) chrome.storage.local.set({ groq_model: el.value });
-  });
-});
-
-saveGroqBtn.addEventListener('click', async () => {
-  const key = groqKeyEl.value.trim();
-  if (!key) { showGroqMsg('⚠ キーを入力してください', '#e84393'); return; }
-  const model = [...groqModelEls].find(el => el.checked)?.value ?? 'whisper-large-v3-turbo';
-  await chrome.storage.local.set({ groq_api_key: key, groq_enabled: true, groq_model: model, faster_whisper_enabled: false });
-  groqEnabledEl.checked = true;
-  fasterWhisperEnabledEl.checked = false;
-  showGroqMsg('✓ 保存しました', '#00b894');
-});
-
-// ===== Groq 利用状況 =====
-function loadGroqUsage() {
-  chrome.storage.local.get(['groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars', 'groq_usage_reset_date'], (s) => {
-    const secs = s.groq_usage_secs ?? 0;
-    const mins = Math.floor(secs / 60);
-    const secsDisp = mins > 0 ? `${mins}分${secs % 60}秒` : `${secs}秒`;
-    document.getElementById('groqUsageCount').textContent  = (s.groq_usage_count        ?? 0).toLocaleString() + ' 回';
-    document.getElementById('groqUsageSecs').textContent   = secsDisp;
-    document.getElementById('groqUsageOutput').textContent = (s.groq_usage_output_chars ?? 0).toLocaleString() + ' 文字';
-    document.getElementById('groqUsageReset').textContent  = s.groq_usage_reset_date ?? 'なし';
-  });
-}
-loadGroqUsage();
-
-document.getElementById('resetGroqUsage').addEventListener('click', () => {
-  const today = new Date().toLocaleDateString('ja-JP');
-  chrome.storage.local.set({
-    groq_usage_count: 0, groq_usage_secs: 0,
-    groq_usage_output_chars: 0, groq_usage_reset_date: today,
-  }, loadGroqUsage);
-});
-
-function showGroqMsg(text, color) {
-  saveGroqMsg.textContent = text;
-  saveGroqMsg.style.color = color;
-  saveGroqMsg.style.opacity = '1';
-  clearTimeout(showGroqMsg._timer);
-  showGroqMsg._timer = setTimeout(() => {
-    saveGroqMsg.style.opacity = '0';
-    setTimeout(() => { saveGroqMsg.textContent = ''; }, 300);
-  }, 3000);
-}
 
 // ===== DeepL =====
 const deeplEnabledEl = document.getElementById('deeplEnabled');
 const deeplChatEl    = document.getElementById('deeplChat');
-const deeplVoiceEl   = document.getElementById('deeplVoice');
 const deeplOwnEl     = document.getElementById('deeplOwn');
 const deeplFeaturesEl = document.getElementById('deeplFeatures');
 const deeplKeyEl     = document.getElementById('deeplKey');
@@ -198,10 +38,9 @@ function updateDeeplFeaturesVisibility() {
   deeplFeaturesEl.style.pointerEvents = deeplEnabledEl.checked ? '' : 'none';
 }
 
-chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own'], (s) => {
+chrome.storage.local.get(['deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_own'], (s) => {
   deeplEnabledEl.checked = !!s.deepl_enabled;
   deeplChatEl.checked    = s.deepl_chat  !== false;
-  deeplVoiceEl.checked   = s.deepl_voice !== false;
   deeplOwnEl.checked     = s.deepl_own   !== false;
   if (s.deepl_api_key) deeplKeyEl.value = s.deepl_api_key;
   updateDeeplFeaturesVisibility();
@@ -219,7 +58,6 @@ deeplEnabledEl.addEventListener('change', () => {
 });
 
 deeplChatEl.addEventListener('change',  () => chrome.storage.local.set({ deepl_chat:  deeplChatEl.checked }));
-deeplVoiceEl.addEventListener('change', () => chrome.storage.local.set({ deepl_voice: deeplVoiceEl.checked }));
 deeplOwnEl.addEventListener('change',   () => chrome.storage.local.set({ deepl_own:   deeplOwnEl.checked }));
 
 saveDeeplBtn.addEventListener('click', async () => {
@@ -231,41 +69,10 @@ saveDeeplBtn.addEventListener('click', async () => {
   showDeeplMsg('✓ 保存しました', '#00b894');
 });
 
-// ===== DeepL 利用状況 =====
-function loadDeeplUsage() {
-  chrome.storage.local.get(['deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars', 'deepl_usage_reset_date'], (s) => {
-    document.getElementById('deeplUsageCount').textContent  = (s.deepl_usage_count        ?? 0).toLocaleString() + ' 回';
-    document.getElementById('deeplUsageInput').textContent  = (s.deepl_usage_input_chars  ?? 0).toLocaleString() + ' 文字';
-    document.getElementById('deeplUsageOutput').textContent = (s.deepl_usage_output_chars ?? 0).toLocaleString() + ' 文字';
-    document.getElementById('deeplUsageReset').textContent  = s.deepl_usage_reset_date ?? 'なし';
-  });
-}
-loadDeeplUsage();
-
-document.getElementById('resetDeeplUsage').addEventListener('click', () => {
-  const today = new Date().toLocaleDateString('ja-JP');
-  chrome.storage.local.set({
-    deepl_usage_count: 0, deepl_usage_input_chars: 0,
-    deepl_usage_output_chars: 0, deepl_usage_reset_date: today,
-  }, loadDeeplUsage);
-});
-
-function showDeeplMsg(text, color) {
-  saveDeeplMsg.textContent = text;
-  saveDeeplMsg.style.color = color;
-  saveDeeplMsg.style.opacity = '1';
-  clearTimeout(showDeeplMsg._timer);
-  showDeeplMsg._timer = setTimeout(() => {
-    saveDeeplMsg.style.opacity = '0';
-    setTimeout(() => { saveDeeplMsg.textContent = ''; }, 300);
-  }, 3000);
-}
-
 // ===== Gemini =====
-const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム字幕翻訳を行います。入力は音声認識結果のため、多少の誤認識や口語表現が含まれる場合があります。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
+const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム翻訳を行います。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
 
 const geminiEnabledEl    = document.getElementById('geminiEnabled');
-const geminiVoiceEl      = document.getElementById('geminiVoice');
 const geminiOwnEl        = document.getElementById('geminiOwn');
 const geminiKeyEl        = document.getElementById('geminiKey');
 const geminiPromptEl     = document.getElementById('geminiPrompt');
@@ -275,9 +82,8 @@ const saveGeminiBtn      = document.getElementById('saveGeminiBtn');
 const saveGeminiMsg      = document.getElementById('saveGeminiMsg');
 const geminiModelEls     = document.querySelectorAll('input[name="geminiModel"]');
 
-chrome.storage.local.get(['gemini_enabled', 'gemini_voice', 'gemini_own', 'gemini_api_key', 'gemini_prompt', 'gemini_model'], (s) => {
+chrome.storage.local.get(['gemini_enabled', 'gemini_own', 'gemini_api_key', 'gemini_prompt', 'gemini_model'], (s) => {
   geminiEnabledEl.checked = !!s.gemini_enabled;
-  geminiVoiceEl.checked   = s.gemini_voice !== false;
   geminiOwnEl.checked     = !!s.gemini_own;
   if (s.gemini_api_key) geminiKeyEl.value = s.gemini_api_key;
   geminiPromptEl.value = s.gemini_prompt ?? GEMINI_DEFAULT_PROMPT;
@@ -304,9 +110,6 @@ geminiModelEls.forEach(el => {
 geminiEnabledEl.addEventListener('change', () => {
   chrome.storage.local.set({ gemini_enabled: geminiEnabledEl.checked });
 });
-geminiVoiceEl.addEventListener('change', () => {
-  chrome.storage.local.set({ gemini_voice: geminiVoiceEl.checked });
-});
 geminiOwnEl.addEventListener('change', () => {
   chrome.storage.local.set({ gemini_own: geminiOwnEl.checked });
 });
@@ -318,80 +121,11 @@ saveGeminiBtn.addEventListener('click', async () => {
   const model = [...geminiModelEls].find(el => el.checked)?.value ?? 'gemini-2.5-flash';
   await chrome.storage.local.set({
     gemini_api_key: key, gemini_enabled: true,
-    gemini_voice: geminiVoiceEl.checked, gemini_own: geminiOwnEl.checked,
+    gemini_own: geminiOwnEl.checked,
     gemini_prompt: prompt, gemini_model: model,
   });
   geminiEnabledEl.checked = true;
   showGeminiMsg('✓ 保存しました', '#00b894');
-});
-
-// ===== Gemini 利用状況 =====
-function loadGeminiUsage() {
-  chrome.storage.local.get(['gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars', 'gemini_usage_reset_date'], (s) => {
-    document.getElementById('geminiUsageCount').textContent  = (s.gemini_usage_count        ?? 0).toLocaleString() + ' 回';
-    document.getElementById('geminiUsageInput').textContent  = (s.gemini_usage_input_chars  ?? 0).toLocaleString() + ' 文字';
-    document.getElementById('geminiUsageOutput').textContent = (s.gemini_usage_output_chars ?? 0).toLocaleString() + ' 文字';
-    document.getElementById('geminiUsageReset').textContent  = s.gemini_usage_reset_date ?? 'なし';
-  });
-}
-loadGeminiUsage();
-
-document.getElementById('resetGeminiUsage').addEventListener('click', () => {
-  const today = new Date().toLocaleDateString('ja-JP');
-  chrome.storage.local.set({
-    gemini_usage_count: 0, gemini_usage_input_chars: 0,
-    gemini_usage_output_chars: 0, gemini_usage_reset_date: today,
-  }, loadGeminiUsage);
-});
-
-function showGeminiMsg(text, color) {
-  saveGeminiMsg.textContent = text;
-  saveGeminiMsg.style.color = color;
-  saveGeminiMsg.style.opacity = '1';
-  clearTimeout(showGeminiMsg._timer);
-  showGeminiMsg._timer = setTimeout(() => {
-    saveGeminiMsg.style.opacity = '0';
-    setTimeout(() => { saveGeminiMsg.textContent = ''; }, 300);
-  }, 3000);
-}
-
-// ===== TTS 読み上げ速度 =====
-const ttsRateEl  = document.getElementById('ttsRate');
-const ttsRateVal = document.getElementById('ttsRateVal');
-
-chrome.storage.local.get('tts_rate', ({ tts_rate }) => {
-  const r = tts_rate ?? 1.0;
-  ttsRateEl.value       = r;
-  ttsRateVal.textContent = r.toFixed(1);
-});
-
-ttsRateEl.addEventListener('input', () => {
-  const r = Number(ttsRateEl.value);
-  ttsRateVal.textContent = r.toFixed(1);
-  chrome.storage.local.set({ tts_rate: r });
-});
-
-// ===== VAD 感度 =====
-const vadThresholdEl    = document.getElementById('vadThreshold');
-const vadThresholdVal   = document.getElementById('vadThresholdVal');
-const vadSilenceMsEl    = document.getElementById('vadSilenceMs');
-const vadSilenceMsVal   = document.getElementById('vadSilenceMsVal');
-
-chrome.storage.local.get(['vad_threshold', 'vad_silence_ms'], ({ vad_threshold, vad_silence_ms }) => {
-  vadThresholdEl.value      = vad_threshold  ?? 10;
-  vadThresholdVal.textContent = vadThresholdEl.value;
-  vadSilenceMsEl.value      = vad_silence_ms ?? 500;
-  vadSilenceMsVal.textContent = vadSilenceMsEl.value;
-});
-
-vadThresholdEl.addEventListener('input', () => {
-  vadThresholdVal.textContent = vadThresholdEl.value;
-  chrome.storage.local.set({ vad_threshold: Number(vadThresholdEl.value) });
-});
-
-vadSilenceMsEl.addEventListener('input', () => {
-  vadSilenceMsVal.textContent = vadSilenceMsEl.value;
-  chrome.storage.local.set({ vad_silence_ms: Number(vadSilenceMsEl.value) });
 });
 
 // ===== 言語フィルター =====
@@ -431,22 +165,6 @@ minLengthEl.addEventListener('input', () => {
   chrome.storage.local.set({ min_length: Number(minLengthEl.value) });
 });
 
-// ===== チャンク最大長 =====
-const whisperMaxChunkMsEl  = document.getElementById('whisperMaxChunkMs');
-const whisperMaxChunkMsVal = document.getElementById('whisperMaxChunkMsVal');
-
-chrome.storage.local.get('whisper_max_chunk_ms', ({ whisper_max_chunk_ms }) => {
-  const ms = whisper_max_chunk_ms ?? 5000;
-  whisperMaxChunkMsEl.value       = ms;
-  whisperMaxChunkMsVal.textContent = (ms / 1000).toFixed(1).replace('.0', '');
-});
-
-whisperMaxChunkMsEl.addEventListener('input', () => {
-  const ms = Number(whisperMaxChunkMsEl.value);
-  whisperMaxChunkMsVal.textContent = (ms / 1000).toFixed(1).replace('.0', '');
-  chrome.storage.local.set({ whisper_max_chunk_ms: ms });
-});
-
 // ===== デフォルト翻訳先言語 =====
 const defaultTgtLangEl = document.getElementById('defaultTgtLang');
 
@@ -456,117 +174,6 @@ chrome.storage.local.get('tgt_lang', ({ tgt_lang }) => {
 
 defaultTgtLangEl.addEventListener('change', () => {
   chrome.storage.local.set({ tgt_lang: defaultTgtLangEl.value });
-});
-
-// ===== クリップ最大録画時間 =====
-const clipMaxMinutesEl  = document.getElementById('clipMaxMinutes');
-const clipMaxMinutesVal = document.getElementById('clipMaxMinutesVal');
-
-chrome.storage.local.get('clip_max_minutes', ({ clip_max_minutes }) => {
-  const m = clip_max_minutes ?? 3;
-  clipMaxMinutesEl.value       = m;
-  clipMaxMinutesVal.textContent = m;
-});
-
-clipMaxMinutesEl.addEventListener('input', () => {
-  const m = Number(clipMaxMinutesEl.value);
-  clipMaxMinutesVal.textContent = m;
-  chrome.storage.local.set({ clip_max_minutes: m });
-});
-
-// ===== ffmpeg パス =====
-const ffmpegPathEl = document.getElementById('ffmpegPath');
-
-chrome.storage.local.get('ffmpeg_path', ({ ffmpeg_path }) => {
-  ffmpegPathEl.value = ffmpeg_path ?? '';
-});
-
-ffmpegPathEl.addEventListener('change', () => {
-  chrome.storage.local.set({ ffmpeg_path: ffmpegPathEl.value.trim() });
-});
-
-// ===== 焼き込み字幕スタイル =====
-const clipSubBgEl        = document.getElementById('clipSubBg');
-const clipSubFontEl      = document.getElementById('clipSubFont');
-const clipSubFontsizeEl  = document.getElementById('clipSubFontsize');
-const clipSubFontsizeVal = document.getElementById('clipSubFontsizeVal');
-const clipSubYEl         = document.getElementById('clipSubY');
-const clipSubYVal        = document.getElementById('clipSubYVal');
-const clipSubXEl         = document.getElementById('clipSubX');
-const clipSubXVal        = document.getElementById('clipSubXVal');
-const clipSubPreviewEl   = document.getElementById('clipSubPreview');
-
-const BG_PREVIEW = { none: 'transparent', light: 'rgba(0,0,0,0.25)', medium: 'rgba(0,0,0,0.5)', dark: 'rgba(0,0,0,0.75)', solid: 'rgba(0,0,0,1)' };
-
-function updateClipSubPreview() {
-  const previewH = clipSubPreviewEl.parentElement.offsetHeight || 200;
-  clipSubPreviewEl.style.left       = clipSubXEl.value + '%';
-  clipSubPreviewEl.style.top        = clipSubYEl.value + '%';
-  clipSubPreviewEl.style.fontSize   = Math.round(Number(clipSubFontsizeEl.value) * previewH / 1080) + 'px';
-  clipSubPreviewEl.style.fontFamily = `"${clipSubFontEl.value}", sans-serif`;
-  clipSubPreviewEl.style.background = BG_PREVIEW[clipSubBgEl.value] ?? 'rgba(0,0,0,0.5)';
-  clipSubPreviewEl.style.textShadow = clipSubBgEl.value === 'none' ? '1px 1px 2px #000, -1px -1px 2px #000' : 'none';
-  clipSubPreviewEl.style.padding    = clipSubBgEl.value === 'none' ? '0' : '4px 12px';
-}
-
-chrome.storage.local.get(['clip_sub_bg', 'clip_sub_font', 'clip_sub_fontsize', 'clip_sub_x', 'clip_sub_y'], ({ clip_sub_bg, clip_sub_font, clip_sub_fontsize, clip_sub_x, clip_sub_y }) => {
-  clipSubBgEl.value             = clip_sub_bg   ?? 'medium';
-  clipSubFontEl.value           = clip_sub_font ?? 'Arial';
-  clipSubFontsizeEl.value       = clip_sub_fontsize ?? 24;
-  clipSubFontsizeVal.textContent = clipSubFontsizeEl.value + 'px';
-  clipSubXEl.value              = clip_sub_x ?? 50;
-  clipSubXVal.textContent       = clipSubXEl.value;
-  clipSubYEl.value              = clip_sub_y ?? 90;
-  clipSubYVal.textContent       = clipSubYEl.value;
-  updateClipSubPreview();
-});
-
-clipSubBgEl.addEventListener('change', () => {
-  chrome.storage.local.set({ clip_sub_bg: clipSubBgEl.value });
-  updateClipSubPreview();
-});
-
-clipSubFontEl.addEventListener('change', () => {
-  chrome.storage.local.set({ clip_sub_font: clipSubFontEl.value });
-  updateClipSubPreview();
-});
-
-clipSubFontsizeEl.addEventListener('input', () => {
-  clipSubFontsizeVal.textContent = clipSubFontsizeEl.value + 'px';
-  chrome.storage.local.set({ clip_sub_fontsize: Number(clipSubFontsizeEl.value) });
-  updateClipSubPreview();
-});
-clipSubXEl.addEventListener('input', () => {
-  clipSubXVal.textContent = clipSubXEl.value;
-  chrome.storage.local.set({ clip_sub_x: Number(clipSubXEl.value) });
-  updateClipSubPreview();
-});
-clipSubYEl.addEventListener('input', () => {
-  clipSubYVal.textContent = clipSubYEl.value;
-  chrome.storage.local.set({ clip_sub_y: Number(clipSubYEl.value) });
-  updateClipSubPreview();
-});
-
-// ===== 字幕生成 =====
-const clipSubtitleEnabledEl = document.getElementById('clipSubtitleEnabled');
-
-chrome.storage.local.get('clip_subtitle_enabled', ({ clip_subtitle_enabled }) => {
-  clipSubtitleEnabledEl.checked = clip_subtitle_enabled ?? false;
-});
-
-clipSubtitleEnabledEl.addEventListener('change', () => {
-  chrome.storage.local.set({ clip_subtitle_enabled: clipSubtitleEnabledEl.checked });
-});
-
-// ===== ffmpeg シェル種別 =====
-const ffmpegShellEl = document.getElementById('ffmpegShell');
-
-chrome.storage.local.get('ffmpeg_shell', ({ ffmpeg_shell }) => {
-  ffmpegShellEl.value = ffmpeg_shell ?? 'powershell';
-});
-
-ffmpegShellEl.addEventListener('change', () => {
-  chrome.storage.local.set({ ffmpeg_shell: ffmpegShellEl.value });
 });
 
 // ===== パネル透過率 =====
@@ -610,25 +217,5 @@ saveIgnoreUsersBtn.addEventListener('click', () => {
   chrome.storage.local.set({ ignore_users: ignoreUsersEl.value.trim() }, () => {
     saveIgnoreUsersMsgEl.style.display = 'inline';
     setTimeout(() => { saveIgnoreUsersMsgEl.style.display = 'none'; }, 2000);
-  });
-});
-
-// ===== カスタムハルシネーション除外パターン =====
-const customHallucinationPatternsEl = document.getElementById('customHallucinationPatterns');
-const saveCustomPatternsBtn         = document.getElementById('saveCustomPatterns');
-const saveCustomPatternsMsgEl       = document.getElementById('saveCustomPatternsMsg');
-
-chrome.storage.local.get('custom_hallucination_patterns', ({ custom_hallucination_patterns }) => {
-  customHallucinationPatternsEl.value = (custom_hallucination_patterns ?? []).join('\n');
-});
-
-saveCustomPatternsBtn.addEventListener('click', () => {
-  const patterns = customHallucinationPatternsEl.value
-    .split('\n')
-    .map(s => s.trim())
-    .filter(Boolean);
-  chrome.storage.local.set({ custom_hallucination_patterns: patterns }, () => {
-    saveCustomPatternsMsgEl.style.display = 'inline';
-    setTimeout(() => { saveCustomPatternsMsgEl.style.display = 'none'; }, 2000);
   });
 });

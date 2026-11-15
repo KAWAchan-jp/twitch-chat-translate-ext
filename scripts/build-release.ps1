@@ -18,15 +18,12 @@ $files = @(
   "background.js",
   "content-chat.js",
   "content-panel.js",
-  "content-whisper.js",
   "content.js",
   "auth-callback.js",
   "help.html",
   "options.css",
   "options.html",
   "options.js",
-  "offscreen.html",
-  "offscreen.js",
   "LICENSE",
   "README.md",
   "README.en.md",
@@ -35,10 +32,8 @@ $files = @(
   "icons/icon16.png",
   "icons/icon48.png",
   "icons/icon128.png",
-  "docs/images/clip-subtitle-options.png",
   "docs/images/panel-footer.png",
-  "docs/images/panel-header.png",
-  "docs/images/panel-usage.png"
+  "docs/images/panel-header.png"
 )
 
 if (Test-Path -LiteralPath $zipPath) {

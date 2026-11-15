@@ -82,48 +82,11 @@ const PANEL_CSS = `
     font-family: 'Courier New', monospace; letter-spacing: 0.3px;
   }
 
-  .voice-btn, .tts-btn {
-    background: none; border: none; cursor: pointer;
-    font-size: 14px; line-height: 1; padding: 0 2px; flex-shrink: 0;
-    opacity: 0.4; transition: opacity 0.2s;
-  }
-  .voice-btn:hover, .tts-btn:hover { opacity: 0.8; }
-  .voice-btn.active { opacity: 1; filter: drop-shadow(0 0 5px #ff4444); }
-  .tts-btn.active   { opacity: 1; filter: drop-shadow(0 0 5px #00c4a0); }
-
-  .clip-btn {
-    background: none; border: none; cursor: pointer;
-    font-size: 14px; line-height: 1; padding: 0 2px; flex-shrink: 0;
-    opacity: 0.4; transition: opacity 0.2s;
-  }
-  .clip-btn:hover { opacity: 0.8; }
-  .clip-btn.recording { opacity: 1; filter: drop-shadow(0 0 5px #ff3333); animation: pulse 1s infinite; }
-
   .close-btn {
     background: none; border: none; color: #adadb8; cursor: pointer;
     font-size: 18px; line-height: 1; padding: 0 2px; flex-shrink: 0;
   }
   .close-btn:hover { color: #efeff1; }
-
-  .hint-btn {
-    background: none; border: none; cursor: pointer;
-    font-size: 13px; line-height: 1; padding: 0 2px; flex-shrink: 0;
-    opacity: 0.5;
-  }
-  .hint-btn:hover  { opacity: 0.85; }
-  .hint-btn.active { opacity: 1; filter: drop-shadow(0 0 4px #f0b429); }
-
-  .hint-bar {
-    padding: 4px 8px; background: #131316; border-bottom: 1px solid #2a2a2e;
-    flex-shrink: 0;
-  }
-  .hint-input {
-    width: 100%; box-sizing: border-box;
-    background: #1e1e21; border: 1px solid #3a3a3e; border-radius: 4px;
-    color: #efeff1; font-size: 11px; padding: 4px 6px; outline: none;
-  }
-  .hint-input:focus { border-color: #9147ff; }
-  .hint-input.auto  { color: #8a8a92; font-style: italic; }
 
   /* 認証バー */
   .auth-bar {
@@ -234,8 +197,6 @@ const PANEL_CSS = `
   .footer-engine:hover { color: #efeff1; border-bottom-color: #5a5a6e; }
   .footer-engine.gemini { color: #4285f4; }
   .footer-engine.deepl  { color: #00c4a0; }
-  .footer-engine.faster { color: #c084fc; }
-  .footer-engine.groq   { color: #f0971d; }
 
   /* リサイズハンドル */
   .resize-handle {
@@ -259,135 +220,6 @@ const PANEL_CSS = `
     transition: color 0.15s;
   }
   .collapse-btn:hover { color: #efeff1; }
-
-  /* 利用状況ボタン */
-  .usage-btn {
-    background: none; border: none; cursor: pointer;
-    font-size: 14px; line-height: 1; padding: 0 2px; flex-shrink: 0;
-    opacity: 0.4; transition: opacity 0.2s;
-  }
-  .usage-btn:hover  { opacity: 0.8; }
-  .usage-btn.active { opacity: 1; filter: drop-shadow(0 0 4px #f0b429); }
-
-  /* 利用状況パネル */
-  .usage-panel {
-    position: fixed;
-    bottom: 20px;
-    right: 300px;
-    width: 260px;
-    background: #0e0e10;
-    border: 1px solid #2d2d2f;
-    border-radius: 8px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.65);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    z-index: 2147483646;
-    display: none;
-    opacity: var(--panel-opacity, 1);
-    transition: opacity 0.2s;
-  }
-  .usage-panel:hover  { opacity: 1 !important; }
-  .usage-panel.visible { display: block; }
-
-  .usage-panel-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 7px 10px;
-    background: #18181b;
-    border-bottom: 1px solid #2d2d2f;
-    border-radius: 8px 8px 0 0;
-    cursor: grab; user-select: none;
-    font-size: 12px; font-weight: 700; color: #efeff1;
-  }
-  .usage-panel-header:active { cursor: grabbing; }
-
-  .usage-panel-close {
-    background: none; border: none; color: #adadb8; cursor: pointer;
-    font-size: 16px; line-height: 1; padding: 0 2px;
-  }
-  .usage-panel-close:hover { color: #efeff1; }
-
-  .usage-body { padding: 10px 12px; }
-
-  .usage-section { margin-bottom: 10px; }
-  .usage-section:last-child { margin-bottom: 0; }
-
-  .usage-section-title {
-    font-size: 11px; font-weight: 700;
-    margin-bottom: 4px; padding-bottom: 3px;
-    border-bottom: 1px solid #2d2d2f;
-  }
-
-  .usage-row {
-    display: flex; justify-content: space-between;
-    font-size: 11px; color: #adadb8; margin: 2px 0;
-  }
-  .usage-val { color: #efeff1; font-family: 'Courier New', monospace; }
-
-  /* 録画インジケーター */
-  .rec-indicator {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: #140808;
-    border: 1px solid #7a1010;
-    border-radius: 6px;
-    padding: 10px 14px;
-    display: none;
-    font-family: 'Courier New', monospace;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.6);
-    z-index: 2147483646;
-    opacity: var(--panel-opacity, 1);
-    transition: opacity 0.2s;
-    cursor: grab;
-    user-select: none;
-    max-width: 440px;
-  }
-  .rec-indicator:active { cursor: grabbing; }
-  .rec-indicator:hover { opacity: 1 !important; }
-  .rec-indicator.visible { display: block; }
-
-  .rec-state { display: none; align-items: center; gap: 8px; }
-  .rec-state.active { display: flex; }
-  .rec-state-done.active { flex-direction: column; align-items: flex-start; gap: 6px; }
-
-  .rec-start-btn {
-    background: #7a1010; border: none; border-radius: 4px;
-    color: #ffaaaa; cursor: pointer; font-size: 13px; padding: 5px 14px;
-    font-family: inherit; font-weight: 700; white-space: nowrap;
-  }
-  .rec-start-btn:hover { background: #a01515; color: #fff; }
-
-  .rec-close-btn {
-    background: none; border: none; color: #7a4040; cursor: pointer;
-    font-size: 16px; line-height: 1; padding: 0 2px; margin-left: auto;
-    flex-shrink: 0;
-  }
-  .rec-close-btn:hover { color: #ffaaaa; }
-
-  .rec-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #ff3333; flex-shrink: 0;
-    animation: pulse 1s infinite;
-  }
-  .rec-time { font-size: 14px; color: #ffaaaa; font-weight: 700; letter-spacing: 0.5px; }
-  .rec-max  { font-size: 10px; color: #7a4040; }
-
-  .rec-stop-btn {
-    background: none; border: 1px solid #7a1010; border-radius: 3px;
-    color: #ff8888; cursor: pointer; font-size: 11px; padding: 2px 7px;
-    font-family: inherit;
-  }
-  .rec-stop-btn:hover { background: #7a1010; color: #fff; }
-
-  .rec-done-row { display: flex; align-items: center; gap: 8px; width: 100%; }
-  .rec-done-msg { font-size: 12px; color: #ffaaaa; white-space: nowrap; flex: 1; }
-
-  .rec-cmd-text {
-    font-size: 11px; color: #ff8888; background: #0a0303;
-    border: 1px solid #3a1010; border-radius: 3px;
-    padding: 5px 8px; white-space: pre-wrap; word-break: break-all;
-    width: 100%; line-height: 1.5;
-    cursor: text; user-select: text;
-  }
 `;
 
 // ===== パネル作成 =====
@@ -411,17 +243,8 @@ function createPanel() {
         <div class="header-row">
           <span class="lang-indicator" id="langIndicator"></span>
           <div class="header-spacer"></div>
-          <button class="hint-btn" id="hintBtn" title="認識ヒント（固有名詞を入れると音声認識の精度が上がります）">💡</button>
-          <button class="voice-btn" id="voiceBtn" title="音声字幕 ON/OFF">🎤</button>
-          <button class="tts-btn" id="ttsBtn" title="翻訳読み上げ ON/OFF">🔊</button>
-          <button class="usage-btn" id="usageBtn" title="利用状況">📊</button>
-          <button class="clip-btn" id="clipBtn" title="クリップ録画（クリックで開始）">🔴</button>
           <button class="collapse-btn" id="collapseBtn" title="折りたたむ">▲</button>
         </div>
-      </div>
-      <div class="hint-bar" id="hintBar" style="display:none">
-        <input type="text" class="hint-input" id="hintInput" autocomplete="off" spellcheck="false"
-               placeholder="認識ヒント: 固有名詞をスペース区切りで（即反映）">
       </div>
       <div class="auth-bar" id="authBar">
         <button class="login-btn" id="loginBtn">Twitchでログインしてチャット送信を有効化</button>
@@ -439,58 +262,8 @@ function createPanel() {
       </div>
       <div class="footer" id="footer">
         <span class="footer-item">チャット入力: <span class="footer-engine" id="footerChat">-</span></span>
-        <span class="footer-item">音声: <span class="footer-engine" id="footerVoice">-</span></span>
-        <span class="footer-item">STT: <span class="footer-engine" id="footerSTT">-</span></span>
       </div>
       <div class="resize-handle" id="resizeHandle"></div>
-    </div>
-    <div class="rec-indicator" id="recIndicator">
-      <!-- 待機 -->
-      <div class="rec-state" id="recStateIdle">
-        <button class="rec-start-btn" id="recStartBtn">● 録画開始</button>
-        <button class="rec-close-btn" id="recCloseBtn" title="閉じる">×</button>
-      </div>
-      <!-- 録画中 -->
-      <div class="rec-state" id="recStateRecording">
-        <div class="rec-dot"></div>
-        <span class="rec-time" id="recTime">0:00</span>
-        <span class="rec-max" id="recMax"></span>
-        <button class="rec-stop-btn" id="recStopBtn">■ 停止</button>
-      </div>
-      <!-- 完了 -->
-      <div class="rec-state rec-state-done" id="recStateDone">
-        <div class="rec-done-row">
-          <span class="rec-done-msg" id="recDoneMsg"></span>
-          <button class="rec-close-btn" id="recCloseDoneBtn" title="閉じる">×</button>
-        </div>
-        <code class="rec-cmd-text" id="recCmdText" style="display:none"></code>
-      </div>
-    </div>
-    <div class="usage-panel" id="usagePanel">
-      <div class="usage-panel-header" id="usagePanelHeader">
-        📊 利用状況
-        <button class="usage-panel-close" id="usagePanelClose" title="閉じる">×</button>
-      </div>
-      <div class="usage-body">
-        <div class="usage-section">
-          <div class="usage-section-title" style="color:#4285f4">🤖 Gemini</div>
-          <div class="usage-row"><span>リクエスト</span><span class="usage-val" id="up-g-cnt">-</span></div>
-          <div class="usage-row"><span>入力</span><span class="usage-val" id="up-g-in">-</span></div>
-          <div class="usage-row"><span>出力</span><span class="usage-val" id="up-g-out">-</span></div>
-        </div>
-        <div class="usage-section">
-          <div class="usage-section-title" style="color:#f0971d">⚡ Groq</div>
-          <div class="usage-row"><span>リクエスト</span><span class="usage-val" id="up-r-cnt">-</span></div>
-          <div class="usage-row"><span>推定音声時間</span><span class="usage-val" id="up-r-sec">-</span></div>
-          <div class="usage-row"><span>出力文字</span><span class="usage-val" id="up-r-out">-</span></div>
-        </div>
-        <div class="usage-section">
-          <div class="usage-section-title" style="color:#00c4a0">🔵 DeepL</div>
-          <div class="usage-row"><span>リクエスト</span><span class="usage-val" id="up-d-cnt">-</span></div>
-          <div class="usage-row"><span>入力</span><span class="usage-val" id="up-d-in">-</span></div>
-          <div class="usage-row"><span>出力</span><span class="usage-val" id="up-d-out">-</span></div>
-        </div>
-      </div>
     </div>
   `;
 
@@ -503,7 +276,6 @@ function createPanel() {
   langIndicatorEl   = shadowRoot.getElementById('langIndicator');
   messagesEl          = shadowRoot.getElementById('messages');
   scrollToBottomBtnEl = shadowRoot.getElementById('scrollToBottomBtn');
-  authBarEl           = shadowRoot.getElementById('authBar');
   loginBtnEl     = shadowRoot.getElementById('loginBtn');
   authInfoEl     = shadowRoot.getElementById('authInfo');
   authUsernameEl = shadowRoot.getElementById('authUsername');
@@ -514,49 +286,10 @@ function createPanel() {
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('collapseBtn').addEventListener('click', toggleCollapse);
-  shadowRoot.getElementById('voiceBtn').addEventListener('click', toggleVoice);
-  shadowRoot.getElementById('ttsBtn').addEventListener('click', toggleTts);
-  shadowRoot.getElementById('usageBtn').addEventListener('click', toggleUsagePanel);
-  shadowRoot.getElementById('usagePanelClose').addEventListener('click', toggleUsagePanel);
-  shadowRoot.getElementById('clipBtn').addEventListener('click', toggleClipRecording);
-  shadowRoot.getElementById('recStartBtn').addEventListener('click', startClipRecording);
-  shadowRoot.getElementById('recStopBtn').addEventListener('click', stopClipRecording);
-  shadowRoot.getElementById('recCloseBtn').addEventListener('click', closeRecIndicator);
-  shadowRoot.getElementById('recCloseDoneBtn').addEventListener('click', closeRecIndicator);
-  makeUsagePanelDraggable(shadowRoot.getElementById('usagePanelHeader'));
-  makeRecIndicatorDraggable();
 
-  // フッター：クリックで翻訳/STTエンジンを切替
+  // フッター：クリックで翻訳エンジンを切替
   shadowRoot.getElementById('footerChat').addEventListener('click', () => cycleFeatureEngine('own'));
-  shadowRoot.getElementById('footerVoice').addEventListener('click', () => cycleFeatureEngine('voice'));
-  shadowRoot.getElementById('footerSTT').addEventListener('click', cycleSttEngine);
 
-  // 認識ヒントバー：💡で開閉、入力は500msデバウンスでストレージ保存（次のチャンクから反映）
-  const hintBtn   = shadowRoot.getElementById('hintBtn');
-  const hintBar   = shadowRoot.getElementById('hintBar');
-  const hintInput = shadowRoot.getElementById('hintInput');
-  hintInputEl     = hintInput;
-  let hintSaveTimer = null;
-  hintBtn.addEventListener('click', () => {
-    const open = hintBar.style.display === 'none';
-    hintBar.style.display = open ? '' : 'none';
-    hintBtn.classList.toggle('active', open);
-    if (open) {
-      syncHintInput();
-      hintInput.focus();
-    }
-  });
-  hintInput.addEventListener('input', () => {
-    hintInput.classList.remove('auto');
-    clearTimeout(hintSaveTimer);
-    hintSaveTimer = setTimeout(() => {
-      safeStorageSet({ whisper_prompt: hintInput.value.trim() });
-    }, 500);
-  });
-  // 空のままフォーカスを外したら自動ヒント表示に戻す
-  hintInput.addEventListener('blur', () => {
-    if (!hintInput.value.trim()) syncHintInput();
-  });
   loginBtnEl.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'twitch_login' }));
   logoutBtnEl.addEventListener('click', handleLogout);
 
@@ -734,21 +467,6 @@ function _updateCollapseBtn() {
   if (btn) { btn.textContent = panelCollapsed ? '▼' : '▲'; btn.title = panelCollapsed ? '展開する' : '折りたたむ'; }
 }
 
-// 展開時はヘッダー直下、折りたたみ時は入力欄直上に置く。
-// 同じ要素を移動するため、入力値・フォーカス・イベントリスナーは維持される。
-function updateHintBarPlacement() {
-  const hintBar = shadowRoot?.getElementById('hintBar');
-  const header = shadowRoot?.getElementById('header');
-  const inputArea = shadowRoot?.getElementById('inputArea');
-  if (!hintBar || !header || !inputArea) return;
-
-  if (panelCollapsed) {
-    inputArea.parentElement.insertBefore(hintBar, inputArea);
-  } else {
-    header.parentElement.insertBefore(hintBar, header.nextSibling);
-  }
-}
-
 function toggleCollapse() {
   if (panelCollapsed) {
     // 折りたたみ中 → 展開: クラス変更前に位置を確定（auto height 変化で rect.top がずれるのを防ぐ）
@@ -772,7 +490,6 @@ function toggleCollapse() {
     container.style.height    = 'auto';
     container.style.minHeight = '0';
   }
-  updateHintBarPlacement();
   _updateCollapseBtn();
   safeStorageSet({ panel_collapsed: panelCollapsed });
 }
@@ -789,7 +506,6 @@ function applyCollapsedState(val) {
     container.style.height    = _savedPanelHeight;
     container.style.minHeight = '';
   }
-  updateHintBarPlacement();
   _updateCollapseBtn();
 }
 
@@ -803,129 +519,10 @@ function applyPanelOpacity() {
 // ===== 状態ドット =====
 function setStatus(state) { if (statusDotEl) statusDotEl.className = `status-dot ${state}`; }
 
-// ===== 音声ボタン =====
-function updateVoiceBtn() {
-  const btn = shadowRoot?.getElementById('voiceBtn');
-  if (!btn) return;
-  btn.classList.toggle('active', isVoiceActive);
-  btn.title = isVoiceActive ? '音声字幕 ON（クリックで停止）' : '音声字幕 OFF（クリックで開始）';
-}
-
-// ===== TTS（翻訳読み上げ）ボタン =====
-let isTtsActive = false;
-
-function toggleTts() {
-  isTtsActive = !isTtsActive;
-  if (!isTtsActive) speechSynthesis.cancel();
-  safeStorageSet({ tts_enabled: isTtsActive });
-  updateTtsBtn();
-}
-
-function updateTtsBtn() {
-  const btn = shadowRoot?.getElementById('ttsBtn');
-  if (!btn) return;
-  btn.classList.toggle('active', isTtsActive);
-  btn.title = isTtsActive ? '翻訳読み上げ ON（クリックで停止）' : '翻訳読み上げ OFF（クリックで開始）';
-}
-
-// ===== 利用状況パネル =====
-let isUsagePanelVisible = false;
-
-function toggleUsagePanel() {
-  isUsagePanelVisible = !isUsagePanelVisible;
-  const el  = shadowRoot?.getElementById('usagePanel');
-  const btn = shadowRoot?.getElementById('usageBtn');
-  if (el)  el.classList.toggle('visible', isUsagePanelVisible);
-  if (btn) btn.classList.toggle('active',  isUsagePanelVisible);
-  if (isUsagePanelVisible) loadAndRenderUsagePanel();
-}
-
-function loadAndRenderUsagePanel() {
-  if (!isUsagePanelVisible) return;
-  safeStorageGet([
-    'gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars',
-    'groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars',
-    'deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars',
-  ]).then(renderUsagePanel);
-}
-
-function renderUsagePanel(u) {
-  if (!shadowRoot) return;
-  const $ = id => shadowRoot.getElementById(id);
-  if (!$('up-g-cnt')) return;
-  const fmt = n => (n ?? 0).toLocaleString();
-  const secs = u.groq_usage_secs ?? 0;
-
-  $('up-g-cnt').textContent = fmt(u.gemini_usage_count) + ' 回';
-  $('up-g-in').textContent  = fmt(u.gemini_usage_input_chars) + ' 文字';
-  $('up-g-out').textContent = fmt(u.gemini_usage_output_chars) + ' 文字';
-
-  $('up-r-cnt').textContent = fmt(u.groq_usage_count) + ' 回';
-  $('up-r-sec').textContent = secs >= 60 ? `${Math.floor(secs / 60)}分${secs % 60}秒` : `${secs}秒`;
-  $('up-r-out').textContent = fmt(u.groq_usage_output_chars) + ' 文字';
-
-  $('up-d-cnt').textContent = fmt(u.deepl_usage_count) + ' 回';
-  $('up-d-in').textContent  = fmt(u.deepl_usage_input_chars) + ' 文字';
-  $('up-d-out').textContent = fmt(u.deepl_usage_output_chars) + ' 文字';
-}
-
-function makeRecIndicatorDraggable() {
-  const el = shadowRoot?.getElementById('recIndicator');
-  if (!el) return;
-  el.addEventListener('pointerdown', e => {
-    if (e.target.closest('.rec-start-btn, .rec-stop-btn, .rec-close-btn, .rec-cmd-text')) return;
-    e.preventDefault();
-    el.setPointerCapture(e.pointerId);
-    const rect = el.getBoundingClientRect();
-    const startX = e.clientX, startY = e.clientY;
-    const origRight  = window.innerWidth  - rect.right;
-    const origBottom = window.innerHeight - rect.bottom;
-    el.style.left = 'auto'; el.style.top = 'auto';
-    el.style.right  = origRight  + 'px';
-    el.style.bottom = origBottom + 'px';
-    const onMove = e => {
-      el.style.right  = Math.max(0, origRight  - (e.clientX - startX)) + 'px';
-      el.style.bottom = Math.max(0, origBottom - (e.clientY - startY)) + 'px';
-    };
-    const onUp = () => {
-      el.removeEventListener('pointermove', onMove);
-      el.removeEventListener('pointerup', onUp);
-      el.removeEventListener('pointercancel', onUp);
-    };
-    el.addEventListener('pointermove', onMove);
-    el.addEventListener('pointerup', onUp);
-    el.addEventListener('pointercancel', onUp);
-  });
-}
-
-function makeUsagePanelDraggable(header) {
-  const el = shadowRoot?.getElementById('usagePanel');
-  if (!el || !header) return;
-  header.addEventListener('mousedown', e => {
-    if (e.target.closest('.usage-panel-close')) return;
-    e.preventDefault();
-    const rect = el.getBoundingClientRect();
-    const startX = e.clientX, startY = e.clientY;
-    const startLeft = rect.left, startTop = rect.top;
-    el.style.right = 'auto'; el.style.bottom = 'auto';
-    el.style.left = startLeft + 'px'; el.style.top = startTop + 'px';
-    const onMove = e => {
-      const newLeft = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  startLeft + (e.clientX - startX)));
-      const newTop  = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, startTop  + (e.clientY - startY)));
-      el.style.left = newLeft + 'px';
-      el.style.top  = newTop  + 'px';
-    };
-    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  });
-}
-
 // ===== フッター：エンジン切替 =====
-// 「チャット入力」「音声」はそれぞれ Gemini / DeepL の有効フラグを切り替えて優先エンジンを変える
+// 「チャット入力」は Gemini / DeepL の有効フラグを切り替えて優先エンジンを変える
 const FOOTER_FEATURES = {
-  own:   { geminiFlag: 'gemini_own',   deeplFlag: 'deepl_own'   }, // チャット入力（送信メッセージ翻訳）
-  voice: { geminiFlag: 'gemini_voice', deeplFlag: 'deepl_voice' }, // 音声字幕翻訳
+  own: { geminiFlag: 'gemini_own', deeplFlag: 'deepl_own' }, // チャット入力（送信メッセージ翻訳）
 };
 
 function getFeatureEngine(feature) {
@@ -935,7 +532,7 @@ function getFeatureEngine(feature) {
   return 'Google';
 }
 
-function getFeatureAvailable(feature) {
+function getFeatureAvailable() {
   const list = ['Google'];
   if (settings.deepl_enabled)  list.push('DeepL');
   if (settings.gemini_enabled) list.push('Gemini');
@@ -945,7 +542,7 @@ function getFeatureAvailable(feature) {
 // オプションで有効化済みのエンジンの中だけをクリックで巡回（未設定エンジンには切替できない）
 function cycleFeatureEngine(feature) {
   const f = FOOTER_FEATURES[feature];
-  const available = getFeatureAvailable(feature);
+  const available = getFeatureAvailable();
   if (available.length <= 1) return;
   const current = getFeatureEngine(feature);
   const next = available[(available.indexOf(current) + 1) % available.length];
@@ -955,55 +552,18 @@ function cycleFeatureEngine(feature) {
   });
 }
 
-function cycleSttEngine() {
-  const available = ['Faster'];
-  if (settings.groq_api_key) available.push('Groq');
-  const current = getSttEngine();
-  const next = available[(available.indexOf(current) + 1) % available.length];
-  safeStorageSet({
-    faster_whisper_enabled: next === 'Faster',
-    groq_enabled: next === 'Groq',
-  });
-}
-
-function getSttEngine() {
-  if (settings.groq_enabled && settings.groq_api_key) return 'Groq';
-  return 'Faster';
-}
-
 // ===== フッター更新 =====
 function updateFooter() {
-  const chatEl  = shadowRoot?.getElementById('footerChat');
-  const voiceEl = shadowRoot?.getElementById('footerVoice');
-  if (!chatEl || !voiceEl) return;
+  const chatEl = shadowRoot?.getElementById('footerChat');
+  if (!chatEl) return;
 
-  const chatAvailable = getFeatureAvailable('own');
+  const chatAvailable = getFeatureAvailable();
   const chatEngine = getFeatureEngine('own');
   chatEl.textContent = chatEngine;
   chatEl.className = 'footer-engine' + (chatEngine === 'Gemini' ? ' gemini' : chatEngine === 'DeepL' ? ' deepl' : '');
   chatEl.title = chatAvailable.length > 1
     ? `クリックで切替（${chatAvailable.join(' → ')}）`
     : 'オプションでDeepL/Geminiを有効にすると切替できます';
-
-  const voiceAvailable = getFeatureAvailable('voice');
-  const voiceEngine = getFeatureEngine('voice');
-  voiceEl.textContent = voiceEngine;
-  voiceEl.className = 'footer-engine' + (voiceEngine === 'Gemini' ? ' gemini' : voiceEngine === 'DeepL' ? ' deepl' : '');
-  voiceEl.title = voiceAvailable.length > 1
-    ? `クリックで切替（${voiceAvailable.join(' → ')}）`
-    : 'オプションでDeepL/Geminiを有効にすると切替できます';
-
-  // STT エンジン
-  const sttEl = shadowRoot?.getElementById('footerSTT');
-  if (sttEl) {
-    const sttEngine = getSttEngine();
-    const sttAvailable = ['Faster'];
-    if (settings.groq_api_key) sttAvailable.push('Groq');
-    sttEl.textContent = sttEngine;
-    sttEl.className = 'footer-engine'
-      + (sttEngine === 'Groq' ? ' groq' : sttEngine === 'Faster' ? ' faster' : '');
-    sttEl.title = `クリックで切替（${sttAvailable.join(' → ')}）`;
-  }
 }
 
 // ===== ドラッグ移動 =====
@@ -1028,290 +588,6 @@ function makeDraggable(handle) {
     document.addEventListener('mouseup', onUp);
   });
 }
-
-// ===== クリップ録画 =====
-let _clipMediaRecorder = null;
-let _clipChunks = [];
-let _clipSubtitles = [];
-let _clipStopTimer = null;
-let _clipTickTimer = null;
-let _clipStartTime = null;
-
-function addClipSubtitle(text) {
-  if (!_clipMediaRecorder || _clipMediaRecorder.state !== 'recording' || !_clipStartTime) return;
-  if (!settings?.clip_subtitle_enabled) return;
-  _clipSubtitles.push({ startMs: Date.now() - _clipStartTime, text });
-}
-
-function msToAssTime(ms) {
-  const h  = Math.floor(ms / 3600000);
-  const m  = Math.floor((ms % 3600000) / 60000);
-  const s  = Math.floor((ms % 60000) / 1000);
-  const cs = Math.floor((ms % 1000) / 10);
-  return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
-}
-
-function generateAssContent(subtitles) {
-  const bg   = settings?.clip_sub_bg       ?? 'medium';
-  const font = settings?.clip_sub_font     ?? 'Arial';
-  const fs   = settings?.clip_sub_fontsize ?? 24;
-  const sx   = settings?.clip_sub_x        ?? 50;
-  const sy   = settings?.clip_sub_y        ?? 90;
-  const col    = sx < 33 ? 0 : sx < 67 ? 1 : 2; // 0=左 1=中央 2=右
-  const rowOff = sy < 33 ? 6 : sy < 67 ? 3 : 0;  // 6=上 3=中 0=下
-  const align  = rowOff + col + 1;                 // ASS Alignment 1-9
-  // マージン: 上下ゾーン端からの距離（px、PlayRes基準）
-  const marginV = sy < 33
-    ? Math.round(1080 * sy / 100)
-    : sy > 67
-    ? Math.round(1080 * (100 - sy) / 100)
-    : 0;
-
-  const header = [
-    '[Script Info]', 'ScriptType: v4.00+',
-    'PlayResX: 1920', 'PlayResY: 1080', 'WrapStyle: 0', '',
-    '[V4+ Styles]',
-    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    ...(() => {
-      // libass は BorderStyle=3 のボックス色に OutlineColour を使うため、
-      // 透明度付き黒を OutlineColour にセットする（BackColour は使わない）
-      const boxColMap = { none: null, light: '&HC0000000', medium: '&H80000000', dark: '&H40000000', solid: '&H00000000' };
-      const boxCol = boxColMap[bg];
-      if (bg === 'none') {
-        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,-1,0,0,0,100,100,-4,0,1,2,1,${align},80,80,${marginV},1`];
-      } else {
-        return [`Style: Default,${font},${fs},&H00FFFFFF,&H000000FF,${boxCol},&HFF000000,-1,0,0,0,100,100,-4,0,3,4,0,${align},80,80,${marginV},1`];
-      }
-    })(),
-    '', '[Events]',
-    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
-  ].join('\n');
-
-  // 利用可能幅: 1920-80-80=1760px / 全角1文字 ≒ fontsize px
-  const charsPerLine = Math.max(10, Math.floor(1760 / fs));
-
-  // BorderStyle=3は行ごとに独立したボックスを描画するため、
-  // 複数行を\Nでまとめると隣接ボックスが重なって透過が二重になる。
-  // 対策: 複数行は1行ずつ別Dialogueイベントに分割し\posで配置する。
-  const boxPad   = bg === 'none' ? 0 : 4;   // StyleのOutline値と合わせる
-  // 1行ステップ(PlayRes px) = フォント行高さ(fs*1.3) + ボックス上下パディング
-  const lineStep = Math.round(fs * 1.05) + boxPad * 2;
-  // \posで使うX座標（左/中央/右）
-  const posX     = col === 0 ? 80 : col === 2 ? 1840 : 960;
-
-  const events = subtitles.flatMap(entry => {
-    const i      = subtitles.indexOf(entry);
-    const next   = subtitles[i + 1];
-    const rawEnd = next ? Math.min(next.startMs - 100, entry.startMs + 5000) : entry.startMs + 4000;
-    const endMs  = Math.max(rawEnd, entry.startMs + 500);
-    const lines  = splitAssLines(entry.text, charsPerLine);
-
-    if (lines.length === 1) {
-      // 1行: StyleのAlignmentとMarginVで配置（従来通り）
-      return [`Dialogue: 0,${msToAssTime(entry.startMs)},${msToAssTime(endMs)},Default,,0,0,0,,${lines[0]}`];
-    }
-
-    // 複数行: 1行ずつ別Dialogueに分割して\posで配置
-    return lines.map((lineText, li) => {
-      let posY;
-      if (rowOff === 0) {
-        // 下揃え: \an=1/2/3 → posYはテキスト内側の下端
-        posY = Math.round(1080 - marginV - (lines.length - 1 - li) * lineStep);
-      } else if (rowOff === 6) {
-        // 上揃え: \an=7/8/9 → posYはテキスト内側の上端
-        posY = Math.round(marginV + li * lineStep);
-      } else {
-        // 中央: \an=4/5/6 → posYはテキスト中心
-        posY = Math.round(540 + (li - (lines.length - 1) / 2) * lineStep);
-      }
-      return `Dialogue: 0,${msToAssTime(entry.startMs)},${msToAssTime(endMs)},Default,,0,0,0,,{\\an${align}\\pos(${posX},${posY})}${lineText}`;
-    });
-  }).join('\n');
-
-  return header + '\n' + events + '\n';
-}
-
-function splitAssLines(text, charsPerLine) {
-  if (text.length <= charsPerLine) return [text];
-  const lines = [];
-  let remaining = text;
-  while (remaining.length > charsPerLine) {
-    const spaceIdx = remaining.lastIndexOf(' ', charsPerLine);
-    const breakAt  = spaceIdx > charsPerLine * 0.4 ? spaceIdx : charsPerLine;
-    lines.push(remaining.slice(0, breakAt).trimEnd());
-    remaining = remaining.slice(breakAt).trimStart();
-  }
-  if (remaining) lines.push(remaining);
-  return lines;
-}
-
-function toggleClipRecording() {
-  const indicator   = shadowRoot?.getElementById('recIndicator');
-  if (!indicator) return;
-  const isVisible   = indicator.classList.contains('visible');
-  const isRecording = _clipMediaRecorder && _clipMediaRecorder.state === 'recording';
-  if (isVisible && !isRecording) {
-    closeRecIndicator();
-  } else if (!isVisible) {
-    showRecIndicatorState('idle');
-  }
-  // 録画中はパネルを閉じない
-}
-
-function showRecIndicatorState(state) {
-  const indicator = shadowRoot?.getElementById('recIndicator');
-  if (!indicator) return;
-  // idle 初表示時: チャットパネル上端の直上に動的配置
-  if (state === 'idle' && !indicator.classList.contains('visible')) {
-    const rect = container.getBoundingClientRect();
-    indicator.style.top    = 'auto';
-    indicator.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
-    indicator.style.right  = '10px';
-    indicator.style.left   = 'auto';
-  }
-  indicator.classList.add('visible');
-  [['idle','recStateIdle'],['recording','recStateRecording'],['done','recStateDone']].forEach(([s,id]) => {
-    const el = shadowRoot?.getElementById(id);
-    if (el) el.classList.toggle('active', s === state);
-  });
-  updateClipBtn();
-}
-
-function closeRecIndicator() {
-  const indicator = shadowRoot?.getElementById('recIndicator');
-  if (indicator) indicator.classList.remove('visible');
-  updateClipBtn();
-}
-
-function startClipRecording() {
-  const video = document.querySelector('video');
-  if (!video) { console.warn('[TCT] 録画: 動画要素が見つかりません'); return; }
-
-  let stream;
-  try {
-    stream = video.captureStream();
-  } catch (e) {
-    console.error('[TCT] captureStream エラー:', e);
-    return;
-  }
-  if (!stream.getTracks().length) {
-    console.warn('[TCT] 録画: ストリームにトラックがありません');
-    return;
-  }
-
-  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-    ? 'video/webm;codecs=vp9,opus'
-    : 'video/webm';
-
-  _clipChunks = [];
-  _clipSubtitles = [];
-  _clipMediaRecorder = new MediaRecorder(stream, { mimeType });
-
-  _clipMediaRecorder.ondataavailable = e => {
-    if (e.data.size > 0) _clipChunks.push(e.data);
-  };
-
-  _clipMediaRecorder.onstop = () => {
-    const blob = new Blob(_clipChunks, { type: 'video/webm' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const now = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    const ts = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const ch = typeof currentChannel !== 'undefined' ? currentChannel : 'twitch';
-    const filename = `clip_${ch}_${ts}.webm`;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    _clipChunks = [];
-    _clipMediaRecorder = null;
-
-    // 字幕ファイルのダウンロード（.ass 形式）
-    const assFilename     = filename.replace('.webm', '.ass');
-    const subtitleEnabled = settings?.clip_subtitle_enabled && _clipSubtitles.length > 0;
-    if (subtitleEnabled) {
-      const assBlob = new Blob([generateAssContent(_clipSubtitles)], { type: 'text/plain;charset=utf-8' });
-      const assUrl  = URL.createObjectURL(assBlob);
-      const assA    = document.createElement('a');
-      assA.href     = assUrl;
-      assA.download = assFilename;
-      assA.click();
-      URL.revokeObjectURL(assUrl);
-    }
-    _clipSubtitles = [];
-
-    const doneMsg    = shadowRoot?.getElementById('recDoneMsg');
-    const cmdEl      = shadowRoot?.getElementById('recCmdText');
-    const ffmpegPath = settings?.ffmpeg_path?.trim();
-
-    if (ffmpegPath) {
-      const outFile = filename.replace('.webm', '.mp4');
-      const shell   = settings?.ffmpeg_shell ?? 'powershell';
-      const vf      = subtitleEnabled ? ` -vf "ass=${assFilename}"` : '';
-      const cmd     = shell === 'powershell'
-        ? `& "${ffmpegPath}" -i "${filename}"${vf} "${outFile}"`
-        : `"${ffmpegPath}" -i "${filename}"${vf} "${outFile}"`;
-      navigator.clipboard.writeText(cmd).catch(() => {});
-      if (doneMsg) doneMsg.textContent = '📋 ffmpeg コマンドをコピーしました';
-      if (cmdEl)   { cmdEl.textContent = cmd; cmdEl.style.display = ''; }
-    } else {
-      if (doneMsg) doneMsg.textContent = subtitleEnabled
-        ? `✓ ${filename} と ${assFilename} をダウンロードしました`
-        : `✓ ${filename} をダウンロードしました`;
-      if (cmdEl)   cmdEl.style.display = 'none';
-    }
-    showRecIndicatorState('done');
-  };
-
-  _clipMediaRecorder.onerror = () => {
-    clearTimeout(_clipStopTimer);
-    clearInterval(_clipTickTimer);
-    _clipStopTimer = null;
-    _clipTickTimer = null;
-    _clipMediaRecorder = null;
-    _clipChunks = [];
-    showRecIndicatorState('idle');
-  };
-
-  _clipMediaRecorder.start(1000);
-  _clipStartTime = Date.now();
-
-  const maxMs = (settings?.clip_max_minutes ?? 3) * 60 * 1000;
-  _clipStopTimer = setTimeout(() => stopClipRecording(), maxMs);
-  _clipTickTimer = setInterval(() => updateClipBtn(), 1000);
-
-  showRecIndicatorState('recording');
-}
-
-function stopClipRecording() {
-  clearTimeout(_clipStopTimer);
-  clearInterval(_clipTickTimer);
-  _clipStopTimer = null;
-  _clipTickTimer = null;
-  if (_clipMediaRecorder && _clipMediaRecorder.state !== 'inactive') {
-    _clipMediaRecorder.stop();
-  }
-}
-
-function updateClipBtn() {
-  const btn = shadowRoot?.getElementById('clipBtn');
-  if (!btn) return;
-  const recording = _clipMediaRecorder && _clipMediaRecorder.state === 'recording';
-  btn.classList.toggle('recording', recording);
-  btn.title = recording ? 'クリップ録画中' : 'クリップ録画パネルを開く';
-
-  if (recording && _clipStartTime) {
-    const elapsed = Math.floor((Date.now() - _clipStartTime) / 1000);
-    const m = Math.floor(elapsed / 60);
-    const s = elapsed % 60;
-    const recTimeEl = shadowRoot?.getElementById('recTime');
-    const recMaxEl  = shadowRoot?.getElementById('recMax');
-    if (recTimeEl) recTimeEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
-    if (recMaxEl)  recMaxEl.textContent  = `/ ${settings?.clip_max_minutes ?? 3}:00`;
-  }
-}
-
 // ===== リサイズ =====
 function makeResizable(handle) {
   handle.addEventListener('mousedown', e => {

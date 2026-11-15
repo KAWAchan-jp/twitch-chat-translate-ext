@@ -14,7 +14,6 @@ const KNOWN_BOTS = new Set([
 const TRANSLATE_CONCURRENCY = 3;
 let _translateActive  = 0;
 const _translateWaiting = [];
-let messageCount = 0;
 
 // ===== 弾幕モード =====
 const DANMAKU_WINDOW_MS   = 3000;
@@ -112,7 +111,6 @@ function getReconnectDelayWithJitter(baseDelay) {
 function resetMessages() {
   if (!messagesEl) return;
   messagesEl.innerHTML = '';
-  messageCount = 0;
   scrollPaused = false;
   scrollToBottomBtnEl?.classList.remove('visible');
   chatters.clear();
@@ -262,7 +260,6 @@ function addChatMessage(username, text, color, isBot = false) {
   `;
   messagesEl.appendChild(el);
   trimMessages();
-  messageCount++;
   if (settings.auto_scroll) scrollToBottom();
 
   const transEl = el.querySelector('.msg-trans');
@@ -306,7 +303,6 @@ function addOwnMessage(sentText, typedText) {
   `;
   messagesEl.appendChild(el);
   trimMessages();
-  messageCount++;
   if (settings.auto_scroll) scrollToBottom();
 }
 

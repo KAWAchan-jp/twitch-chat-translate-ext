@@ -1,5 +1,30 @@
 # 更新履歴
 
+## v0.8.1（2026-11-15）
+
+### 変更
+- **チャット翻訳中心の構成に整理** — クリップ録画（🔴 ボタン・録画インジケーター・ffmpeg コマンド生成）と、API 利用状況パネル（📊 ボタン・Gemini/DeepL の利用量記録）を削除
+- オプションページから「録画」タブと利用状況の表示・リセットを削除（タブは「翻訳」「表示」のみ）
+- `clip_max_minutes` / `ffmpeg_path` / `ffmpeg_shell` の設定と、`gemini_usage_*` / `deepl_usage_*` の記録を削除
+- 未使用コードを削除: `messageCount`（write-only）、`authBarEl`（未使用）、`twitch_api` メッセージハンドラ（送信元なし）、未使用 CSS（モデルテーブル・ダウンロードバッジ・`.btn-sm`）、`geminiFeaturesField` の id
+- `docs/images/panel-usage.png` を削除し、リリース ZIP からも除外
+- README 3言語・`help.html`・`AGENTS.md` / `CLAUDE.md` を更新
+
+## v0.8.0（2026-11-15）
+
+### 変更
+- **音声認識（STT）を廃止** — 音声認識は別アプリで行う運用に変更したため、拡張から音声字幕・STT エンジン切替（Faster-Whisper / Groq）・VAD・ハルシネーション除去・認識ヒントを削除
+- **翻訳読み上げ（TTS）を廃止** — 音声字幕の翻訳結果を読み上げる実装だったため、🔊 ボタン・`speechSynthesis` 実装・速度設定を削除
+- **クリップ字幕生成を廃止** — 録画時の `.ass` 字幕出力と字幕スタイル設定を削除。クリップ録画（WebM 保存・ffmpeg コマンド生成）は維持
+- パネルヘッダーから 💡 / 🎤 / 🔊 を、フッターから「音声:」「STT:」を削除。フッターは「チャット入力:」のみに
+- 利用状況パネルから Groq（STT）の行を削除し、Gemini / DeepL のみに
+- DeepL / Gemini の「音声字幕」機能トグルを削除（チャット翻訳・送信メッセージのみ）
+- オプションページの「音声認識」「読み上げ」タブと、録画ページの字幕設定を削除
+- `content-whisper.js`・未使用の `offscreen.js` / `offscreen.html` を削除
+- `uv/`（Faster-Whisper サーバー）、`scripts/build-faster-whisper-server-release.ps1`、`docs/feature-faster-whisper-local.md` を削除
+- `manifest.json` から `content-whisper.js` と STT 専用 host permissions（`api.groq.com` / `127.0.0.1` / `localhost`）を削除
+- README 3言語・`help.html`・`AGENTS.md` / `CLAUDE.md` を新構成に更新
+
 ## v0.7.1（2026-07-24）
 
 ### 変更

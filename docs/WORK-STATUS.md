@@ -7,7 +7,7 @@
 - 更新ルール: 自分の担当ブランチの欄を、着手・進捗・完了のたびに書き換える
 - 既存の未コミット変更を勝手に戻さない。作業前に `git status --short --branch` を確認する
 - 仕様・実装の詳細は branch/doc 側へ寄せ、このファイルは共有ボードとして短く保つ
-- 最終更新: 2026-09-01 / by Codex
+- 最終更新: 2026-11-15 / by Command Code
 
 ---
 
@@ -79,6 +79,23 @@
 ---
 
 ## 申し送り（時系列・新しい順）
+
+- **2026-11-15 Command Code**: ユーザー指示「チャット翻訳に特化したい」を受け、**v0.8.1** でクリップ録画と API 利用状況パネルを削除。チャット翻訳・送信・フィルター・弾幕・エンジン切替は維持。
+  - `content-panel.js`: 🔴/📊 ボタン、録画インジケーター、利用状況パネルと関連 CSS/関数（`toggleClipRecording`・`startClipRecording`・`toggleUsagePanel` ほか）を削除。
+  - `options.*`: 「録画」タブ、最大録画時間・ffmpeg パス・シェル種別、Gemini/DeepL の利用状況表示とリセットを削除。タブは「翻訳」「表示」のみ。
+  - `content.js`: `clip_*` / `ffmpeg_*` 設定と利用状況キーの監視を削除。`background.js`: 利用量の記録処理と未使用の `twitch_api` ハンドラを削除。
+  - デッドコード掃除: `messageCount`（write-only、content-chat.js）、`authBarEl`（content.js/content-panel.js）、`geminiFeaturesField` id、options.css の未使用スタイル（モデルテーブル・DL バッジ・`.btn-sm`）。
+  - `docs/images/panel-usage.png` を削除し `build-release.ps1` から除外。README 3言語・`help.html`・`AGENTS.md`/`CLAUDE.md`・`CHANGELOG.md` を更新。
+  - 検証: `node --check` 全 JS・manifest JSON 検証は通過。`clip|ffmpeg|usage|録画|利用状況` の残存参照は 0 件。**Chrome 実機の手動確認は未実施**。
+  - 申し送り: `docs/images/panel-header.png` / `panel-footer.png` は旧 UI（🎤/📊/🔴 等）が写ったまま。撮り直しが必要。既知の改善候補: 配信言語の自動検出がチャンネル個別の `src_lang` を上書きする、タグ検出が日本語 UI 固定（`aria-label^="タグ、"`）、可視範囲翻訳の失敗時に再試行されない、翻訳キャッシュのキーに feature を含めていない。
+
+- **2026-11-15 Command Code**: ユーザー指示「音声認識は別アプリにしてるので削除したい」を受け、拡張から音声認識（STT）・翻訳読み上げ（TTS）・クリップ字幕生成を削除し **v0.8.0** とした（未コミットの 0.7.3 変更も含む）。TTS は音声字幕の翻訳結果を読み上げる実装しかなく発火元がなくなるため、クリップ字幕は内容が STT 出力由来で空になるため、ユーザー確認のうえ併せて削除。`uv/`・Faster-Whisper 配布 ZIP・専用ビルドスクリプト・関連 docs も削除。
+  - 削除ファイル: `extension/content-whisper.js`、`extension/offscreen.js`/`offscreen.html`（未使用・createDocument 呼び出しなし）、`uv/`、`scripts/build-faster-whisper-server-release.ps1`、`docs/feature-faster-whisper-local.md`、`docs/images/clip-subtitle-options.png`、ルートの `faster-whisper-server.zip`。
+  - 変更: `manifest.json`（content script から content-whisper を除去、Groq/127.0.0.1/localhost の host permissions を削除、CSP の `wasm-unsafe-eval` を削除、version 0.8.0）、`content.js`（STT/TTS 設定・ヒント・`updateTwitchAutoPrompt` を `updateTwitchStreamInfo` に改名し言語自動検出とゲーム名表示のみ残す）、`content-panel.js`（🎤/🔊/💡・フッター音声/STT・Groq 利用状況行・ASS 字幕生成を削除。クリップ録画と ffmpeg コマンド生成は維持）、`background.js`（Groq/Faster-Whisper の音声転送・文字起こしを削除、`feature` は `chat`/`own` のみ）、`options.*`（音声認識/読み上げタブ、字幕設定を削除）、`help.html`、README 3言語、`AGENTS.md`/`CLAUDE.md`、`docs/repository-layout.md`、`.gitignore`、`CHANGELOG.md`。
+  - 検証: `node --check`（extension 内の全 JS）と manifest JSON 検証は通過。`whisper|transcribe|groq|vad_|tts|speechSynthesis|clip_sub|subtitle|hintInput|isVoiceActive` の残存参照は 0 件。`scripts/build-release.ps1 -OutputDirectory <scratch>` で v0.8.0 ZIP を生成し、`content-whisper.js` / `offscreen.*` が含まれないことを確認済み。**Chrome 実機での手動確認は未実施**（確認観点: ①パネルに 🎤/🔊/💡 が無い、②チャット翻訳・送信・弾幕が従来どおり、③オプションが「翻訳/表示/録画」タブのみ、④録画が webm＋ffmpeg コマンドで動作、⑤Service Worker と Console にエラーなし）。
+  - 申し送り: `docs/images/panel-header.png` / `panel-footer.png` / `panel-usage.png` は削除した UI が写ったままなので撮り直しが必要。`chrome.storage.local` の旧キー（`groq_api_key` 等）は残るが動作に影響しない（必要なら一括削除を別途実施）。
+
+- **2026-11-06 Command Code**: Twitch ページを開いた直後はパネルを非表示で開始し、拡張アイコンをクリックしたときだけ ON にする変更（v0.7.3）。`content.js` の `isActive` 初期値を `false` にし、`init()` で `createPanel()` 直後に `container.style.display = 'none'` を適用（ちらつき防止）。チャット接続・翻訳・バッジ（OFF 表示）は従来どおり初期状態に追従する。SPA ナビゲーション中は ON/OFF 状態を維持し、ページ再読み込みで再び OFF に戻る。README 3言語・`help.html` の操作表に「初期状態は非表示」を追記。`node --check`（content.js / background.js）と manifest JSON 検証は通過。**Chrome 実機での手動確認は未実施**（確認観点: ①Twitch チャンネルを開いてパネルが出ないこと・バッジが OFF、②アイコンクリックでパネル表示＋接続＋バッジ ON、③もう一度クリックで非表示＋切断、④リロードで OFF に戻ること）。
 
 - **2026-09-01 Codex**: 接続エラーの診断詳細を追加。`content-chat.js` で WebSocket の `error` をConsoleへ記録し、`close` の code / reason（未提供時は代表的なコードの説明）をパネルへ表示するようにした。IRC `NOTICE` もパネルとConsoleへ出すため、認証・JOIN拒否などのTwitch側メッセージを確認できる。認証トークンはログ・画面へ出力しない。実機で `Login authentication failed` を確認したため、同通知を受けた場合は保存済み認証を解除して匿名閲覧へ自動切替するよう追加し、無効トークンでの再接続ループを防止した。チャット送信を再開するにはログインし直す。ユーザー指定により `extension/manifest.json` は3桁の `0.7.2` へ更新。拡張ZIPを生成し、GitHub Release `v0.7.2`（`develop` の `2c31fc5`）として公開済み。初回のリリース本文に改行エスケープが文字列として入ったため、実際のMarkdown改行へ修正済み。Chrome実機で自動切替後の接続成功は未確認。構文検証コマンドは実行環境のプロセス起動エラー（Windows error 1920）で実行できなかったため、Chromeリロード時にも確認すること。
 - **2026-07-24 Claude Code**: ユーザー指示「ローカルWhisperは効率が悪いのでやめようと思う」を受け、`feature/remove-browser-whisper`（`develop` から分岐）でブラウザ内Whisper（Transformers.js + Web Worker版）を廃止。Faster-Whisper（`uv/`）と Groq は維持。確認の上、削除範囲は「ブラウザ内Whisperのみ」、フォールバック挙動は「未設定/失敗時は字幕にエラー表示のみ（自動フォールバックなし）」とユーザーが選択。`whisper-worker.js`・`lib/`（ONNX Runtime WASM）・`whisper-injected.js`・`offscreen-whisper.*`（デッド）を削除し、`content-whisper.js`/`content.js`/`content-panel.js`/`options.*`/`manifest.json`/`background.js`/`build-release.ps1` を整合。README 3言語・`help.html`・`AGENTS.md`・`CLAUDE.md` も更新。version は当初 `0.7.0.5` としたが、ユーザー指示で3桁の `0.7.1` に修正。`develop` へマージし、GitHub Release `v0.7.1` を作成（拡張ZIP・`faster-whisper-server.zip` 添付）。`node --check` 全JS・manifest JSON検証は通過。**次の作業者へ**: Chrome実機での動作確認（①Faster-Whisper有効時に🎤で認識・フッター表示、②Groq/Faster両方無効時に「エンジン未設定」エラー字幕、③オプションページの音声認識タブが崩れずモデルDL UIなしで表示、④TTS・クリップ字幕がFaster/Groq出力で従来通り動作）が未実施。

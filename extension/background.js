@@ -39,12 +39,9 @@ const EXCLUDED_PATHS = new Set([
   'jobs', 'store', 'popout',
 ]);
 
-const groqAudioRequests = new Map();
-const fasterWhisperAudioRequests = new Map();
-const GROQ_AUDIO_REQUEST_TTL_MS = 60000;
 const TRANSLATE_SETTING_KEYS = [
-  'deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_voice', 'deepl_own',
-  'gemini_enabled', 'gemini_api_key', 'gemini_prompt', 'gemini_voice',
+  'deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_own',
+  'gemini_enabled', 'gemini_api_key', 'gemini_prompt',
   'gemini_own', 'gemini_model',
 ];
 let translateSettingsCache = null;
@@ -227,136 +224,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(err  => sendResponse({ ok: false, error: err.message }));
     return true;
   }
-
-  if (message.type === 'groq_transcribe') {
-    const { audioBase64, mimeType, language } = message;
-    groqTranscribe(audioBase64, mimeType, language)
-      .then(result => sendResponse({ ok: true, result }))
-      .catch(err  => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-
-  if (message.type === 'groq_audio_start') {
-    startGroqAudioRequest(message.requestId, message.mimeType, message.language);
-    sendResponse({ ok: true });
-    return;
-  }
-
-  if (message.type === 'groq_audio_chunk') {
-    try {
-      appendGroqAudioChunk(message.requestId, message.chunk);
-      sendResponse({ ok: true });
-    } catch (err) {
-      sendResponse({ ok: false, error: err.message });
-    }
-    return;
-  }
-
-  if (message.type === 'groq_audio_finish') {
-    finishGroqAudioRequest(message.requestId)
-      .then(result => sendResponse({ ok: true, result }))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-
-  if (message.type === 'groq_audio_abort') {
-    clearGroqAudioRequest(message.requestId);
-    sendResponse({ ok: true });
-    return;
-  }
-
-  if (message.type === 'faster_whisper_audio_start') {
-    startFasterWhisperAudioRequest(message.requestId, message.mimeType, message.language, message.initialPrompt);
-    sendResponse({ ok: true });
-    return;
-  }
-
-  if (message.type === 'faster_whisper_audio_chunk') {
-    try {
-      appendFasterWhisperAudioChunk(message.requestId, message.chunk);
-      sendResponse({ ok: true });
-    } catch (err) {
-      sendResponse({ ok: false, error: err.message });
-    }
-    return;
-  }
-
-  if (message.type === 'faster_whisper_audio_finish') {
-    finishFasterWhisperAudioRequest(message.requestId)
-      .then(result => sendResponse({ ok: true, result }))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-
-  if (message.type === 'faster_whisper_audio_abort') {
-    clearFasterWhisperAudioRequest(message.requestId);
-    sendResponse({ ok: true });
-    return;
-  }
-
-  if (message.type === 'twitch_api') {
-    const { url, token, clientId } = message;
-    fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': clientId } })
-      .then(r => r.json())
-      .then(data => sendResponse({ ok: true, data }))
-      .catch(err  => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
 });
-
-function startGroqAudioRequest(requestId, mimeType, language) {
-  clearGroqAudioRequest(requestId);
-  const timer = setTimeout(() => clearGroqAudioRequest(requestId), GROQ_AUDIO_REQUEST_TTL_MS);
-  groqAudioRequests.set(requestId, { chunks: [], mimeType, language, timer });
-}
-
-function appendGroqAudioChunk(requestId, chunk) {
-  const request = groqAudioRequests.get(requestId);
-  if (!request) throw new Error('Groq音声送信セッションが見つかりません');
-  request.chunks.push(chunk);
-}
-
-async function finishGroqAudioRequest(requestId) {
-  const request = groqAudioRequests.get(requestId);
-  if (!request) throw new Error('Groq音声送信セッションが見つかりません');
-  groqAudioRequests.delete(requestId);
-  clearTimeout(request.timer);
-  return groqTranscribe(request.chunks.join(''), request.mimeType, request.language);
-}
-
-function clearGroqAudioRequest(requestId) {
-  const request = groqAudioRequests.get(requestId);
-  if (!request) return;
-  clearTimeout(request.timer);
-  groqAudioRequests.delete(requestId);
-}
-
-function startFasterWhisperAudioRequest(requestId, mimeType, language, initialPrompt) {
-  clearFasterWhisperAudioRequest(requestId);
-  const timer = setTimeout(() => clearFasterWhisperAudioRequest(requestId), GROQ_AUDIO_REQUEST_TTL_MS);
-  fasterWhisperAudioRequests.set(requestId, { chunks: [], mimeType, language, initialPrompt, timer });
-}
-
-function appendFasterWhisperAudioChunk(requestId, chunk) {
-  const request = fasterWhisperAudioRequests.get(requestId);
-  if (!request) throw new Error('Faster-Whisper音声送信セッションが見つかりません');
-  request.chunks.push(chunk);
-}
-
-async function finishFasterWhisperAudioRequest(requestId) {
-  const request = fasterWhisperAudioRequests.get(requestId);
-  if (!request) throw new Error('Faster-Whisper音声送信セッションが見つかりません');
-  fasterWhisperAudioRequests.delete(requestId);
-  clearTimeout(request.timer);
-  return fasterWhisperTranscribe(request.chunks.join(''), request.mimeType, request.language, request.initialPrompt);
-}
-
-function clearFasterWhisperAudioRequest(requestId) {
-  const request = fasterWhisperAudioRequests.get(requestId);
-  if (!request) return;
-  clearTimeout(request.timer);
-  fasterWhisperAudioRequests.delete(requestId);
-}
 
 async function handleTwitchAuth(token) {
   try {
@@ -378,119 +246,6 @@ async function handleTwitchAuth(token) {
   }
 }
 
-async function groqTranscribe(audioBase64, mimeType, language) {
-  const stored = await chrome.storage.local.get(['groq_api_key', 'groq_model']);
-  const apiKey = stored.groq_api_key;
-  if (!apiKey) throw new Error('Groq APIキーが未設定です');
-
-  const model = stored.groq_model || 'whisper-large-v3-turbo';
-
-  const binary = atob(audioBase64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const audioType = normalizeAudioMimeType(mimeType);
-  const blob = new Blob([bytes], { type: audioType });
-
-  const formData = new FormData();
-  formData.append('file', blob, `audio.${audioExtensionForMimeType(audioType)}`);
-  formData.append('model', model);
-  // Whisper API は ISO 639-1 コードのみ対応（zh-CN/zh-TW → zh に正規化）
-  const whisperLang = ({ 'zh-CN': 'zh', 'zh-TW': 'zh' })[language] ?? language;
-  if (whisperLang) formData.append('language', whisperLang);
-  formData.append('response_format', 'json');
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-      body: formData,
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      let errMessage = res.statusText;
-      try {
-        const errData = errText ? JSON.parse(errText) : {};
-        errMessage = errData.error?.message ?? errMessage;
-      } catch {
-        if (errText) errMessage = errText.slice(0, 200);
-      }
-      throw new Error(`Groq HTTP ${res.status}: ${errMessage}`);
-    }
-    const data = await res.json();
-    const result = data.text?.trim() ?? '';
-    // 利用量を記録（音声時間はバイト数から概算: webm opus ≈ 26000 bytes/sec）
-    const estimatedSecs = Math.round(binary.length / 26000);
-    const u = await chrome.storage.local.get(['groq_usage_count', 'groq_usage_secs', 'groq_usage_output_chars']);
-    await chrome.storage.local.set({
-      groq_usage_count:        (u.groq_usage_count        ?? 0) + 1,
-      groq_usage_secs:         (u.groq_usage_secs         ?? 0) + estimatedSecs,
-      groq_usage_output_chars: (u.groq_usage_output_chars ?? 0) + result.length,
-    });
-    return result;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function fasterWhisperTranscribe(audioBase64, mimeType, language, initialPrompt) {
-  const stored = await chrome.storage.local.get(['faster_whisper_url', 'faster_whisper_model']);
-  const endpoint = (stored.faster_whisper_url || 'http://127.0.0.1:8765/transcribe').trim();
-  const model = stored.faster_whisper_model || 'large-v3-turbo';
-  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(endpoint)) {
-    throw new Error('Faster-Whisper URLは localhost / 127.0.0.1 のみ指定できます');
-  }
-
-  const binary = atob(audioBase64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const audioType = normalizeAudioMimeType(mimeType);
-  const blob = new Blob([bytes], { type: audioType });
-
-  const formData = new FormData();
-  formData.append('file', blob, `audio.${audioExtensionForMimeType(audioType)}`);
-  formData.append('model', model);
-  const whisperLang = ({ 'zh-CN': 'zh', 'zh-TW': 'zh' })[language] ?? language;
-  if (whisperLang) formData.append('language', whisperLang);
-  if (initialPrompt) formData.append('initial_prompt', initialPrompt);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
-  try {
-    const res = await fetch(endpoint, { method: 'POST', body: formData, signal: controller.signal });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error(`Faster-Whisper HTTP ${res.status}: ${errText.slice(0, 200) || res.statusText}`);
-    }
-    const data = await res.json();
-    return (data.text ?? data.result ?? '').trim();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function normalizeAudioMimeType(mimeType) {
-  const type = String(mimeType || '').split(';')[0].trim().toLowerCase();
-  if (type === 'audio/mp4' || type === 'audio/m4a' || type === 'audio/x-m4a') return 'audio/mp4';
-  if (type === 'audio/ogg') return 'audio/ogg';
-  if (type === 'audio/wav' || type === 'audio/x-wav') return 'audio/wav';
-  return 'audio/webm';
-}
-
-function audioExtensionForMimeType(mimeType) {
-  switch (mimeType) {
-    case 'audio/mp4': return 'm4a';
-    case 'audio/ogg': return 'ogg';
-    case 'audio/wav': return 'wav';
-    default: return 'webm';
-  }
-}
-
-const translateCache = new Map();
-const CACHE_MAX = 800;
-
 async function translateText(text, from, to, feature = 'chat') {
   const cacheKey = `${from}:${to}:${text}`;
   if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
@@ -498,16 +253,15 @@ async function translateText(text, from, to, feature = 'chat') {
   const stored = await getTranslateSettings();
   let result;
 
-  // Gemini 優先（音声字幕・入力メッセージ）
-  const geminiVoice = stored.gemini_voice !== false;
+  // Gemini 優先（入力メッセージ）
   const useGemini = stored.gemini_enabled && stored.gemini_api_key &&
-    ((feature === 'voice' && geminiVoice) || (feature === 'own' && stored.gemini_own));
+    feature === 'own' && stored.gemini_own;
   if (useGemini) {
     try { result = await translateWithGemini(text, from, to, stored.gemini_api_key, stored.gemini_prompt || '', stored.gemini_model); } catch (e) { console.warn('[TCT] Gemini翻訳失敗、フォールバック:', e); }
   }
 
   if (!result) {
-    const featureFlag = feature === 'voice' ? stored.deepl_voice : feature === 'own' ? stored.deepl_own : stored.deepl_chat;
+    const featureFlag = feature === 'own' ? stored.deepl_own : stored.deepl_chat;
     const useDeepL = stored.deepl_enabled && stored.deepl_api_key && (featureFlag !== false);
     if (useDeepL) {
       try { result = await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (e) { console.warn('[TCT] DeepL翻訳失敗、Googleにフォールバック:', e); }
@@ -529,7 +283,7 @@ const GEMINI_LANG_NAMES = {
   ru: 'Russian', ar: 'Arabic', hi: 'Hindi', th: 'Thai', vi: 'Vietnamese', id: 'Indonesian',
 };
 
-const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム字幕翻訳を行います。入力は音声認識結果のため、多少の誤認識や口語表現が含まれる場合があります。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
+const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム翻訳を行います。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
 
 async function translateWithGemini(text, from, to, apiKey, customPrompt, model) {
   const controller = new AbortController();
@@ -557,13 +311,6 @@ async function translateWithGemini(text, from, to, apiKey, customPrompt, model) 
     if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
     const data = await res.json();
     const output = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? text;
-    // 利用量を記録
-    const s = await chrome.storage.local.get(['gemini_usage_count', 'gemini_usage_input_chars', 'gemini_usage_output_chars']);
-    await chrome.storage.local.set({
-      gemini_usage_count:        (s.gemini_usage_count        ?? 0) + 1,
-      gemini_usage_input_chars:  (s.gemini_usage_input_chars  ?? 0) + text.length,
-      gemini_usage_output_chars: (s.gemini_usage_output_chars ?? 0) + output.length,
-    });
     return output;
   } finally {
     clearTimeout(timer);
@@ -589,13 +336,6 @@ async function translateWithDeepl(text, from, to, apiKey) {
     if (!res.ok) throw new Error(`DeepL HTTP ${res.status}`);
     const data = await res.json();
     const output = data.translations?.[0]?.text ?? text;
-    // 利用量を記録
-    const u = await chrome.storage.local.get(['deepl_usage_count', 'deepl_usage_input_chars', 'deepl_usage_output_chars']);
-    await chrome.storage.local.set({
-      deepl_usage_count:        (u.deepl_usage_count        ?? 0) + 1,
-      deepl_usage_input_chars:  (u.deepl_usage_input_chars  ?? 0) + text.length,
-      deepl_usage_output_chars: (u.deepl_usage_output_chars ?? 0) + output.length,
-    });
     return output;
   } finally {
     clearTimeout(timer);

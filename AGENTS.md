@@ -4,7 +4,7 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## プロジェクト概要
 
-Twitch チャットをリアルタイム翻訳して Twitch ページ上にフローティングパネルで表示する Chrome 拡張（Manifest V3）。チャット翻訳は APIキーなしで Google Translate により動作し、任意で DeepL / Gemini を使う。音声字幕（STT）は Faster-Whisper（ローカルサーバー）または Groq（クラウドAPI）のいずれかの設定が必要。
+Twitch チャットをリアルタイム翻訳して Twitch ページ上にフローティングパネルで表示する Chrome 拡張（Manifest V3）。チャット翻訳は APIキーなしで Google Translate により動作し、任意で DeepL / Gemini を使う。音声認識は別アプリで行うため、拡張には STT・読み上げ機能を含まない（v0.8.0 で削除）。
 
 ## Codex 作業ルール
 
@@ -32,16 +32,13 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 
 | ファイル | 役割 |
 |---|---|
-| `extension/manifest.json` | Manifest V3。content script のロード順は `content-panel.js → content-chat.js → content-whisper.js → content.js` |
-| `extension/background.js` | Service Worker。翻訳API・Twitch API・Groq API・Faster-Whisper の CORS プロキシ、コンテキストメニュー管理、OAuth 処理 |
+| `extension/manifest.json` | Manifest V3。content script のロード順は `content-panel.js → content-chat.js → content.js` |
+| `extension/background.js` | Service Worker。翻訳API・Twitch API の CORS プロキシ、コンテキストメニュー管理、OAuth 処理 |
 | `extension/content.js` | エントリポイント兼グローバル状態管理。`settings`、WebSocket 接続、チャンネル検出、`chrome.storage.onChanged` ハンドラを持つ |
 | `extension/content-panel.js` | Shadow DOM パネルの HTML/CSS 定義と UI 関数群 |
 | `extension/content-chat.js` | IRC パース、チャット表示、翻訳キュー、弾幕モード、チャット送信 |
-| `extension/content-whisper.js` | 音声録音・VAD・字幕表示・TTS、Faster-Whisper/Groq への音声送信 |
-| `extension/options.js` / `extension/options.html` / `extension/options.css` | オプションページ。APIキー、VAD、字幕、録画設定など |
-| `extension/offscreen.js/html` | 補助的な実行経路。触る前に現行呼び出し有無を確認する |
+| `extension/options.js` / `extension/options.html` / `extension/options.css` | オプションページ。APIキー、翻訳・表示設定など |
 | `extension/auth-callback.js` | OAuth コールバックページ用（`kawachan-jp.github.io` に挿入） |
-| `uv/` | Faster-Whisper ローカル STT サーバー。`uv run ... server.py` で起動する Python 側 |
 
 ## アーキテクチャ上の重要点
 
@@ -63,18 +60,11 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 
 - `updateLangIndicator()` — ヘッダーの `EN→JA・Google` 表示
 - `updateInputPlaceholder()` — 入力欄のプレースホルダーと disabled 状態
-- `updateFooter()` — フッターのチャット入力・音声翻訳・STT エンジン表示
+- `updateFooter()` — フッターのチャット入力エンジン表示
 
 ### 翻訳エンジンの優先順位
 
-`background.js` の `translateText()` は Gemini（設定時） → DeepL（設定時） → Google Translate（常時フォールバック）。`feature` 引数（`'chat'` / `'voice'` / `'own'`）でエンジンごとの on/off を個別制御する。
-
-### STT エンジンの考え方
-
-- STT エンジンは Groq（クラウドAPI） → Faster-Whisper（ローカルサーバー）の優先順位。両方未設定・失敗時は字幕にエラー表示するのみで、自動フォールバック先はない（`transcribeViaBackground()` 参照）。
-- Groq / Faster-Whisper とも `content-whisper.js` → `background.js` の chunk 転送 → 外部API/ローカルサーバー、という同じ経路を使う。
-- ブラウザ拡張内で Python は直接動かせない。Faster-Whisper などネイティブ実行が必要な STT は、`localhost` のローカルサーバーへ音声 Blob を送る設計にする。
-- Whisper の言語コードは ISO 639-1 のみ。`zh-CN` / `zh-TW` は `zh` に正規化する。
+`background.js` の `translateText()` は Gemini（設定時） → DeepL（設定時） → Google Translate（常時フォールバック）。`feature` 引数（`'chat'` / `'own'`）でエンジンごとの on/off を個別制御する。
 
 ### 弾幕モード
 
@@ -92,16 +82,14 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 | `sendUserMessage()` | `extension/content-chat.js` | チャット送信（翻訳して IRC に送出） |
 | `loadChannelSettings()` | `extension/content.js` | チャンネル固有言語設定の読み込み |
 | `onSettingsChanged()` | `extension/content.js` | storage 変化の一括ハンドラ |
-| `updateTwitchAutoPrompt()` | `extension/content.js` | 配信言語自動検出・Whisper プロンプト更新 |
-| `transcribeViaBackground()` | `extension/content-whisper.js` | STT エンジン選択と音声認識実行 |
+| `updateTwitchStreamInfo()` | `extension/content.js` | 配信言語の自動検出・ゲーム名表示 |
 | `translateText()` | `extension/background.js` | 翻訳エンジン選択ロジック |
 
 ## 実装時の注意
 
 - content script 間で関数・変数を共有しているため、`const` / `let` の重複宣言に注意する。
 - `extension/manifest.json` の content script ロード順を変える場合は、依存しているグローバル参照を確認する。
-- Chrome extension の CSP と host permissions に注意する。外部 API や localhost を追加する変更では `extension/manifest.json` の `host_permissions` も確認する。
-- 音声 Blob は大きくなるため、background service worker へ送る場合は既存の Groq/Faster-Whisper chunk 転送方式を参考にする。
+- Chrome extension の CSP と host permissions に注意する。外部 API を追加する変更では `extension/manifest.json` の `host_permissions` も確認する。
 - ユーザー向け設定を追加したら `chrome.storage.local` の読み書き、`settings` への読み込み、`chrome.storage.onChanged` 反映、フッター表示の整合性を確認する。
 
 ## 確認観点
@@ -109,5 +97,4 @@ Twitch チャットをリアルタイム翻訳して Twitch ページ上にフ�
 - Chrome 拡張をリロードしてエラーが出ないこと。
 - Twitch ページの Console に `[TCT]` エラーが出ないこと。
 - オプションページで追加・変更した設定が保存され、ページ再読み込み後も復元されること。
-- チャット翻訳、音声字幕、フッター表示がそれぞれ想定エンジンを示すこと。
-- STT 変更では Groq / Faster-Whisper それぞれの失敗時のエラー表示（未設定時含む）を確認すること。
+- チャット翻訳・送信、フッターのエンジン表示が想定どおりであること。

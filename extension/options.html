@@ -15,166 +15,13 @@
         <p class="version" id="version"></p>
       </div>
       <ul class="nav-list">
-        <li class="nav-item" data-page="stt">音声認識</li>
         <li class="nav-item" data-page="translate">翻訳</li>
-        <li class="nav-item" data-page="tts">読み上げ</li>
         <li class="nav-item" data-page="display">表示</li>
-        <li class="nav-item" data-page="clip">録画</li>
       </ul>
     </nav>
 
     <!-- ===== メインコンテンツ ===== -->
     <main class="content">
-
-      <!-- ========== 音声認識 ========== -->
-      <div class="page" id="page-stt">
-
-        <section class="card">
-          <h2>音声認識（共通設定）</h2>
-          <p class="hint" style="margin-bottom:14px">
-            Faster-Whisper・Groq Whisper 共通の設定です。
-          </p>
-          <div class="field">
-            <label for="whisperPrompt">デフォルト認識ヒント（常時有効）</label>
-            <input type="text" id="whisperPrompt" placeholder="例: よく見るジャンルの用語・名前など（スペース区切り）" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box">
-            <p class="hint">どのチャンネルでも<strong>常に</strong>認識エンジンへ渡されるヒントです（Faster-Whisperのみ対応）。チャンネル移動でもリセットされません。<br>
-            パネルの💡から入力する一時ヒント（または自動取得の配信者名・ゲーム名）の<strong>前に結合</strong>されます。よく見るジャンルの専門用語・固有名詞を入れておくと全配信で認識精度が上がります。</p>
-          </div>
-          <div class="field">
-            <label for="subtitleFontSize">字幕フォントサイズ</label>
-            <div class="slider-row">
-              <input type="range" id="subtitleFontSize" min="14" max="56" step="2" value="22">
-              <span class="slider-value" id="subtitleFontSizeVal">22px</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>Faster-Whisper（ローカルサーバー STT）</h2>
-          <p class="hint" style="margin-bottom:14px">
-            PC上で動かした Faster-Whisper サーバーに音声を送って認識します。<br>
-            Large系モデルをローカルGPU/CPUで使いたい場合向けです。
-          </p>
-          <div class="field">
-            <label class="toggle-label">
-              <span>Faster-Whisper を有効にする</span>
-              <input type="checkbox" id="fasterWhisperEnabled">
-              <span class="toggle-switch"></span>
-            </label>
-          </div>
-          <div class="field">
-            <label for="fasterWhisperUrl">サーバー URL</label>
-            <input type="text" id="fasterWhisperUrl" placeholder="http://127.0.0.1:8765/transcribe" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box">
-            <p class="hint">安全のため <code>localhost</code> / <code>127.0.0.1</code> の URL のみ使用します。</p>
-          </div>
-          <div class="field">
-            <label>Faster-Whisper モデル</label>
-            <div class="radio-row">
-              <label><input type="radio" name="fasterWhisperModel" value="small"> Small（軽量）</label>
-              <label><input type="radio" name="fasterWhisperModel" value="medium"> Medium（高精度）</label>
-              <label><input type="radio" name="fasterWhisperModel" value="large-v3"> Large-v3（最高精度）</label>
-              <label><input type="radio" name="fasterWhisperModel" value="large-v3-turbo"> Large-v3-Turbo（高速・推奨）</label>
-            </div>
-          </div>
-          <div class="actions">
-            <button class="btn-primary" id="saveFasterWhisperBtn">保存</button>
-            <span class="save-msg" id="saveFasterWhisperMsg"></span>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>Groq Whisper API（高速 STT）</h2>
-          <p class="hint" style="margin-bottom:14px">
-            クラウドの Groq API で音声認識を行います。Faster-Whisperより<strong>10〜20倍高速</strong>（約200ms）。<br>
-            有効時は Faster-Whisper より優先して使用されます。無料枠: 7,200秒/日（毎日リセット）。<br>
-            上限超過・エラー時は字幕にエラー表示されます。
-          </p>
-          <div class="field">
-            <label class="toggle-label">
-              <span>Groq Whisper を有効にする（Faster-Whisper より優先）</span>
-              <input type="checkbox" id="groqEnabled">
-              <span class="toggle-switch"></span>
-            </label>
-          </div>
-          <div class="field">
-            <label>認識モデル</label>
-            <div class="radio-row">
-              <label><input type="radio" name="groqModel" value="whisper-large-v3-turbo"> Large-v3-Turbo（高速・推奨）</label>
-              <label><input type="radio" name="groqModel" value="whisper-large-v3"> Large-v3（最高精度）</label>
-            </div>
-          </div>
-          <div class="field">
-            <label for="groqKey">API キー</label>
-            <div class="key-row">
-              <input type="password" id="groqKey" placeholder="gsk_..." autocomplete="off" spellcheck="false">
-              <button class="btn-ghost" id="toggleGroqKey">表示</button>
-            </div>
-            <p class="hint"><a href="https://console.groq.com/keys" target="_blank">console.groq.com</a> で取得（無料）。</p>
-          </div>
-          <div class="actions">
-            <button class="btn-primary" id="saveGroqBtn">保存</button>
-            <span class="save-msg" id="saveGroqMsg"></span>
-          </div>
-          <div class="field" style="margin-top:16px;padding-top:16px;border-top:1px solid #333">
-            <label>利用状況（リセットするまでの累計）</label>
-            <div id="groqUsageStats" style="font-size:13px;color:#aaa;margin-top:8px;line-height:2">
-              <div>リクエスト数:       <strong id="groqUsageCount">-</strong></div>
-              <div>推定音声時間（概算）: <strong id="groqUsageSecs">-</strong></div>
-              <div>出力文字数:         <strong id="groqUsageOutput">-</strong></div>
-              <div>最終リセット:       <strong id="groqUsageReset">-</strong></div>
-            </div>
-            <button class="btn-ghost" id="resetGroqUsage" style="margin-top:8px;font-size:11px;">リセット</button>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>VAD 感度</h2>
-          <div class="field">
-            <label for="vadThreshold">無音判定レベル（現在: <span id="vadThresholdVal">10</span>%）</label>
-            <div class="slider-row">
-              <span class="slider-label">敏感</span>
-              <input type="range" id="vadThreshold" min="2" max="30" step="1" value="10">
-              <span class="slider-label">鈍感</span>
-            </div>
-            <p class="hint">値が小さいほど小さな音も「発話中」と判定します。静かな配信では下げる、騒がしい配信では上げるのが目安。（デフォルト: 10%）</p>
-          </div>
-          <div class="field">
-            <label for="vadSilenceMs">無音継続時間（現在: <span id="vadSilenceMsVal">500</span>ms）</label>
-            <div class="slider-row">
-              <span class="slider-label">即時</span>
-              <input type="range" id="vadSilenceMs" min="200" max="1500" step="100" value="500">
-              <span class="slider-label">遅め</span>
-            </div>
-            <p class="hint">発話が止まってからこの時間が経過すると処理を開始します。短くすると応答が速くなりますが誤検知が増えます。（デフォルト: 500ms）</p>
-          </div>
-          <div class="field">
-            <label for="whisperMaxChunkMs">チャンク最大長（現在: <span id="whisperMaxChunkMsVal">5</span>秒）</label>
-            <div class="slider-row">
-              <span class="slider-label">1秒</span>
-              <input type="range" id="whisperMaxChunkMs" min="1000" max="8000" step="500" value="5000">
-              <span class="slider-label">8秒</span>
-            </div>
-            <p class="hint">無音が検出されない場合でもこの時間で強制的に処理します。短くするとラグが減りますが長い発話が途切れます。（デフォルト: 5秒）</p>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>ハルシネーション除外パターン</h2>
-          <p class="hint" style="margin-bottom:14px">
-            <strong>ハルシネーション</strong>とは、Whisper が無音や聞き取れない音に対して存在しない言葉を「でっち上げ」てしまう現象です。<br>
-            例：無音なのに「ご視聴ありがとうございました」「♪〜」などが繰り返し出力される。<br>
-            よく出る誤認識フレーズをここに登録しておくと、字幕から自動除外されます。
-          </p>
-          <div class="field">
-            <label for="customHallucinationPatterns">カスタム除外ワード（1行1パターン・部分一致）</label>
-            <textarea id="customHallucinationPatterns" rows="5" style="width:100%;box-sizing:border-box;font-size:13px;padding:6px;border-radius:4px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;resize:vertical;" placeholder="例: I'm not sure what he's saying&#10;例: ご視聴ありがとう"></textarea>
-            <p class="hint">Whisper が誤生成するフレーズを登録すると字幕から自動除外されます。運用中に誤認識パターンが出たらここに追記してください。</p>
-            <button id="saveCustomPatterns" style="margin-top:6px;">保存</button>
-            <span id="saveCustomPatternsMsg" style="margin-left:8px;font-size:12px;color:#7fba00;display:none;">保存しました</span>
-          </div>
-        </section>
-
-      </div><!-- /page-stt -->
 
       <!-- ========== 翻訳 ========== -->
       <div class="page" id="page-translate">
@@ -190,13 +37,8 @@
               <span class="toggle-switch"></span>
             </label>
           </div>
-          <div class="field" id="geminiFeaturesField">
+          <div class="field">
             <p class="hint" style="margin-bottom:8px">Gemini を使用する機能を選択</p>
-            <label class="toggle-label toggle-label-sm">
-              <span>音声字幕</span>
-              <input type="checkbox" id="geminiVoice">
-              <span class="toggle-switch toggle-switch-sm"></span>
-            </label>
             <label class="toggle-label toggle-label-sm">
               <span>入力したメッセージを翻訳</span>
               <input type="checkbox" id="geminiOwn">
@@ -224,21 +66,11 @@
             <label for="geminiPrompt">翻訳プロンプト（<code>{lang}</code> が翻訳先言語名に置き換わります）</label>
             <textarea id="geminiPrompt" rows="4" style="width:100%;box-sizing:border-box;font-size:12px;padding:6px;border-radius:4px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;resize:vertical;font-family:monospace;" spellcheck="false"></textarea>
             <button class="btn-ghost" id="resetGeminiPrompt" style="margin-top:4px;font-size:11px;">デフォルトに戻す</button>
-            <p class="hint" style="margin-top:6px"><code>{lang}</code> = 翻訳先言語名、<code>{text}</code> = 認識したテキスト。空欄にするとデフォルトのゲーム配信向けプロンプトが使われます。</p>
+            <p class="hint" style="margin-top:6px"><code>{lang}</code> = 翻訳先言語名、<code>{text}</code> = 翻訳対象のテキスト。空欄にするとデフォルトのゲーム配信向けプロンプトが使われます。</p>
           </div>
           <div class="actions">
             <button class="btn-primary" id="saveGeminiBtn">保存</button>
             <span class="save-msg" id="saveGeminiMsg"></span>
-          </div>
-          <div class="field" style="margin-top:16px;padding-top:16px;border-top:1px solid #333">
-            <label>利用状況（リセットするまでの累計）</label>
-            <div id="geminiUsageStats" style="font-size:13px;color:#aaa;margin-top:8px;line-height:2">
-              <div>リクエスト数: <strong id="geminiUsageCount">-</strong></div>
-              <div>入力文字数:   <strong id="geminiUsageInput">-</strong></div>
-              <div>出力文字数:   <strong id="geminiUsageOutput">-</strong></div>
-              <div>最終リセット: <strong id="geminiUsageReset">-</strong></div>
-            </div>
-            <button class="btn-ghost" id="resetGeminiUsage" style="margin-top:8px;font-size:11px;">リセット</button>
           </div>
         </section>
 
@@ -256,11 +88,6 @@
             <label class="toggle-label toggle-label-sm">
               <span>チャット翻訳</span>
               <input type="checkbox" id="deeplChat">
-              <span class="toggle-switch toggle-switch-sm"></span>
-            </label>
-            <label class="toggle-label toggle-label-sm">
-              <span>音声字幕</span>
-              <input type="checkbox" id="deeplVoice">
               <span class="toggle-switch toggle-switch-sm"></span>
             </label>
             <label class="toggle-label toggle-label-sm">
@@ -283,16 +110,6 @@
           <div class="actions">
             <button class="btn-primary" id="saveDeeplBtn">保存</button>
             <span class="save-msg" id="saveDeeplMsg"></span>
-          </div>
-          <div class="field" style="margin-top:16px;padding-top:16px;border-top:1px solid #333">
-            <label>利用状況（リセットするまでの累計）</label>
-            <div id="deeplUsageStats" style="font-size:13px;color:#aaa;margin-top:8px;line-height:2">
-              <div>リクエスト数: <strong id="deeplUsageCount">-</strong></div>
-              <div>入力文字数:   <strong id="deeplUsageInput">-</strong> <span style="color:#555">（無料枠 500,000文字/月）</span></div>
-              <div>出力文字数:   <strong id="deeplUsageOutput">-</strong></div>
-              <div>最終リセット: <strong id="deeplUsageReset">-</strong></div>
-            </div>
-            <button class="btn-ghost" id="resetDeeplUsage" style="margin-top:8px;font-size:11px;">リセット</button>
           </div>
         </section>
 
@@ -378,37 +195,6 @@
 
       </div><!-- /page-translate -->
 
-      <!-- ========== 読み上げ ========== -->
-      <div class="page" id="page-tts">
-
-        <section class="card">
-          <h2>翻訳読み上げ（TTS）</h2>
-          <p class="hint" style="margin-bottom:14px">
-            音声字幕の翻訳結果をブラウザの音声合成で読み上げます。<br>
-            配信音量を絞って🔊ボタンをONにすると、リアルタイム吹き替えとして使えます。
-          </p>
-          <div class="field">
-            <label for="ttsRate">読み上げ速度（現在: <span id="ttsRateVal">1.0</span>倍）</label>
-            <div class="slider-row">
-              <span class="slider-label">0.5×</span>
-              <input type="range" id="ttsRate" min="0.5" max="2.0" step="0.1" value="1.0">
-              <span class="slider-label">2.0×</span>
-            </div>
-            <p class="hint">ON/OFF はパネルの 🔊 ボタンで切り替えます。速度は即時反映されます。</p>
-          </div>
-          <div class="field">
-            <label>より自然な読み上げにする（Windows）</label>
-            <p class="hint">
-              Windowsのニューラル音声をインストールすると、棒読みでなく自然な読み上げになります。<br>
-              <strong>設定 → 時刻と言語 → 音声認識 → 音声を追加</strong> から言語を選んでインストール。<br>
-              インストール済みの場合は自動で優先使用されます。<br>
-              対応音声が見つからない言語では読み上げをスキップします。
-            </p>
-          </div>
-        </section>
-
-      </div><!-- /page-tts -->
-
       <!-- ========== 表示 ========== -->
       <div class="page" id="page-display">
 
@@ -426,102 +212,6 @@
         </section>
 
       </div><!-- /page-display -->
-
-      <!-- ========== 録画 ========== -->
-      <div class="page" id="page-clip">
-
-        <section class="card">
-          <h2>クリップ録画（📹）</h2>
-          <div class="field">
-            <label for="clipMaxMinutes">最大録画時間（現在: <span id="clipMaxMinutesVal">3</span>分）</label>
-            <div class="slider-row">
-              <span class="slider-label">1分</span>
-              <input type="range" id="clipMaxMinutes" min="1" max="60" step="1" value="3">
-              <span class="slider-label">60分</span>
-            </div>
-            <p class="hint">パネルの 📹 ボタンで録画を開始し、この時間で自動停止します。手動で止めることもできます。</p>
-          </div>
-          <div class="field">
-            <label for="ffmpegPath">ffmpeg パス（MP4変換コマンド自動生成・任意）</label>
-            <input type="text" id="ffmpegPath" placeholder="例: C:\ffmpeg\bin\ffmpeg.exe" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box">
-            <p class="hint">
-              設定すると録画完了後に ffmpeg コマンドをクリップボードにコピーします。<br>
-              ターミナルで Downloads フォルダに移動してから貼り付けて実行すると MP4 に変換できます。<br>
-              未入力の場合は WebM のままダウンロードされます。<br>
-              <a href="https://www.gyan.dev/ffmpeg/builds/" target="_blank">ffmpeg Windows ビルド（gyan.dev）</a> / <a href="https://ffmpeg.org/download.html" target="_blank">公式サイト</a>
-            </p>
-          </div>
-          <div class="field">
-            <label class="toggle-label">
-              <input type="checkbox" id="clipSubtitleEnabled">
-              <span class="toggle-switch"></span>
-              字幕ファイル（.srt）を録画と同時に生成する
-            </label>
-            <p class="hint">
-              録画中に音声認識したテロップを .ass ファイルとしてダウンロードします。<br>
-              ffmpeg パスが設定されていれば字幕焼き込みコマンド（<code>-vf "ass=..."</code>）を自動生成します。<br>
-              ※ 音声認識（🎤）が動作中のときのみ字幕が記録されます。<br>
-              ※ ffmpeg 実行時は .webm と .ass を同じフォルダに置いてください。
-            </p>
-          </div>
-          <div class="field" id="clipSubStyleField">
-            <label>焼き込み字幕のスタイル</label>
-            <div class="subtitle-layout" style="margin-top:10px">
-              <div class="subtitle-sliders">
-                <div class="subtitle-slider-item">
-                  <label>背景</label>
-                  <select id="clipSubBg">
-                    <option value="none">なし（アウトラインのみ）</option>
-                    <option value="light">薄い黒（25%）</option>
-                    <option value="medium" selected>中くらい（50%）</option>
-                    <option value="dark">濃い黒（75%）</option>
-                    <option value="solid">べた黒</option>
-                  </select>
-                </div>
-                <div class="subtitle-slider-item">
-                  <label>フォント</label>
-                  <select id="clipSubFont">
-                    <option value="Arial">Arial</option>
-                    <option value="Impact">Impact</option>
-                    <option value="メイリオ">メイリオ (Meiryo)</option>
-                    <option value="游ゴシック">游ゴシック (Yu Gothic)</option>
-                    <option value="MS PGothic">ＭＳ Ｐゴシック</option>
-                    <option value="MS Gothic">ＭＳ ゴシック</option>
-                    <option value="BIZ UDPGothic">BIZ UDPゴシック</option>
-                    <option value="Noto Sans JP">Noto Sans JP</option>
-                  </select>
-                </div>
-                <div class="subtitle-slider-item">
-                  <label>字幕の大きさ（<span id="clipSubFontsizeVal">24px</span>）</label>
-                  <input type="range" id="clipSubFontsize" min="14" max="96" step="2" value="24">
-                </div>
-                <div class="subtitle-slider-item">
-                  <label>上下位置（<span id="clipSubYVal">90</span>%）</label>
-                  <input type="range" id="clipSubY" min="0" max="100" step="1" value="90">
-                </div>
-                <div class="subtitle-slider-item">
-                  <label>左右位置（<span id="clipSubXVal">50</span>%）</label>
-                  <input type="range" id="clipSubX" min="0" max="100" step="1" value="50">
-                </div>
-              </div>
-              <div class="subtitle-preview">
-                <div class="subtitle-preview-sub" id="clipSubPreview">字幕テキスト</div>
-              </div>
-            </div>
-            <p class="hint" style="margin-top:8px">.ass ファイルに書き込まれます。PlayResX/Y=1920×1080 基準なので Fontsize がそのままピクセル数になります。</p>
-          </div>
-          <div class="field">
-            <label for="ffmpegShell">シェル / ターミナル種別</label>
-            <select id="ffmpegShell">
-              <option value="powershell">PowerShell（& "パス" -i ...）</option>
-              <option value="cmd">CMD / コマンドプロンプト（"パス" -i ...）</option>
-              <option value="bash">bash / zsh（"パス" -i ...）</option>
-            </select>
-            <p class="hint">生成されるコマンドの書式が変わります。PowerShell は <code>&amp;</code> が必要、CMD・bash は不要です。</p>
-          </div>
-        </section>
-
-      </div><!-- /page-clip -->
 
     </main>
   </div>
