@@ -86,7 +86,7 @@
   - `content-chat.js`: `rate_limited` はリトライしない。クールダウン中は翻訳をスキップして原文のみ表示（「（翻訳失敗）」を付けない）。通知はクールダウン開始時と再開時の各1回だけ（`addSystemMessage`）。折りたたみ中は通知しない。送信メッセージの翻訳がレート制限中なら「1分ほど待って再送」を表示。
   - `help.html`: Google 翻訳の「無料・無制限」表記を修正し、一時的な制限とクールダウン動作を追記。
   - 検証: `node --check` 全 JS、manifest JSON、ESLint `no-undef` 0件。fetch スタブで 429 → `rate_limited`（`retryAfterMs` 60000）・2回目はリクエストを送らないこと、実ネットワークで通常翻訳が成功することを確認。**Chrome 実機の手動確認は未実施**。
-  - 申し送り: `develop` へのマージ・GitHub Release は未実施（実機確認後に判断）。`master` は v0.7.0.4 のまま。
+  - `develop` へ fast-forward マージ済み（`1ad791f`）。`fix/translate-rate-limit` は削除済み。GitHub Release は未実施（ユーザーの実機確認待ち）。`master` は v0.7.0.4 のまま。
 
 - **2026-11-16 Command Code**: 報告「チャット翻訳が `（翻訳失敗）` になる」を調査し、**v0.8.1.1** で修正。
   - 原因: v0.8.1 の整理で `background.js` の `const translateCache = new Map(); const CACHE_MAX = 800;` の2行だけが削除され、`translateText()` 内の参照が残っていた。結果、翻訳リクエストが毎回 `ReferenceError: translateCache is not defined` で失敗し、`content-chat.js` の catch が `text + '（翻訳失敗）'` を表示していた（Google/DeepL/Gemini 側の問題ではない）。
