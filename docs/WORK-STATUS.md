@@ -85,7 +85,8 @@
   - 同種の取り残しを全数チェックし、`options.js` の `showDeeplMsg` / `showGeminiMsg` も未定義だったため復元（DeepL/Gemini キー保存時に成功メッセージが出ず Console に `ReferenceError`。保存自体は成功していた）。
   - 再発防止として、`content-chat.js` の翻訳失敗 catch で握り潰さず `console.warn('[TCT] 翻訳失敗:', e)` を出すように変更。
   - 検証: `node --check`（extension 内の全 JS）、manifest JSON 検証、content 3ファイル連結＋background/options の ESLint `no-undef`（0 件）、background.js を vm で読み込み `translateText()` を実ネットワークで実行して日本語訳が返ることを確認。**Chrome 実機の手動確認は未実施**（拡張リロード後に Twitch チャットで翻訳が出ることを確認してください）。
-  - 申し送り: Chrome の Web Store 配布物や ZIP は未生成。必要なら `scripts/build-release.ps1` で v0.8.1.1 を作成する。
+  - リリース対応: `develop` へ push 済み（`e30e3b7`）。`scripts/build-release.ps1` で `twitch-chat-translator-v0.8.1.1.zip` を生成し、GitHub Release [`v0.8.1.1`](https://github.com/KAWAchan-jp/twitch-chat-translate-ext/releases/tag/v0.8.1.1) を Latest として公開。壊れた `v0.8.1` の ZIP は削除し、v0.8.1 の本文に v0.8.1.1 への案内を追記した。
+  - 申し送り: Chrome 実機での手動確認は未実施。README / help.html は仕様変更がないため未更新。
 
 - **2026-11-15 Command Code**: ユーザー指示「チャット翻訳に特化したい」を受け、**v0.8.1** でクリップ録画と API 利用状況パネルを削除。チャット翻訳・送信・フィルター・弾幕・エンジン切替は維持。
   - `content-panel.js`: 🔴/📊 ボタン、録画インジケーター、利用状況パネルと関連 CSS/関数（`toggleClipRecording`・`startClipRecording`・`toggleUsagePanel` ほか）を削除。
