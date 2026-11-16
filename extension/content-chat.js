@@ -227,7 +227,7 @@ function translateMessageEl(el) {
     sleep(TRANSLATE_DELAY_MS)
       .then(() => translateViaBackground(text, settings.src_lang, settings.tgt_lang, 'chat'))
   ).then(translated => { transEl.textContent = translated; })
-   .catch(() => { /* 原文表示のまま */ });
+   .catch(e => { console.warn('[TCT] 翻訳失敗（可視範囲）:', e); });
 }
 
 // ===== メッセージ表示・翻訳 =====
@@ -286,7 +286,8 @@ function addChatMessage(username, text, color, isBot = false) {
     transEl.textContent = translated;
     transEl.classList.remove('translating');
     if (settings.auto_scroll) scrollToBottom();
-  }).catch(() => {
+  }).catch(e => {
+    console.warn('[TCT] 翻訳失敗:', e);
     transEl.textContent = text + '（翻訳失敗）';
     transEl.classList.remove('translating');
   });

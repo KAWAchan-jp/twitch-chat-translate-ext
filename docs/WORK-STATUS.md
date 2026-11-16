@@ -7,7 +7,7 @@
 - 更新ルール: 自分の担当ブランチの欄を、着手・進捗・完了のたびに書き換える
 - 既存の未コミット変更を勝手に戻さない。作業前に `git status --short --branch` を確認する
 - 仕様・実装の詳細は branch/doc 側へ寄せ、このファイルは共有ボードとして短く保つ
-- 最終更新: 2026-11-15 / by Command Code
+- 最終更新: 2026-11-16 / by Command Code
 
 ---
 
@@ -79,6 +79,13 @@
 ---
 
 ## 申し送り（時系列・新しい順）
+
+- **2026-11-16 Command Code**: 報告「チャット翻訳が `（翻訳失敗）` になる」を調査し、**v0.8.1.1** で修正。
+  - 原因: v0.8.1 の整理で `background.js` の `const translateCache = new Map(); const CACHE_MAX = 800;` の2行だけが削除され、`translateText()` 内の参照が残っていた。結果、翻訳リクエストが毎回 `ReferenceError: translateCache is not defined` で失敗し、`content-chat.js` の catch が `text + '（翻訳失敗）'` を表示していた（Google/DeepL/Gemini 側の問題ではない）。
+  - 同種の取り残しを全数チェックし、`options.js` の `showDeeplMsg` / `showGeminiMsg` も未定義だったため復元（DeepL/Gemini キー保存時に成功メッセージが出ず Console に `ReferenceError`。保存自体は成功していた）。
+  - 再発防止として、`content-chat.js` の翻訳失敗 catch で握り潰さず `console.warn('[TCT] 翻訳失敗:', e)` を出すように変更。
+  - 検証: `node --check`（extension 内の全 JS）、manifest JSON 検証、content 3ファイル連結＋background/options の ESLint `no-undef`（0 件）、background.js を vm で読み込み `translateText()` を実ネットワークで実行して日本語訳が返ることを確認。**Chrome 実機の手動確認は未実施**（拡張リロード後に Twitch チャットで翻訳が出ることを確認してください）。
+  - 申し送り: Chrome の Web Store 配布物や ZIP は未生成。必要なら `scripts/build-release.ps1` で v0.8.1.1 を作成する。
 
 - **2026-11-15 Command Code**: ユーザー指示「チャット翻訳に特化したい」を受け、**v0.8.1** でクリップ録画と API 利用状況パネルを削除。チャット翻訳・送信・フィルター・弾幕・エンジン切替は維持。
   - `content-panel.js`: 🔴/📊 ボタン、録画インジケーター、利用状況パネルと関連 CSS/関数（`toggleClipRecording`・`startClipRecording`・`toggleUsagePanel` ほか）を削除。

@@ -33,6 +33,17 @@ const toggleDeeplBtn = document.getElementById('toggleDeeplKey');
 const saveDeeplBtn   = document.getElementById('saveDeeplBtn');
 const saveDeeplMsg   = document.getElementById('saveDeeplMsg');
 
+function showDeeplMsg(text, color) {
+  saveDeeplMsg.textContent = text;
+  saveDeeplMsg.style.color = color;
+  saveDeeplMsg.style.opacity = '1';
+  clearTimeout(showDeeplMsg._timer);
+  showDeeplMsg._timer = setTimeout(() => {
+    saveDeeplMsg.style.opacity = '0';
+    setTimeout(() => { saveDeeplMsg.textContent = ''; }, 300);
+  }, 3000);
+}
+
 function updateDeeplFeaturesVisibility() {
   deeplFeaturesEl.style.opacity = deeplEnabledEl.checked ? '1' : '0.4';
   deeplFeaturesEl.style.pointerEvents = deeplEnabledEl.checked ? '' : 'none';
@@ -81,6 +92,17 @@ const resetGeminiPromBtn = document.getElementById('resetGeminiPrompt');
 const saveGeminiBtn      = document.getElementById('saveGeminiBtn');
 const saveGeminiMsg      = document.getElementById('saveGeminiMsg');
 const geminiModelEls     = document.querySelectorAll('input[name="geminiModel"]');
+
+function showGeminiMsg(text, color) {
+  saveGeminiMsg.textContent = text;
+  saveGeminiMsg.style.color = color;
+  saveGeminiMsg.style.opacity = '1';
+  clearTimeout(showGeminiMsg._timer);
+  showGeminiMsg._timer = setTimeout(() => {
+    saveGeminiMsg.style.opacity = '0';
+    setTimeout(() => { saveGeminiMsg.textContent = ''; }, 300);
+  }, 3000);
+}
 
 chrome.storage.local.get(['gemini_enabled', 'gemini_own', 'gemini_api_key', 'gemini_prompt', 'gemini_model'], (s) => {
   geminiEnabledEl.checked = !!s.gemini_enabled;

@@ -1,5 +1,12 @@
 # 更新履歴
 
+## v0.8.1.1（2026-11-16）
+
+### 修正
+- **チャット翻訳が必ず「（翻訳失敗）」になる不具合を修正** — v0.8.1 の整理で `background.js` の `translateCache` / `CACHE_MAX` の宣言だけが削除され、`translateText()` が毎回 `ReferenceError` になっていた。宣言を復元し、翻訳結果キャッシュを再び有効化
+- **オプションページで DeepL / Gemini のキー保存時にエラー** — 同じ整理で削除された `showDeeplMsg` / `showGeminiMsg` を復元（保存自体は行われていたが、成功メッセージが表示されず Console に `ReferenceError` が出ていた）
+- 翻訳失敗時に Console（`[TCT]`）へ理由を出力するように変更（従来は握り潰し）
+
 ## v0.8.1（2026-11-15）
 
 ### 変更

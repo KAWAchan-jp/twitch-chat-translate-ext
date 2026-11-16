@@ -246,6 +246,9 @@ async function handleTwitchAuth(token) {
   }
 }
 
+const translateCache = new Map();
+const CACHE_MAX = 800;
+
 async function translateText(text, from, to, feature = 'chat') {
   const cacheKey = `${from}:${to}:${text}`;
   if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
