@@ -15,6 +15,11 @@ const TRANSLATE_CONCURRENCY = 3;
 let _translateActive  = 0;
 const _translateWaiting = [];
 
+// ===== レート制限クールダウン =====
+const RATE_LIMIT_FALLBACK_MS = 60000;
+let _translateCooldownUntil = 0;
+let _rateLimitNotified = false;
+
 // ===== 弾幕モード =====
 const DANMAKU_WINDOW_MS   = 3000;
 const DANMAKU_ENTER_RATE  = 3;   // msg/秒 以上で弾幕モードON
@@ -223,6 +228,7 @@ function translateMessageEl(el) {
   const text    = el._rawText;
   const transEl = el.querySelector('.msg-trans');
   if (!text || !transEl) return;
+  if (Date.now() < _translateCooldownUntil) return;
   enqueueTranslation(() =>
     sleep(TRANSLATE_DELAY_MS)
       .then(() => translateViaBackground(text, settings.src_lang, settings.tgt_lang, 'chat'))
@@ -269,6 +275,13 @@ function addChatMessage(username, text, color, isBot = false) {
     return;
   }
 
+  // レート制限中はリクエストを送らず原文のみ表示
+  if (Date.now() < _translateCooldownUntil) {
+    transEl.textContent = text;
+    transEl.classList.remove('translating');
+    return;
+  }
+
   // 弾幕モード：原文をそのまま表示し、ユーザーがスクロールを止めた／ホバーしたときに可視分だけ翻訳
   if (danmakuMode) {
     transEl.textContent = text;
@@ -288,7 +301,7 @@ function addChatMessage(username, text, color, isBot = false) {
     if (settings.auto_scroll) scrollToBottom();
   }).catch(e => {
     console.warn('[TCT] 翻訳失敗:', e);
-    transEl.textContent = text + '（翻訳失敗）';
+    transEl.textContent = e.code === 'rate_limited' ? text : text + '（翻訳失敗）';
     transEl.classList.remove('translating');
   });
 }
@@ -353,7 +366,9 @@ async function sendUserMessage() {
     ws.send(`PRIVMSG #${currentChannel} :${sendText}`);
     addOwnMessage(sendText, sendText !== text ? text : null);
   } catch (e) {
-    if (e.message?.includes('Receiving end does not exist')) {
+    if (e.code === 'rate_limited') {
+      addSystemMessage('翻訳が混雑中のため送信できませんでした。1分ほど待って再送してください。');
+    } else if (e.message?.includes('Receiving end does not exist')) {
       addSystemMessage('拡張機能のバックグラウンドに接続できません。ページを更新してください (F5)');
     } else {
       addSystemMessage(`送信失敗: ${e.message}`);
@@ -367,6 +382,28 @@ async function sendUserMessage() {
 }
 
 // ===== 翻訳リクエスト（background.js経由、リトライあり） =====
+function makeTranslateError(res) {
+  const err = new Error(res?.error || 'translate failed');
+  if (res?.code) err.code = res.code;
+  if (res?.retryAfterMs != null) err.retryAfterMs = res.retryAfterMs;
+  return err;
+}
+
+function startTranslateCooldown(retryAfterMs) {
+  const ms = retryAfterMs > 0 ? retryAfterMs : RATE_LIMIT_FALLBACK_MS;
+  _translateCooldownUntil = Date.now() + ms;
+  if (_rateLimitNotified || panelCollapsed) return;
+  _rateLimitNotified = true;
+  addSystemMessage(`翻訳が一時的に利用できません（レート制限）。約${Math.ceil(ms / 1000)}秒後に再開します。それまで原文で表示します。`);
+}
+
+function finishTranslateCooldown() {
+  if (!_rateLimitNotified || Date.now() < _translateCooldownUntil) return;
+  _rateLimitNotified = false;
+  _translateCooldownUntil = 0;
+  addSystemMessage('翻訳を再開しました。');
+}
+
 async function translateViaBackground(text, from, to, feature = 'chat') {
   for (let attempt = 0; attempt <= 2; attempt++) {
     try {
@@ -374,9 +411,12 @@ async function translateViaBackground(text, from, to, feature = 'chat') {
         chrome.runtime.sendMessage({ type: 'translate', text, from, to, feature }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト')), 10000)),
       ]);
-      if (!res?.ok) throw new Error(res?.error || 'translate failed');
+      if (!res?.ok) throw makeTranslateError(res);
+      finishTranslateCooldown();
       return res.result;
     } catch (e) {
+      // レート制限中はリクエストを重ねても悪化するだけなので再試行しない
+      if (e.code === 'rate_limited') { startTranslateCooldown(e.retryAfterMs); throw e; }
       if (e.message?.includes('Receiving end does not exist')) throw e;
       if (attempt === 2) throw e;
       await sleep(300 * (attempt + 1));

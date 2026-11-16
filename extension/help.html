@@ -49,7 +49,7 @@
   <h2>翻訳エンジン（Google / DeepL / Gemini）</h2>
   <table>
     <tr><th>エンジン</th><th>説明</th></tr>
-    <tr><td><strong>Google</strong></td><td>Google 翻訳。<strong>デフォルトのエンジン</strong>で、APIキー不要・無料・無制限で使えます</td></tr>
+    <tr><td><strong>Google</strong></td><td>Google 翻訳。<strong>デフォルトのエンジン</strong>で、APIキー不要・無料で使えます（非公式のエンドポイントのため、アクセスが集中すると一時的に制限されることがあります）</td></tr>
     <tr><td><strong>DeepL</strong></td><td>より自然な訳文が得られる翻訳サービス。利用には <a href="https://www.deepl.com/ja/pro-api" target="_blank" style="color:#bf94ff">deepl.com</a> で取得した APIキーが必要です。<br><strong>無料枠：50万文字/月</strong>（無料版キーは末尾が <code>:fx</code>）</td></tr>
     <tr><td><strong>Gemini</strong></td><td>Google の AI 翻訳（Gemini 2.0 Flash）。ゲーム用語・スラングに強く自然な訳文が得られます。<a href="https://aistudio.google.com/apikey" target="_blank" style="color:#bf94ff">Google AI Studio</a> で APIキーを取得。<br><strong>無料枠：1,500リクエスト/日・15リクエスト/分</strong>（通常の使用では十分な量）</td></tr>
   </table>
@@ -60,8 +60,11 @@
   <p><strong>優先順位：</strong> Gemini → DeepL → Google（上位が有効なら下位は使われません。エラー時は自動フォールバック）</p>
   <div class="tip">
     <strong>チャット翻訳には Google がおすすめです。</strong><br>
-    チャットは流量が多く DeepL・Gemini の無料枠をすぐに消費してしまいます。精度はやや落ちますが、Google 翻訳は無料・無制限で使えるためチャット向きです。<br>
+    チャットは流量が多く DeepL・Gemini の無料枠をすぐに消費してしまいます。精度はやや落ちますが、Google 翻訳は無料で使えるためチャット向きです。<br>
     DeepL・Gemini は<strong>送信メッセージ</strong>など、精度が重要な場面に絞って使うのがおすすめです。
+  </div>
+  <div class="tip">
+    短時間にアクセスが集中すると、Google 翻訳が一時的にレート制限を返すことがあります。その場合は約1分間リクエストを止めて原文のまま表示し、再開できるとパネルに通知します。
   </div>
   <div class="tip">
     DeepL・Gemini のどちらも、エラーや枠切れの場合は自動的に Google 翻訳にフォールバックします。

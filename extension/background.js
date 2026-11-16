@@ -221,7 +221,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { text, from, to, feature } = message;
     translateText(text, from, to, feature)
       .then(result => sendResponse({ ok: true, result }))
-      .catch(err  => sendResponse({ ok: false, error: err.message }));
+      .catch(err  => sendResponse({ ok: false, error: err.message, code: err.code, retryAfterMs: err.retryAfterMs }));
     return true;
   }
 });
@@ -249,9 +249,23 @@ async function handleTwitchAuth(token) {
 const translateCache = new Map();
 const CACHE_MAX = 800;
 
+// Google のレート制限（429/403）を検知したらしばらくリクエストを送らない
+const RATE_LIMIT_COOLDOWN_MS = 60000;
+let translateCooldownUntil = 0;
+
+function rateLimitError(retryAfterMs) {
+  const err = new Error('翻訳APIのレート制限中です');
+  err.code = 'rate_limited';
+  err.retryAfterMs = retryAfterMs;
+  return err;
+}
+
 async function translateText(text, from, to, feature = 'chat') {
   const cacheKey = `${from}:${to}:${text}`;
   if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
+
+  const cooldownRemaining = translateCooldownUntil - Date.now();
+  if (cooldownRemaining > 0) throw rateLimitError(cooldownRemaining);
 
   const stored = await getTranslateSettings();
   let result;
@@ -271,7 +285,14 @@ async function translateText(text, from, to, feature = 'chat') {
     }
   }
 
-  if (!result) result = await translateWithGoogle(text, from, to);
+  if (!result) {
+    try {
+      result = await translateWithGoogle(text, from, to);
+    } catch (e) {
+      if (e.code === 'rate_limited') translateCooldownUntil = Date.now() + e.retryAfterMs;
+      throw e;
+    }
+  }
 
   if (translateCache.size >= CACHE_MAX) translateCache.delete(translateCache.keys().next().value);
   translateCache.set(cacheKey, result);
@@ -351,6 +372,8 @@ async function translateWithGoogle(text, from, to) {
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${from}&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;
     const res = await fetch(url, { signal: controller.signal });
+    // 403 も過剰アクセス時に返るため、レート制限として扱う
+    if (res.status === 429 || res.status === 403) throw rateLimitError(RATE_LIMIT_COOLDOWN_MS);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return (data[0] ?? []).map(item => item?.[0]).filter(Boolean).join('') || text;
