@@ -42,13 +42,16 @@ let isActive        = false;
 let isAuthenticated = false;
 let twitchToken     = '';
 let twitchUsername  = '';
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, deepl_enabled: false, deepl_chat: true, deepl_own: true, gemini_enabled: false, gemini_own: false, min_length_enabled: false, min_length: 4, same_lang_filter: false, ignore_bot_badge: false, ignore_known_bots: true, ignore_users: '' };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, deepl_enabled: false, deepl_chat: true, deepl_own: true, gemini_enabled: false, gemini_own: false, min_length_enabled: false, min_length: 4, same_lang_filter: false, ignore_bot_badge: false, ignore_known_bots: true, ignore_users: '', send_confirm: true };
 
 // ===== Shadow DOM 内のDOM参照 =====
 let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl;
 let loginBtnEl, authInfoEl, authUsernameEl, logoutBtnEl;
 let scrollPaused = false;
 let chatInputEl, sendBtnEl, mentionListEl;
+let confirmAreaEl, confirmOrigEl, confirmTextEl;
+let confirmSendBtnEl, confirmCancelBtnEl;
+let pendingSend = null;  // 送信前確認待ちの内容 { sendText, typedText }
 
 // ===== メンション自動補完 =====
 let chatters = new Map();   // ユーザー名(小文字)→表示名。最近発言した順（古い→新しい）
@@ -94,7 +97,7 @@ async function init() {
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter',
     'deepl_enabled', 'deepl_chat', 'deepl_own', 'gemini_enabled', 'gemini_own', 'panel_opacity',
     'ignore_bot_badge', 'ignore_known_bots', 'ignore_users',
-    'panel_collapsed',
+    'panel_collapsed', 'send_confirm',
   ]);
   settings = { ...settings, ...stored };
 
@@ -311,6 +314,11 @@ function onSettingsChanged(changes) {
   if (changes.ignore_bot_badge)   settings.ignore_bot_badge   = changes.ignore_bot_badge.newValue;
   if (changes.ignore_known_bots) settings.ignore_known_bots = changes.ignore_known_bots.newValue;
   if (changes.ignore_users)      settings.ignore_users      = changes.ignore_users.newValue ?? '';
+  if (changes.send_confirm) {
+    settings.send_confirm = changes.send_confirm.newValue !== false;
+    if (!settings.send_confirm) cancelPendingSend();
+    updateFooter();
+  }
   if (changes.panel_opacity) {
     settings.panel_opacity = changes.panel_opacity.newValue;
     applyPanelOpacity();

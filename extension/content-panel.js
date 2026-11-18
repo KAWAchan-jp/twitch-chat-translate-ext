@@ -166,6 +166,27 @@ const PANEL_CSS = `
   .mention-item { padding: 5px 8px; cursor: pointer; color: #efeff1; }
   .mention-item:hover, .mention-item.active { background: #2d2d2f; }
 
+  /* 送信前確認（ワンクッション） */
+  .confirm-area {
+    display: none; flex-direction: column; gap: 4px;
+    padding: 8px; background: #1e1e21;
+    border-top: 1px solid #3d3d40; flex-shrink: 0;
+  }
+  .confirm-area.visible { display: flex; }
+  .confirm-label { font-size: 10px; color: #adadb8; }
+  .confirm-orig  { font-size: 11px; color: #7d7d8f; word-break: break-word; }
+  .confirm-text  { font-size: 13px; color: #efeff1; font-weight: 600; word-break: break-word; }
+  .confirm-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .confirm-btn {
+    border: none; border-radius: 4px; cursor: pointer;
+    font-size: 11px; font-weight: 600; padding: 4px 12px;
+  }
+  .confirm-send { background: #9147ff; color: #fff; }
+  .confirm-send:hover { background: #772ce8; }
+  .confirm-cancel { background: #3d3d40; color: #efeff1; }
+  .confirm-cancel:hover { background: #4d4d50; }
+  .confirm-hint { font-size: 9px; color: #5a5a6e; text-align: right; }
+
   .chat-input {
     flex: 1; min-width: 0; background: #0e0e10;
     border: 1px solid #3d3d40; border-radius: 4px;
@@ -184,7 +205,7 @@ const PANEL_CSS = `
 
   /* フッター（翻訳エンジン表示） */
   .footer {
-    display: flex; justify-content: space-between;
+    display: flex; justify-content: space-between; align-items: center; gap: 6px;
     padding: 3px 8px;
     background: #0a0a0c;
     border-top: 1px solid #1e1e21;
@@ -198,6 +219,25 @@ const PANEL_CSS = `
   .footer-engine.gemini { color: #4285f4; }
   .footer-engine.deepl  { color: #00c4a0; }
 
+  /* フッター：送信前確認トグル */
+  .footer-toggle {
+    display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-family: inherit; font-size: 10px; color: #5a5a6e;
+  }
+  .footer-toggle:hover { color: #adadb8; }
+  .footer-toggle-track {
+    width: 22px; height: 12px; border-radius: 6px; background: #3d3d40;
+    position: relative; transition: background 0.15s;
+  }
+  .footer-toggle.on .footer-toggle-track { background: #9147ff; }
+  .footer-toggle-knob {
+    position: absolute; top: 2px; left: 2px; width: 8px; height: 8px;
+    border-radius: 50%; background: #adadb8; transition: left 0.15s, background 0.15s;
+  }
+  .footer-toggle.on .footer-toggle-knob { left: 12px; background: #fff; }
+  .footer-toggle.on .footer-toggle-label { color: #adadb8; }
+
   /* リサイズハンドル */
   .resize-handle {
     position: absolute; bottom: 0; right: 0; width: 14px; height: 14px;
@@ -210,6 +250,7 @@ const PANEL_CSS = `
   :host(.collapsed) { height: auto; min-height: 0; }
   :host(.collapsed) .auth-bar,
   :host(.collapsed) .messages,
+  :host(.collapsed) .confirm-area,
   :host(.collapsed) .scroll-to-bottom,
   :host(.collapsed) .resize-handle { display: none; }
 
@@ -255,6 +296,16 @@ function createPanel() {
       </div>
       <div class="messages" id="messages"></div>
       <button class="scroll-to-bottom" id="scrollToBottomBtn">↓ 最新へ</button>
+      <div class="confirm-area" id="confirmArea">
+        <div class="confirm-label">この内容で送信しますか？</div>
+        <div class="confirm-orig" id="confirmOrig"></div>
+        <div class="confirm-text" id="confirmText"></div>
+        <div class="confirm-actions">
+          <button class="confirm-btn confirm-cancel" id="confirmCancelBtn">キャンセル</button>
+          <button class="confirm-btn confirm-send" id="confirmSendBtn">送信</button>
+        </div>
+        <div class="confirm-hint">Enter: 送信 / Esc: キャンセル</div>
+      </div>
       <div class="input-area" id="inputArea">
         <div class="mention-list" id="mentionList"></div>
         <input type="text" class="chat-input" id="chatInput" autocomplete="off" spellcheck="false">
@@ -262,6 +313,10 @@ function createPanel() {
       </div>
       <div class="footer" id="footer">
         <span class="footer-item">チャット入力: <span class="footer-engine" id="footerChat">-</span></span>
+        <button class="footer-toggle" id="footerConfirmToggle" title="送信前に翻訳結果を確認する">
+          <span class="footer-toggle-label">確認</span>
+          <span class="footer-toggle-track"><span class="footer-toggle-knob"></span></span>
+        </button>
       </div>
       <div class="resize-handle" id="resizeHandle"></div>
     </div>
@@ -283,12 +338,20 @@ function createPanel() {
   chatInputEl    = shadowRoot.getElementById('chatInput');
   sendBtnEl      = shadowRoot.getElementById('sendBtn');
   mentionListEl  = shadowRoot.getElementById('mentionList');
+  confirmAreaEl      = shadowRoot.getElementById('confirmArea');
+  confirmOrigEl      = shadowRoot.getElementById('confirmOrig');
+  confirmTextEl      = shadowRoot.getElementById('confirmText');
+  confirmSendBtnEl   = shadowRoot.getElementById('confirmSendBtn');
+  confirmCancelBtnEl = shadowRoot.getElementById('confirmCancelBtn');
 
   shadowRoot.getElementById('closeBtn').addEventListener('click', () => setActive(false));
   shadowRoot.getElementById('collapseBtn').addEventListener('click', toggleCollapse);
 
   // フッター：クリックで翻訳エンジンを切替
   shadowRoot.getElementById('footerChat').addEventListener('click', () => cycleFeatureEngine('own'));
+
+  // フッター：送信前確認のON/OFF
+  shadowRoot.getElementById('footerConfirmToggle').addEventListener('click', toggleSendConfirm);
 
   loginBtnEl.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'twitch_login' }));
   logoutBtnEl.addEventListener('click', handleLogout);
@@ -319,6 +382,9 @@ function createPanel() {
   });
 
   sendBtnEl.addEventListener('click', sendUserMessage);
+
+  confirmSendBtnEl.addEventListener('click', confirmPendingSend);
+  confirmCancelBtnEl.addEventListener('click', cancelPendingSend);
 
   messagesEl.addEventListener('scroll', () => {
     const atBottom = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 30;
@@ -361,6 +427,7 @@ function updateAuthUI() {
 
 function updateInputPlaceholder() {
   if (!chatInputEl) return;
+  if (pendingSend) return; // 送信確認中は入力欄の状態を維持する
   if (!isAuthenticated) {
     chatInputEl.placeholder = 'ログインするとチャット送信できます';
     chatInputEl.disabled    = true;
@@ -553,9 +620,24 @@ function cycleFeatureEngine(feature) {
 }
 
 // ===== フッター更新 =====
+function toggleSendConfirm() {
+  settings.send_confirm = !settings.send_confirm;
+  safeStorageSet({ send_confirm: settings.send_confirm });
+  if (!settings.send_confirm) cancelPendingSend();
+  updateFooter();
+}
+
 function updateFooter() {
   const chatEl = shadowRoot?.getElementById('footerChat');
   if (!chatEl) return;
+
+  const confirmEl = shadowRoot?.getElementById('footerConfirmToggle');
+  if (confirmEl) {
+    confirmEl.classList.toggle('on', settings.send_confirm !== false);
+    confirmEl.title = settings.send_confirm
+      ? '送信前に翻訳結果を確認する（クリックでOFF）'
+      : '確認なしでそのまま送信する（クリックでON）';
+  }
 
   const chatAvailable = getFeatureAvailable();
   const chatEngine = getFeatureEngine('own');

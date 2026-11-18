@@ -113,12 +113,31 @@ Click any item in the footer to cycle through the engines you've enabled in opti
 
 > An engine must have its API key set and be enabled on the options page to appear in the cycle. Disabled engines are skipped.
 
+### Confirming the translation before sending
+
+![Confirm before sending](docs/images/panel-send-confirm.png)
+
+When you send a chat message, the translation is shown as a preview first. You can check it before posting, so an unintended translation never goes to the channel.
+
+| Display / action | Description |
+|---|---|
+| **Post this message?** | Heading of the confirmation panel |
+| Upper line (gray) | The original text you typed |
+| Lower line (white, bold) | The translation — exactly what will be sent to the channel |
+| **Send** button / **Enter** | Send the displayed message |
+| **Cancel** button / **Esc** | Abort sending and return the original text to the input field |
+
+Turn this on or off with the **Check** toggle on the right of the footer, or **Confirm translation before sending** on the options page (default: ON). When OFF, messages are translated and sent immediately as before.
+
 ### Sending Chat
 
 1. Right-click the icon and set the source language.
 2. Click **Log in with Twitch** in the panel.
 3. After logging in, type in Japanese in the input field at the bottom of the panel and send.
-4. The message is translated automatically and posted to the channel.
+4. A preview of the translation appears; check it and click **Send** (when the **Check** toggle in the footer is ON).
+5. The message is translated and posted to the channel.
+
+> In the preview: **Enter** sends, **Esc** cancels and returns to the input field. Toggle this via the **Check** switch on the right of the footer or on the options page (default: ON).
 
 ---
 
@@ -138,6 +157,7 @@ Open options by right-clicking the extension icon and choosing **Options**.
 | **Default target language** | Target language used when no channel-specific setting exists |
 | **Same-language filter** | Skip messages already in the target language |
 | **Minimum length filter** | Skip messages shorter than the specified character count |
+| **Confirm translation before sending** | Preview the translated message in the panel before sending (default ON) |
 | **Panel opacity** | Panel background opacity: 30-100%, default 80%. The panel becomes opaque on hover |
 
 > The DeepL free tier allows 500,000 characters per month. The Gemini free tier allows 1,500 requests/day and 15 requests/minute. Use per-feature toggles to enable them only where needed.
@@ -209,6 +229,7 @@ The panel uses Shadow DOM to isolate it from page CSS: `attachShadow({ mode: 'op
 | Gemini model | 2.5 Flash |
 | Same-language filter | OFF |
 | Minimum length filter | OFF (4 characters) |
+| Confirm translation before sending | ON |
 | Panel opacity | 80% |
 
 ---

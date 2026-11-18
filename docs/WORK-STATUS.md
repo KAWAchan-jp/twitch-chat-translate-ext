@@ -80,6 +80,13 @@
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-11-18 Command Code**: `feature/send-confirm`（`develop` から分岐、**v0.8.2**）でチャット送信前の翻訳結果確認（ワンクッション）を追加。
+  - `content-chat.js`: `sendUserMessage()` の翻訳後に `showSendConfirm()` で確認UIへ。`confirmPendingSend()` / `cancelPendingSend()` を追加。確認中は入力欄を無効化し、`window` の capture キーダウンで Enter=送信 / Esc=キャンセル。`disconnect()` 時に確認を破棄。
+  - `content-panel.js`: 入力欄の上に `.confirm-area`（翻訳前原文・翻訳結果・送信/キャンセル）を追加。フッター右側に「確認」トグル（`footerConfirmToggle`）を追加し、`toggleSendConfirm()` で `send_confirm` を保存＆即時反映。`updateFooter()` でON/OFF状態を反映。
+  - `content.js`: `settings.send_confirm`（デフォルト `true`）、`pendingSend`、`confirmAreaEl` ほかDOM参照、`init()` の読み込みキー、`onSettingsChanged()` の反映を追加。
+  - `options.*`: 「翻訳設定」カードに「送信前に翻訳結果を確認する」トグルを追加（デフォルトON）。
+  - README 3言語・`help.html` を更新。`node --check` 全JS・manifest JSON検証は通過。**Chrome 実機の手動確認は未実施**（確認観点: ①送信→プレビュー表示、②Enter送信 / Escキャンセルで入力欄復元、③フッターの「確認」トグルとオプショントグルが双方向に同期、④OFF時は従来どおり即送信、⑤原文と翻訳が同じ場合は原文行が非表示）。
+
 - **2026-11-16 Command Code**: `fix/translate-rate-limit`（`develop` から分岐、**v0.8.1.2**）で Google 翻訳のレート制限対策。
   - 背景: Google 翻訳は非公式エンドポイント（`translate_a/single?client=gtx`）で、アクセス集中時に 429/403 が返り得る。従来は失敗時に最大3回リトライしていたため、制限中はさらに負荷をかけていた。
   - `background.js`: 429/403 を `code: 'rate_limited'` + `retryAfterMs` として返し、`translateCooldownUntil` で約60秒間はリクエスト自体を送らない。`translate` メッセージ応答に `code` / `retryAfterMs` を追加。

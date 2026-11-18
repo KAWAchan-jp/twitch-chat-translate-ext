@@ -101,6 +101,7 @@ function describeWebSocketClose(event) {
 }
 
 function disconnect() {
+  cancelPendingSend();
   if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
   wsReconnectDelay = WS_RECONNECT_MIN_DELAY_MS;
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
@@ -349,11 +350,72 @@ function scrollToBottom() {
 }
 
 // ===== チャット送信（IRC WebSocket 経由） =====
+// 送信前確認（ワンクッション）: 翻訳結果をいったん表示し、送信/キャンセルを選ばせる
+function showSendConfirm(typedText, sendText) {
+  pendingSend = { typedText, sendText };
+  if (confirmOrigEl) {
+    confirmOrigEl.textContent = typedText;
+    confirmOrigEl.style.display = sendText !== typedText ? '' : 'none';
+  }
+  if (confirmTextEl) confirmTextEl.textContent = sendText;
+  confirmAreaEl?.classList.add('visible');
+  if (chatInputEl) { chatInputEl.value = ''; chatInputEl.disabled = true; }
+  if (sendBtnEl) sendBtnEl.disabled = true;
+  confirmSendBtnEl?.focus();
+}
+
+function cancelPendingSend() {
+  if (!pendingSend) return;
+  const { typedText } = pendingSend;
+  pendingSend = null;
+  confirmAreaEl?.classList.remove('visible');
+  if (chatInputEl) {
+    chatInputEl.value = typedText;
+    chatInputEl.disabled = false;
+    chatInputEl.focus();
+  }
+  if (sendBtnEl) sendBtnEl.disabled = false;
+}
+
+function confirmPendingSend() {
+  if (!pendingSend) return;
+  const { typedText, sendText } = pendingSend;
+  pendingSend = null;
+  confirmAreaEl?.classList.remove('visible');
+
+  if (!ws || !currentChannel) {
+    addSystemMessage('接続されていないため送信できませんでした。');
+    if (chatInputEl) { chatInputEl.value = typedText; chatInputEl.disabled = false; }
+    if (sendBtnEl) sendBtnEl.disabled = false;
+    return;
+  }
+
+  ws.send(`PRIVMSG #${currentChannel} :${sendText}`);
+  addOwnMessage(sendText, sendText !== typedText ? typedText : null);
+  if (chatInputEl) { chatInputEl.disabled = false; chatInputEl.focus(); }
+  if (sendBtnEl) sendBtnEl.disabled = false;
+}
+
+// 確認中は入力欄が無効なので、パネル外にフォーカスがあっても Enter/Esc で操作できるようにする
+window.addEventListener('keydown', e => {
+  if (!pendingSend) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    cancelPendingSend();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    e.stopPropagation();
+    confirmPendingSend();
+  }
+}, true);
+
 async function sendUserMessage() {
+  if (pendingSend) { confirmPendingSend(); return; }
+
   const text = chatInputEl.value.trim();
   if (!text || !isAuthenticated || !ws) return;
 
-  chatInputEl.value    = '';
   chatInputEl.disabled = true;
   closeMentionList();
   sendBtnEl.disabled   = true;
@@ -363,6 +425,11 @@ async function sendUserMessage() {
     if (settings.src_lang !== 'auto') {
       sendText = await translateViaBackground(text, settings.tgt_lang, settings.src_lang, 'own');
     }
+    if (settings.send_confirm !== false) {
+      showSendConfirm(text, sendText);
+      return;
+    }
+    chatInputEl.value = '';
     ws.send(`PRIVMSG #${currentChannel} :${sendText}`);
     addOwnMessage(sendText, sendText !== text ? text : null);
   } catch (e) {
@@ -375,9 +442,11 @@ async function sendUserMessage() {
     }
     chatInputEl.value = text;
   } finally {
-    chatInputEl.disabled = false;
-    sendBtnEl.disabled   = false;
-    chatInputEl.focus();
+    if (!pendingSend) {
+      chatInputEl.disabled = false;
+      sendBtnEl.disabled   = false;
+      chatInputEl.focus();
+    }
   }
 }
 
