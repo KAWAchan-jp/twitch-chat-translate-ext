@@ -33,7 +33,8 @@ $files = @(
   "icons/icon48.png",
   "icons/icon128.png",
   "docs/images/panel-footer.png",
-  "docs/images/panel-header.png"
+  "docs/images/panel-header.png",
+  "docs/images/panel-send-confirm.png"
 )
 
 if (Test-Path -LiteralPath $zipPath) {

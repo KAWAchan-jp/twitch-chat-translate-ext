@@ -198,6 +198,17 @@ defaultTgtLangEl.addEventListener('change', () => {
   chrome.storage.local.set({ tgt_lang: defaultTgtLangEl.value });
 });
 
+// ===== 送信前確認（ワンクッション） =====
+const sendConfirmEl = document.getElementById('sendConfirm');
+
+chrome.storage.local.get('send_confirm', ({ send_confirm }) => {
+  sendConfirmEl.checked = send_confirm !== false; // デフォルトON
+});
+
+sendConfirmEl.addEventListener('change', () => {
+  chrome.storage.local.set({ send_confirm: sendConfirmEl.checked });
+});
+
 // ===== パネル透過率 =====
 const panelOpacityEl    = document.getElementById('panelOpacity');
 const panelOpacityValEl = document.getElementById('panelOpacityVal');
