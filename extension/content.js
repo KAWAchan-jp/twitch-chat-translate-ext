@@ -42,7 +42,7 @@ let isActive        = false;
 let isAuthenticated = false;
 let twitchToken     = '';
 let twitchUsername  = '';
-let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, deepl_enabled: false, deepl_chat: true, deepl_own: true, gemini_enabled: false, gemini_own: false, min_length_enabled: false, min_length: 4, same_lang_filter: false, ignore_bot_badge: false, ignore_known_bots: true, ignore_users: '', send_confirm: true };
+let settings = { src_lang: 'auto', tgt_lang: 'ja', show_original: true, auto_scroll: true, deepl_enabled: false, deepl_chat: true, deepl_own: true, gemini_enabled: false, gemini_own: false, gemini_api_key: '', min_length_enabled: false, min_length: 4, same_lang_filter: false, ignore_bot_badge: false, ignore_known_bots: true, ignore_users: '', send_confirm: true };
 
 // ===== Shadow DOM 内のDOM参照 =====
 let container, shadowRoot, panel, messagesEl, scrollToBottomBtnEl, statusDotEl, channelNameEl, langIndicatorEl, gameNameEl;
@@ -52,6 +52,7 @@ let chatInputEl, sendBtnEl, mentionListEl;
 let confirmAreaEl, confirmOrigEl, confirmTextEl;
 let confirmSendBtnEl, confirmCancelBtnEl;
 let pendingSend = null;  // 送信前確認待ちの内容 { sendText, typedText }
+let lastOwnEngine = null; // 直近の入力メッセージ翻訳で実際に使われたエンジン（フォールバック表示用）
 
 // ===== メンション自動補完 =====
 let chatters = new Map();   // ユーザー名(小文字)→表示名。最近発言した順（古い→新しい）
@@ -95,7 +96,7 @@ async function init() {
   const stored = await safeStorageGet([
     'src_lang', 'tgt_lang', 'show_original', 'auto_scroll',
     'twitch_token', 'twitch_username', 'channel_settings', 'min_length_enabled', 'min_length', 'same_lang_filter',
-    'deepl_enabled', 'deepl_chat', 'deepl_own', 'gemini_enabled', 'gemini_own', 'panel_opacity',
+    'deepl_enabled', 'deepl_chat', 'deepl_own', 'gemini_enabled', 'gemini_own', 'gemini_api_key', 'panel_opacity',
     'ignore_bot_badge', 'ignore_known_bots', 'ignore_users',
     'panel_collapsed', 'send_confirm',
   ]);
@@ -308,6 +309,8 @@ function onSettingsChanged(changes) {
   if (changes.deepl_own)     { settings.deepl_own     = changes.deepl_own.newValue;     updateFooter(); }
   if (changes.gemini_enabled){ settings.gemini_enabled = changes.gemini_enabled.newValue; updateFooter(); }
   if (changes.gemini_own)    { settings.gemini_own     = changes.gemini_own.newValue;     updateFooter(); }
+  if (changes.gemini_api_key){ settings.gemini_api_key = changes.gemini_api_key.newValue ?? ''; updateFooter(); }
+  if (changes.deepl_api_key) { updateFooter(); }
   if (changes.min_length_enabled) settings.min_length_enabled = changes.min_length_enabled.newValue;
   if (changes.min_length)         settings.min_length         = changes.min_length.newValue;
   if (changes.same_lang_filter)   settings.same_lang_filter   = changes.same_lang_filter.newValue;

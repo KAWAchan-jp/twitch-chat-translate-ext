@@ -19,6 +19,7 @@ const _translateWaiting = [];
 const RATE_LIMIT_FALLBACK_MS = 60000;
 let _translateCooldownUntil = 0;
 let _rateLimitNotified = false;
+let _fallbackNotified = false;
 
 // ===== 弾幕モード =====
 const DANMAKU_WINDOW_MS   = 3000;
@@ -473,15 +474,32 @@ function finishTranslateCooldown() {
   addSystemMessage('翻訳を再開しました。');
 }
 
+// 直近使われたエンジンを記録し、想定エンジンと違えばフォールバックを通知する
+function noteTranslateEngine(engine, feature) {
+  if (!engine) return;
+  if (feature === 'own') {
+    lastOwnEngine = engine;
+    const expected = getFeatureEngine('own');
+    if (engine === expected) {
+      _fallbackNotified = false;
+    } else if (!_fallbackNotified) {
+      _fallbackNotified = true;
+      addSystemMessage(`翻訳エンジンを ${expected} から ${engine} にフォールバックしました（APIキー未設定または失敗）。`);
+    }
+    updateFooter();
+  }
+}
+
 async function translateViaBackground(text, from, to, feature = 'chat') {
   for (let attempt = 0; attempt <= 2; attempt++) {
     try {
       const res = await Promise.race([
         chrome.runtime.sendMessage({ type: 'translate', text, from, to, feature }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト')), 10000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト')), 15000)),
       ]);
       if (!res?.ok) throw makeTranslateError(res);
       finishTranslateCooldown();
+      noteTranslateEngine(res.engine, feature);
       return res.result;
     } catch (e) {
       // レート制限中はリクエストを重ねても悪化するだけなので再試行しない

@@ -29,6 +29,7 @@
         <section class="card">
           <h2>Gemini 翻訳</h2>
           <p class="hint" style="margin-bottom:14px">ゲーム用語・スラングに強く、Google Translate より自然な翻訳が得られます。<br>
+          Gemini は<strong>自分が入力して送信するメッセージの翻訳にのみ</strong>使われます（受信チャットの翻訳は Google / DeepL）。<br>
           無効時は DeepL（設定済みの場合）→ Google Translate にフォールバックします。</p>
           <div class="field">
             <label class="toggle-label">
@@ -38,21 +39,9 @@
             </label>
           </div>
           <div class="field">
-            <p class="hint" style="margin-bottom:8px">Gemini を使用する機能を選択</p>
-            <label class="toggle-label toggle-label-sm">
-              <span>入力したメッセージを翻訳</span>
-              <input type="checkbox" id="geminiOwn">
-              <span class="toggle-switch toggle-switch-sm"></span>
-            </label>
-          </div>
-          <div class="field">
             <label>使用モデル</label>
-            <div class="radio-row">
-              <label><input type="radio" name="geminiModel" value="gemini-2.5-flash"> Gemini 2.5 Flash（推奨・コスパ良）</label>
-              <label><input type="radio" name="geminiModel" value="gemini-3.1-flash-lite"> Gemini 3.1 Flash Lite（最安）</label>
-              <label><input type="radio" name="geminiModel" value="gemini-3-flash"> Gemini 3 Flash（高精度）</label>
-              <label><input type="radio" name="geminiModel" value="gemini-3.5-flash"> Gemini 3.5 Flash（最高精度）</label>
-            </div>
+            <p style="margin:0 0 4px;font-size:14px;color:#e0e0e0;">Gemini 3.5 Flash-Lite（<code>gemini-3.5-flash-lite</code>）</p>
+            <p class="hint">無料枠が <strong>1日500リクエスト</strong>のモデルに固定しています。短文のチャット翻訳に十分な品質で、毎日使っても枠が尽きにくい構成です。</p>
           </div>
           <div class="field">
             <label for="geminiKey">API キー</label>
@@ -60,13 +49,7 @@
               <input type="password" id="geminiKey" placeholder="AIzaSy..." autocomplete="off" spellcheck="false">
               <button class="btn-ghost" id="toggleGeminiKey">表示</button>
             </div>
-            <p class="hint"><a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で取得（無料）。使用モデルは上のモデル選択で変更できます。</p>
-          </div>
-          <div class="field">
-            <label for="geminiPrompt">翻訳プロンプト（<code>{lang}</code> が翻訳先言語名に置き換わります）</label>
-            <textarea id="geminiPrompt" rows="4" style="width:100%;box-sizing:border-box;font-size:12px;padding:6px;border-radius:4px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;resize:vertical;font-family:monospace;" spellcheck="false"></textarea>
-            <button class="btn-ghost" id="resetGeminiPrompt" style="margin-top:4px;font-size:11px;">デフォルトに戻す</button>
-            <p class="hint" style="margin-top:6px"><code>{lang}</code> = 翻訳先言語名、<code>{text}</code> = 翻訳対象のテキスト。空欄にするとデフォルトのゲーム配信向けプロンプトが使われます。</p>
+            <p class="hint"><a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で取得（無料）。</p>
           </div>
           <div class="actions">
             <button class="btn-primary" id="saveGeminiBtn">保存</button>

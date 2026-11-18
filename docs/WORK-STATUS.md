@@ -80,6 +80,38 @@
 
 ## 申し送り（時系列・新しい順）
 
+- **2026-11-18 Command Code**: `develop` 上で **v0.8.3**。Gemini オプション整理＋フォールバック可視化＋ヘルプ画像修正。
+  - **ヘルプ画像が出ない不具合**: `extension/help.html` が `docs/images/...` を参照していたが、拡張を `extension/` から読み込むとそのパスは存在しない（リリース ZIP だけルート配置で偶然一致していた）。画像を `extension/images/` に複製し、`help.html` の参照を `images/...` に変更。`build-release.ps1` に `images/*` を追加（README 用の `docs/images/*` はそのまま ZIP に同梱され、GitHub と ZIP 内の双方で表示が壊れない）。
+  - ヘルプにパネル全体のスクリーンショット（`images/panel-overview.png`）を追加。元ファイルは `docs/images/スクリーンショット 2026-11-18 143614.png`。
+  - 注意: 画像を追加・更新するときは **`docs/images/`（README用）と `extension/images/`（ヘルプ用）の両方**を更新する必要がある。片方だけだと表示が崩れる。
+
+- **2026-11-18 Command Code**: `develop` 上で **v0.8.2.3**。フォールバックの可視化。
+  - 発端: 「Gemini のキーを保存していないのに翻訳された」→ 仕様どおり Google へフォールバックしていたが、フッターはキー有無を見ずに「Gemini」と表示していたため実態と食い違っていた。
+  - `background.js`: `translateText()` が `{ result, engine }` を返すように変更（実際に成功したエンジン名）。キャッシュにもこのオブジェクトを保存し、キャッシュヒット時もエンジン名が保たれる。`translate` メッセージ応答に `engine` を追加。
+  - `content.js`: `settings.gemini_api_key` を読み込み対象に追加。`lastOwnEngine` を追加。storage 変更で `gemini_api_key` / `deepl_api_key` もフッター再描画のトリガーに。
+  - `content-panel.js`: `getFeatureEngine()` が `gemini_api_key` の有無も判定。`updateFooter()` で想定と違うエンジンなら「Google（FB）」＋黄色（`.footer-engine.fallback`）で表示し、ツールチップに理由を出す。
+  - `content-chat.js`: `noteTranslateEngine()` を追加。フォールバック検知時に1回だけパネル通知（解消したらフラグを戻す）。
+  - 検証: `node --check` 全対象は通過。**Chrome 実機は未確認**（確認観点: ①Gemini 有効・キー未保存で送信→フッターが「Google（FB）」、②キー保存後は「Gemini」表示に戻り通知も再点火、③キャッシュヒット時も表示が正しい）。
+
+- **2026-11-18 Command Code**: `develop` 上で **v0.8.2.2**。Gemini を `gemini-3.5-flash-lite` 固定に変更（v0.8.2.1 の2択選択を撤回）。
+  - 理由: 無料枠が Flash-Lite は **1日500リクエスト**（Flash 系は 20）。短文チャット翻訳では品質差が体感しにくく、毎日使える枠を優先。
+  - `options.html`: 「使用モデル」のラジオ選択を削除し、固定モデル名の表示に変更。無料枠の説明を追記。
+  - `options.js`: `GEMINI_MODEL = 'gemini-3.5-flash-lite'` を定義し、保存時にその値を書き込む。モデル選択の読み書きロジックを削除。
+  - `background.js`: `translateWithGemini()` から `model` 引数を削除し固定値に。`TRANSLATE_SETTING_KEYS` から `gemini_model` を除外（読まなくなったため）。Hydrogen 用の出力予算 2048 / タイムアウト 30 秒を 512 / 10 秒に戻した。
+  - `content-chat.js`: 待機タイムアウトを 35 秒 → 15 秒に戻した。
+  - 無料枠の誤記修正: README/help の「1,500リクエスト/日・15リクエスト/分」→「1日500・10/分」（Flash-Lite の実値）。
+  - 注意: API キーは依然必要（無料・課金設定不要）。キーなしでは Google 翻訳のみ。
+  - 検証: `node --check`（background / options / content-chat / content-panel）は通過。**Chrome 実機は未確認**（確認観点: ①オプションにモデル選択が無く固定表示、②Gemini 有効で送信翻訳が Flash-Lite で通る、③`gemini_model` に旧値が残っていても影響しない）。
+
+- **2026-11-18 Command Code**: `develop` 上で **v0.8.2.1**。Gemini のモデルを精度重視の2択に絞り、入力メッセージ専用であることを明記。
+  - `options.html`: モデル選択を **Gemini 3.5 Flash（高精度・推奨）/ Gemini 4 Hydrogen（最高精度）** の2つに削減。Gemini が入力メッセージ翻訳専用である旨をカード冒頭とトグル説明に明記。
+  - `options.js`: 既定モデルを `gemini-3.5-flash` に変更（読み込み時・保存時の両方）。
+  - `background.js`: 既定モデルを `gemini-3.5-flash` に変更。Hydrogen は thinking トークンが `maxOutputTokens` に含まれるため 2048 に拡大、タイムアウトも 30 秒に延長（他モデルは従来どおり 512 / 10 秒）。
+  - `content-chat.js`: `translateViaBackground()` の待機タイムアウトを 10 秒 → 35 秒に延長（background 側の Hydrogen 30 秒を待てるように）。
+  - README 3言語・`help.html`・`CHANGELOG.md` を更新。Gemini の適用範囲（入力して送信するメッセージ専用、受信チャットは Google / DeepL）を明記。
+  - Gemini の入力専用制御は既存実装（`background.js` の `feature === 'own' && stored.gemini_own`）で成立済みで、コード変更なし。
+  - 検証: `node --check`（background / content / content-chat / content-panel / options）と manifest JSON 検証は通過。**Chrome 実機の動作確認は未実施**（確認観点: ①オプションのモデルが2択、②3.5 Flash で翻訳送信、③Hydrogen で時間はかかるが訳文が切れずに返る、④受信チャット翻訳が Google / DeepL のまま）。
+
 - **2026-11-18 Command Code**: `feature/send-confirm`（`develop` から分岐、**v0.8.2**）でチャット送信前の翻訳結果確認（ワンクッション）を追加。
   - `content-chat.js`: `sendUserMessage()` の翻訳後に `showSendConfirm()` で確認UIへ。`confirmPendingSend()` / `cancelPendingSend()` を追加。確認中は入力欄を無効化し、`window` の capture キーダウンで Enter=送信 / Esc=キャンセル。`disconnect()` 時に確認を破棄。
   - `content-panel.js`: 入力欄の上に `.confirm-area`（翻訳前原文・翻訳結果・送信/キャンセル）を追加。フッター右側に「確認」トグル（`footerConfirmToggle`）を追加し、`toggleSendConfirm()` で `send_confirm` を保存＆即時反映。`updateFooter()` でON/OFF状態を反映。

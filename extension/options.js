@@ -81,17 +81,14 @@ saveDeeplBtn.addEventListener('click', async () => {
 });
 
 // ===== Gemini =====
-const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム翻訳を行います。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
-
 const geminiEnabledEl    = document.getElementById('geminiEnabled');
-const geminiOwnEl        = document.getElementById('geminiOwn');
 const geminiKeyEl        = document.getElementById('geminiKey');
-const geminiPromptEl     = document.getElementById('geminiPrompt');
 const toggleGeminiBtn    = document.getElementById('toggleGeminiKey');
-const resetGeminiPromBtn = document.getElementById('resetGeminiPrompt');
 const saveGeminiBtn      = document.getElementById('saveGeminiBtn');
 const saveGeminiMsg      = document.getElementById('saveGeminiMsg');
-const geminiModelEls     = document.querySelectorAll('input[name="geminiModel"]');
+
+// Gemini は無料枠が広い Flash-Lite に固定
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 function showGeminiMsg(text, color) {
   saveGeminiMsg.textContent = text;
@@ -104,13 +101,9 @@ function showGeminiMsg(text, color) {
   }, 3000);
 }
 
-chrome.storage.local.get(['gemini_enabled', 'gemini_own', 'gemini_api_key', 'gemini_prompt', 'gemini_model'], (s) => {
+chrome.storage.local.get(['gemini_enabled', 'gemini_api_key'], (s) => {
   geminiEnabledEl.checked = !!s.gemini_enabled;
-  geminiOwnEl.checked     = !!s.gemini_own;
   if (s.gemini_api_key) geminiKeyEl.value = s.gemini_api_key;
-  geminiPromptEl.value = s.gemini_prompt ?? GEMINI_DEFAULT_PROMPT;
-  const model = s.gemini_model || 'gemini-2.5-flash';
-  geminiModelEls.forEach(el => { el.checked = el.value === model; });
 });
 
 toggleGeminiBtn.addEventListener('click', () => {
@@ -119,32 +112,16 @@ toggleGeminiBtn.addEventListener('click', () => {
   toggleGeminiBtn.textContent = isHidden ? '隠す' : '表示';
 });
 
-resetGeminiPromBtn.addEventListener('click', () => {
-  geminiPromptEl.value = GEMINI_DEFAULT_PROMPT;
-});
-
-geminiModelEls.forEach(el => {
-  el.addEventListener('change', () => {
-    if (el.checked) chrome.storage.local.set({ gemini_model: el.value });
-  });
-});
-
 geminiEnabledEl.addEventListener('change', () => {
   chrome.storage.local.set({ gemini_enabled: geminiEnabledEl.checked });
-});
-geminiOwnEl.addEventListener('change', () => {
-  chrome.storage.local.set({ gemini_own: geminiOwnEl.checked });
 });
 
 saveGeminiBtn.addEventListener('click', async () => {
   const key = geminiKeyEl.value.trim();
   if (!key) { showGeminiMsg('⚠ キーを入力してください', '#e84393'); return; }
-  const prompt = geminiPromptEl.value.trim();
-  const model = [...geminiModelEls].find(el => el.checked)?.value ?? 'gemini-2.5-flash';
   await chrome.storage.local.set({
     gemini_api_key: key, gemini_enabled: true,
-    gemini_own: geminiOwnEl.checked,
-    gemini_prompt: prompt, gemini_model: model,
+    gemini_model: GEMINI_MODEL,
   });
   geminiEnabledEl.checked = true;
   showGeminiMsg('✓ 保存しました', '#00b894');

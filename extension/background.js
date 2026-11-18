@@ -41,8 +41,7 @@ const EXCLUDED_PATHS = new Set([
 
 const TRANSLATE_SETTING_KEYS = [
   'deepl_enabled', 'deepl_api_key', 'deepl_chat', 'deepl_own',
-  'gemini_enabled', 'gemini_api_key', 'gemini_prompt',
-  'gemini_own', 'gemini_model',
+  'gemini_enabled', 'gemini_api_key', 'gemini_own',
 ];
 let translateSettingsCache = null;
 
@@ -220,7 +219,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'translate') {
     const { text, from, to, feature } = message;
     translateText(text, from, to, feature)
-      .then(result => sendResponse({ ok: true, result }))
+      .then(({ result, engine }) => sendResponse({ ok: true, result, engine }))
       .catch(err  => sendResponse({ ok: false, error: err.message, code: err.code, retryAfterMs: err.retryAfterMs }));
     return true;
   }
@@ -260,6 +259,7 @@ function rateLimitError(retryAfterMs) {
   return err;
 }
 
+// 実際に翻訳を担当したエンジン名を engine として返す（フォールバックの可視化用）
 async function translateText(text, from, to, feature = 'chat') {
   const cacheKey = `${from}:${to}:${text}`;
   if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
@@ -269,25 +269,33 @@ async function translateText(text, from, to, feature = 'chat') {
 
   const stored = await getTranslateSettings();
   let result;
+  let engine = null;
 
   // Gemini 優先（入力メッセージ）
   const useGemini = stored.gemini_enabled && stored.gemini_api_key &&
     feature === 'own' && stored.gemini_own;
   if (useGemini) {
-    try { result = await translateWithGemini(text, from, to, stored.gemini_api_key, stored.gemini_prompt || '', stored.gemini_model); } catch (e) { console.warn('[TCT] Gemini翻訳失敗、フォールバック:', e); }
+    try {
+      result = await translateWithGemini(text, from, to, stored.gemini_api_key);
+      engine = 'Gemini';
+    } catch (e) { console.warn('[TCT] Gemini翻訳失敗、フォールバック:', e); }
   }
 
   if (!result) {
     const featureFlag = feature === 'own' ? stored.deepl_own : stored.deepl_chat;
     const useDeepL = stored.deepl_enabled && stored.deepl_api_key && (featureFlag !== false);
     if (useDeepL) {
-      try { result = await translateWithDeepl(text, from, to, stored.deepl_api_key); } catch (e) { console.warn('[TCT] DeepL翻訳失敗、Googleにフォールバック:', e); }
+      try {
+        result = await translateWithDeepl(text, from, to, stored.deepl_api_key);
+        engine = 'DeepL';
+      } catch (e) { console.warn('[TCT] DeepL翻訳失敗、Googleにフォールバック:', e); }
     }
   }
 
   if (!result) {
     try {
       result = await translateWithGoogle(text, from, to);
+      engine = 'Google';
     } catch (e) {
       if (e.code === 'rate_limited') translateCooldownUntil = Date.now() + e.retryAfterMs;
       throw e;
@@ -295,8 +303,9 @@ async function translateText(text, from, to, feature = 'chat') {
   }
 
   if (translateCache.size >= CACHE_MAX) translateCache.delete(translateCache.keys().next().value);
-  translateCache.set(cacheKey, result);
-  return result;
+  const out = { result, engine };
+  translateCache.set(cacheKey, out);
+  return out;
 }
 
 // 翻訳先言語コード → Gemini プロンプト用の言語名
@@ -309,15 +318,14 @@ const GEMINI_LANG_NAMES = {
 
 const GEMINI_DEFAULT_PROMPT = `Twitchのゲーム配信のリアルタイム翻訳を行います。ゲーム用語・スラング・配信者の言い回しを保ちながら、{lang}へ自然で簡潔に翻訳してください。翻訳結果のみ出力してください：\n{text}`;
 
-async function translateWithGemini(text, from, to, apiKey, customPrompt, model) {
+async function translateWithGemini(text, from, to, apiKey) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   const targetLang = GEMINI_LANG_NAMES[to] || to;
-  const promptTemplate = customPrompt || GEMINI_DEFAULT_PROMPT;
-  const modelId = model || 'gemini-2.5-flash';
+  const modelId = 'gemini-3.5-flash-lite';
   // {text} の前をシステム指示、{text} 部分を実際のテキストとして分離
   // → Gemini が指示に返事せず翻訳結果だけを返すようになる
-  const systemInstruction = promptTemplate.replace('{lang}', targetLang).replace(/\{text\}[\s\S]*$/, '').trim();
+  const systemInstruction = GEMINI_DEFAULT_PROMPT.replace('{lang}', targetLang).replace(/\{text\}[\s\S]*$/, '').trim();
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,

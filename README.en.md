@@ -42,11 +42,10 @@
 
 ### Gemini AI Translation
 
-- **Model selection** — Choose from Gemini 2.5 Flash (recommended), 3.1 Flash Lite, 3 Flash, and 3.5 Flash.
-- **Per-feature selection** — Turn Gemini on/off for sent messages. Chat translation remains Google / DeepL because chat volume is high and Google is recommended.
-- **Prompt editing** — Freely customize the translation prompt from the options page. `{lang}` is replaced with the target language and `{text}` with the text to translate.
+- **Model** — Fixed to **Gemini 3.5 Flash-Lite**. Its free tier allows **500 requests/day**, and its quality is plenty for short chat messages, so it lasts through daily use (a free API key is required).
+- **Input messages only** — Gemini is used only to translate messages you type and send. Incoming chat translation stays on Google / DeepL because chat volume is high.
 - **Fallback** — If Gemini is disabled or fails, the extension automatically falls back in order: DeepL → Google Translate.
-- **Free tier** — 1,500 requests/day and 15 requests/minute. Get an API key from Google AI Studio.
+- **Free tier** — 500 requests/day and 10 requests/minute. Get an API key from Google AI Studio (no billing required).
 
 ---
 
@@ -67,6 +66,12 @@
 ---
 
 ## Usage
+
+### Panel overview
+
+![Panel overview](docs/images/panel-overview.png)
+
+Click the extension icon on a Twitch channel page and this panel appears in the bottom right. From top to bottom: header (channel, language, engine), message list, confirmation/input area, and footer.
 
 ### Panel Header
 
@@ -89,6 +94,7 @@ The panel footer shows the currently used translation engines in real time.
 | Display | Description |
 |---------|-------------|
 | **Chat input:** | Translation engine for messages you type and send (Google / <span style="color:#00c4a0">DeepL</span> / <span style="color:#4285f4">Gemini</span>) |
+| **Check** (toggle on the right) | Turn the pre-send translation preview on/off (default ON). Click to toggle |
 
 Changes made on the options page are reflected in the footer in real time. **Clicking the footer item cycles through the engines you've enabled** (Google→DeepL→Gemini — engines not enabled in options are skipped).
 
@@ -150,10 +156,9 @@ Open options by right-clicking the extension icon and choosing **Options**.
 | **Enable DeepL** | Use DeepL instead of Google Translate |
 | **DeepL feature selection** | Toggle DeepL separately for chat translation and sent messages |
 | **DeepL API key** | Supports both free keys ending in `:fx` and paid keys |
-| **Enable Gemini** | Enables Gemini AI. The per-feature toggle controls sent-message translation |
-| **Gemini model** | 2.5 Flash (recommended) / 3.1 Flash Lite / 3 Flash / 3.5 Flash |
-| **Gemini API key** | Get one from Google AI Studio. Free tier: 1,500 requests/day and 15 requests/minute |
-| **Gemini prompt** | Customize translation instructions. `{lang}` = target language, `{text}` = text to translate |
+| **Enable Gemini** | Enables Gemini AI. Used **only for translating messages you type and send** (never for incoming chat) |
+| **Gemini model** | Fixed to Gemini 3.5 Flash-Lite (free tier: 500 requests/day) |
+| **Gemini API key** | Get one from Google AI Studio (free, no billing required). Free tier: 500 requests/day, 10 requests/minute |
 | **Default target language** | Target language used when no channel-specific setting exists |
 | **Same-language filter** | Skip messages already in the target language |
 | **Minimum length filter** | Skip messages shorter than the specified character count |
@@ -226,7 +231,7 @@ The panel uses Shadow DOM to isolate it from page CSS: `attachShadow({ mode: 'op
 | Auto-scroll | ON |
 | Use DeepL | OFF |
 | Use Gemini | OFF |
-| Gemini model | 2.5 Flash |
+| Gemini model | Gemini 3.5 Flash-Lite |
 | Same-language filter | OFF |
 | Minimum length filter | OFF (4 characters) |
 | Confirm translation before sending | ON |

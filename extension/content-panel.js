@@ -218,6 +218,7 @@ const PANEL_CSS = `
   .footer-engine:hover { color: #efeff1; border-bottom-color: #5a5a6e; }
   .footer-engine.gemini { color: #4285f4; }
   .footer-engine.deepl  { color: #00c4a0; }
+  .footer-engine.fallback { color: #f0b429; }
 
   /* フッター：送信前確認トグル */
   .footer-toggle {
@@ -594,7 +595,7 @@ const FOOTER_FEATURES = {
 
 function getFeatureEngine(feature) {
   const f = FOOTER_FEATURES[feature];
-  if (settings.gemini_enabled && settings[f.geminiFlag]) return 'Gemini';
+  if (settings.gemini_enabled && settings[f.geminiFlag] && settings.gemini_api_key) return 'Gemini';
   if (settings.deepl_enabled  && settings[f.deeplFlag])  return 'DeepL';
   return 'Google';
 }
@@ -641,11 +642,18 @@ function updateFooter() {
 
   const chatAvailable = getFeatureAvailable();
   const chatEngine = getFeatureEngine('own');
-  chatEl.textContent = chatEngine;
-  chatEl.className = 'footer-engine' + (chatEngine === 'Gemini' ? ' gemini' : chatEngine === 'DeepL' ? ' deepl' : '');
-  chatEl.title = chatAvailable.length > 1
-    ? `クリックで切替（${chatAvailable.join(' → ')}）`
-    : 'オプションでDeepL/Geminiを有効にすると切替できます';
+  // 直近の送信翻訳で実際に使われたエンジンが想定と違う場合はフォールバックとして明示する
+  const fellBack = lastOwnEngine && lastOwnEngine !== chatEngine;
+  const shown = fellBack ? lastOwnEngine : chatEngine;
+  chatEl.textContent = fellBack ? `${shown}（FB）` : shown;
+  chatEl.className = 'footer-engine'
+    + (shown === 'Gemini' ? ' gemini' : shown === 'DeepL' ? ' deepl' : '')
+    + (fellBack ? ' fallback' : '');
+  chatEl.title = fellBack
+    ? `設定は ${chatEngine} ですが、直近の翻訳は ${lastOwnEngine} で行われました（フォールバック）`
+    : chatAvailable.length > 1
+      ? `クリックで切替（${chatAvailable.join(' → ')}）`
+      : 'オプションでDeepL/Geminiを有効にすると切替できます';
 }
 
 // ===== ドラッグ移動 =====

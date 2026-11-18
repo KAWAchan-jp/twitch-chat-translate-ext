@@ -26,8 +26,12 @@
 <body>
   <h1>Twitch Chat Translator — 使い方</h1>
 
+  <h2>パネルの全体像</h2>
+  <img src="images/panel-overview.png" alt="パネル全体">
+  <p>Twitch のチャンネルページで拡張アイコンをクリックすると、右下にパネルが表示されます。上からヘッダー（接続先・言語・エンジン）、メッセージ一覧、入力欄、フッターの順です。</p>
+
   <h2>パネルヘッダーの見方</h2>
-  <img src="docs/images/panel-header.png" alt="パネルヘッダー">
+  <img src="images/panel-header.png" alt="パネルヘッダー">
   <table>
     <tr><th>表示</th><th>説明</th></tr>
     <tr><td>● ステータスドット</td><td>チャット接続状態（緑＝接続中、黄点滅＝接続処理中、ピンク＝切断・停止）</td></tr>
@@ -38,7 +42,7 @@
   </table>
 
   <h2>パネルフッターの見方</h2>
-  <img src="docs/images/panel-footer.png" alt="パネルフッター">
+  <img src="images/panel-footer.png" alt="パネルフッター">
   <p>パネル最下部のフッターに、現在使用中の翻訳エンジンをリアルタイムで表示します。設定変更は即座に反映されます。</p>
   <table>
     <tr><th>表示</th><th>説明</th></tr>
@@ -51,11 +55,11 @@
     <tr><th>エンジン</th><th>説明</th></tr>
     <tr><td><strong>Google</strong></td><td>Google 翻訳。<strong>デフォルトのエンジン</strong>で、APIキー不要・無料で使えます（非公式のエンドポイントのため、アクセスが集中すると一時的に制限されることがあります）</td></tr>
     <tr><td><strong>DeepL</strong></td><td>より自然な訳文が得られる翻訳サービス。利用には <a href="https://www.deepl.com/ja/pro-api" target="_blank" style="color:#bf94ff">deepl.com</a> で取得した APIキーが必要です。<br><strong>無料枠：50万文字/月</strong>（無料版キーは末尾が <code>:fx</code>）</td></tr>
-    <tr><td><strong>Gemini</strong></td><td>Google の AI 翻訳（Gemini 2.0 Flash）。ゲーム用語・スラングに強く自然な訳文が得られます。<a href="https://aistudio.google.com/apikey" target="_blank" style="color:#bf94ff">Google AI Studio</a> で APIキーを取得。<br><strong>無料枠：1,500リクエスト/日・15リクエスト/分</strong>（通常の使用では十分な量）</td></tr>
+    <tr><td><strong>Gemini</strong></td><td>Google の AI 翻訳（Gemini 3.5 Flash-Lite）。ゲーム用語・スラングに強く自然な訳文が得られます。<a href="https://aistudio.google.com/apikey" target="_blank" style="color:#bf94ff">Google AI Studio</a> で APIキーを取得（無料・課金設定不要）。<br><strong>自分が入力して送信するメッセージの翻訳専用</strong>です。<br><strong>無料枠：1日500リクエスト・10リクエスト/分</strong>（毎日使っても枠が尽きにくい量）</td></tr>
   </table>
   <p>
     ヘッダーの表示（<code>EN→JA・Google</code> など）は、<strong>チャット翻訳に現在使われているエンジン</strong>を示します。<br>
-    各エンジンはオプションページで有効化し、「チャット翻訳・送信メッセージ」のどの機能に使うかを個別に選べます。
+    各エンジンはオプションページで有効化し、「チャット翻訳・送信メッセージ」のどの機能に使うかを個別に選べます。Gemini は入力メッセージ専用で、受信チャットの翻訳には使われません。
   </p>
   <p><strong>優先順位：</strong> Gemini → DeepL → Google（上位が有効なら下位は使われません。エラー時は自動フォールバック）</p>
   <div class="tip">
@@ -68,15 +72,7 @@
   </div>
   <div class="tip">
     DeepL・Gemini のどちらも、エラーや枠切れの場合は自動的に Google 翻訳にフォールバックします。
-  </div>
-
-  <h2>🤖 Gemini 翻訳プロンプト</h2>
-  <p>
-    オプションページの Gemini セクションで翻訳プロンプトを自由に編集できます。
-    <code>{lang}</code> が翻訳先言語名、<code>{text}</code> が翻訳対象のテキストに置き換わります。
-  </p>
-  <div class="tip">
-    デフォルトプロンプトはゲーム配信向けに最適化されています。「デフォルトに戻す」ボタンでいつでもリセットできます。
+    フォールバックが起きると、フッターのエンジン表示が「Google（FB）」のように<strong>黄色</strong>になり、マウスを乗せると理由を確認できます。パネルにも通知が1回表示されます。
   </div>
 
   <h2>チャット翻訳</h2>
